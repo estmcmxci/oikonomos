@@ -1,0 +1,12 @@
+name = "oikonomos-strategy-agent"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+[vars]
+CHAIN_ID = "11155111"
+POOL_MANAGER = "0xE03A1074c86CFeDd5C142C4F04F1a1536e203543"
+QUOTER = "0x61b3f2011a92d183c7dbadbda940a7555ccf9227"
+
+# Secrets (set via wrangler secret put)
+# PRIVATE_KEY - Agent executor private key
+# RPC_URL - Sepolia RPC URL

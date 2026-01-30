@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@oikonomos/shared": "workspace:*",
+    "hono": "^4.0.0",
     "ponder": "^0.16.0"
   },
   "devDependencies": {

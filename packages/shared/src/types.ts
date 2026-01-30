@@ -32,4 +32,13 @@ export interface Intent {
   maxSlippage: bigint;
   deadline: bigint;
   strategyId: `0x${string}`;
+  nonce: bigint;
+}
+
+export interface PoolKey {
+  currency0: `0x${string}`;
+  currency1: `0x${string}`;
+  fee: number;
+  tickSpacing: number;
+  hooks: `0x${string}`;
 }

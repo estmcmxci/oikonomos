@@ -1,0 +1,16 @@
+name = "oikonomos-treasury-agent"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+[vars]
+CHAIN_ID = "11155111"
+INTENT_ROUTER = ""
+STRATEGY_AGENT_URL = "https://oikonomos-strategy-agent.workers.dev"
+
+# Secrets (set via wrangler secret put)
+# PRIVATE_KEY - Agent executor private key
+# RPC_URL - Sepolia RPC URL
+
+# Cron triggers for scheduled drift checks
+# [triggers]
+# crons = ["0 * * * *"]  # Every hour

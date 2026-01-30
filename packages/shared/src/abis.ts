@@ -48,6 +48,24 @@ export const IdentityRegistryABI = [
     outputs: [],
     stateMutability: 'nonpayable',
   },
+  {
+    type: 'event',
+    name: 'AgentRegistered',
+    inputs: [
+      { name: 'agentId', type: 'uint256', indexed: true },
+      { name: 'owner', type: 'address', indexed: true },
+      { name: 'agentURI', type: 'string', indexed: false },
+    ],
+  },
+  {
+    type: 'event',
+    name: 'AgentWalletUpdated',
+    inputs: [
+      { name: 'agentId', type: 'uint256', indexed: true },
+      { name: 'oldWallet', type: 'address', indexed: false },
+      { name: 'newWallet', type: 'address', indexed: false },
+    ],
+  },
 ] as const;
 
 export const IntentRouterABI = [
@@ -66,12 +84,38 @@ export const IntentRouterABI = [
           { name: 'maxSlippage', type: 'uint256' },
           { name: 'deadline', type: 'uint256' },
           { name: 'strategyId', type: 'bytes32' },
+          { name: 'nonce', type: 'uint256' },
         ],
       },
       { name: 'signature', type: 'bytes' },
+      {
+        name: 'poolKey',
+        type: 'tuple',
+        components: [
+          { name: 'currency0', type: 'address' },
+          { name: 'currency1', type: 'address' },
+          { name: 'fee', type: 'uint24' },
+          { name: 'tickSpacing', type: 'int24' },
+          { name: 'hooks', type: 'address' },
+        ],
+      },
       { name: 'strategyData', type: 'bytes' },
     ],
-    outputs: [],
+    outputs: [{ name: 'amountOut', type: 'int256' }],
     stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    name: 'getNonce',
+    inputs: [{ name: 'user', type: 'address' }],
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    name: 'DOMAIN_SEPARATOR',
+    inputs: [],
+    outputs: [{ name: '', type: 'bytes32' }],
+    stateMutability: 'view',
   },
 ] as const;

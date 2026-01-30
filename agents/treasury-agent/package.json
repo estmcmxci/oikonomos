@@ -1,0 +1,19 @@
+{
+  "name": "oikonomos-treasury-agent",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240815.0",
+    "typescript": "^5.4.0",
+    "wrangler": "^3.72.0"
+  },
+  "dependencies": {
+    "viem": "^2.21.0"
+  }
+}
