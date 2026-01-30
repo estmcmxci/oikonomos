@@ -1,0 +1,115 @@
+%%{init: {'theme': 'dark', 'flowchart': {'nodeSpacing': 30, 'rankSpacing': 40}}}%%
+
+flowchart TB
+    subgraph HEADER["📜 DUAL POLICY ENFORCEMENT MODES"]
+        direction LR
+        H1["Choose based on:<br/>• Custody model<br/>• Governance requirements<br/>• User persona"]
+    end
+
+    subgraph MODE_A["🅰️ MODE A: INTENT-FIRST"]
+        direction TB
+
+        subgraph A_USER["User Type"]
+            A_U1["EOA / Power User"]
+            A_U2["Non-Safe Vault"]
+        end
+
+        subgraph A_AUTH["Authorization"]
+            A_SIGN["User signs EIP-712 Intent"]
+            A_CONSTRAINTS["Embedded Constraints:<br/>• slippage cap<br/>• max price impact<br/>• deadline<br/>• allowed tokens/pools"]
+        end
+
+        subgraph A_FLOW["Execution Flow"]
+            A_STEP1["1. User signs intent"]
+            A_STEP2["2. IntentRouter.validateIntent()"]
+            A_STEP3["3. PoolManager.swap()"]
+            A_STEP4["4. ReceiptHook.afterSwap()"]
+
+            A_STEP1 --> A_STEP2
+            A_STEP2 --> A_STEP3
+            A_STEP3 --> A_STEP4
+        end
+
+        A_USER --> A_AUTH
+        A_AUTH --> A_FLOW
+    end
+
+    subgraph MODE_B["🅱️ MODE B: SAFE + ROLES"]
+        direction TB
+
+        subgraph B_USER["User Type"]
+            B_U1["DAO Treasury"]
+            B_U2["Institutional / Multi-sig"]
+        end
+
+        subgraph B_AUTH["Authorization"]
+            B_VOTE["DAO votes policy"]
+            B_COMPILE["Policy Compiler<br/><i>Template → Roles Config</i>"]
+            B_PERMS["Role Permissions:<br/>• target: UniversalRouter<br/>• selectors: swap functions<br/>• token allowlists<br/>• spend limits/day"]
+        end
+
+        subgraph B_FLOW["Execution Flow (3-Step Chain)"]
+            B_STEP1["1. AgentExecutor calls"]
+            B_STEP2["2. RolesModifier.execTransactionWithRole()<br/><i>Checks permissions against config</i>"]
+            B_STEP3["3. Safe.execTransactionFromModule()<br/><i>Only if Roles approves</i>"]
+            B_STEP4["4. PoolManager.swap()"]
+            B_STEP5["5. ReceiptHook.afterSwap()"]
+
+            B_STEP1 --> B_STEP2
+            B_STEP2 -->|"✅ permitted"| B_STEP3
+            B_STEP2 -->|"❌ denied"| B_REVERT["Revert: PermissionDenied"]
+            B_STEP3 --> B_STEP4
+            B_STEP4 --> B_STEP5
+        end
+
+        B_USER --> B_AUTH
+        B_AUTH --> B_FLOW
+    end
+
+    subgraph COMPARISON["⚖️ KEY DIFFERENCES"]
+        direction TB
+
+        subgraph C1["Trust Model"]
+            T_A["Intent-First:<br/><b>User controls via signatures</b><br/>Each intent explicitly authorized"]
+            T_B["Safe+Roles:<br/><b>Governance controls via permissions</b><br/>Agent operates within bounds"]
+        end
+
+        subgraph C2["Enforcement Point"]
+            EP_A["Intent-First:<br/>IntentRouter validates<br/>at execution time"]
+            EP_B["Safe+Roles:<br/>RolesModifier validates<br/>BEFORE Safe executes"]
+        end
+
+        subgraph C3["Blast Radius"]
+            BR_A["Intent-First:<br/>Compromised executor can only<br/>do what signed intents allow"]
+            BR_B["Safe+Roles:<br/>Compromised executor bounded by<br/>Roles config (revoke to recover)"]
+        end
+    end
+
+    subgraph SHARED["✅ SHARED: RECEIPT HOOK"]
+        RECEIPT["Both modes emit via ReceiptHook.afterSwap():<br/><br/><b>ExecutionReceipt</b> {<br/>  strategyId: bytes32<br/>  quoteId: bytes32<br/>  amount0: int128<br/>  amount1: int128<br/>  actualSlippage: uint256<br/>  policyCompliant: bool<br/>  timestamp: uint256<br/>}<br/><br/>+ Safe tx hash for Mode B"]
+    end
+
+    subgraph CONTRACTS["📋 SEPOLIA ADDRESSES"]
+        ADDRS["Safe Singleton: 0x41675C099F32341bf84BFc5382aF534df5C7461a<br/>Roles Modifier: 0x9646fDAD06d3e24444381f44362a3B0eB343D337<br/>PoolManager: 0xE03A1074c86CFeDd5C142C4F04F1a1536e203543<br/>USDC: 0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238"]
+    end
+
+    MODE_A --> SHARED
+    MODE_B --> SHARED
+    SHARED --> CONTRACTS
+
+    %% Styling
+    classDef headerStyle fill:#1e293b,stroke:#475569,color:#fff
+    classDef modeA fill:#3b82f6,stroke:#2563eb,color:#fff
+    classDef modeB fill:#f59e0b,stroke:#d97706,color:#fff
+    classDef compare fill:#8b5cf6,stroke:#7c3aed,color:#fff
+    classDef shared fill:#10b981,stroke:#059669,color:#fff
+    classDef revert fill:#ef4444,stroke:#dc2626,color:#fff
+    classDef addrs fill:#374151,stroke:#4b5563,color:#9ca3af
+
+    class H1 headerStyle
+    class A_U1,A_U2,A_SIGN,A_CONSTRAINTS,A_STEP1,A_STEP2,A_STEP3,A_STEP4 modeA
+    class B_U1,B_U2,B_VOTE,B_COMPILE,B_PERMS,B_STEP1,B_STEP2,B_STEP3,B_STEP4,B_STEP5 modeB
+    class B_REVERT revert
+    class T_A,T_B,EP_A,EP_B,BR_A,BR_B compare
+    class RECEIPT shared
+    class ADDRS addrs

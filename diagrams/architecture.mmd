@@ -1,0 +1,141 @@
+%%{init: {'theme': 'dark', 'flowchart': {'nodeSpacing': 30, 'rankSpacing': 50, 'curve': 'basis'}}}%%
+
+flowchart TB
+    %% ===== USER LAYER =====
+    subgraph U["👤 USERS"]
+        U1["EOA / Power User"]
+        U2["DAO Treasury"]
+        U3["Wallet / dApp"]
+    end
+
+    %% ===== ENS + IDENTITY =====
+    subgraph D["🌐 DISCOVERY & IDENTITY"]
+        ENS["ENS Name<br/><i>treasury.brand.eth</i>"]
+        RECORDS["Agent Records<br/><small>type • version • entrypoint<br/>mode • safe • rolesModifier</small>"]
+
+        subgraph ERC8004["ERC-8004 Layer"]
+            ID_REG["Identity Registry<br/><small>agentId • agentURI</small>"]
+            REP_REG["Reputation Registry<br/><small>feedback • scores</small>"]
+            VAL_REG["Validation Registry<br/><small>attestations</small>"]
+        end
+
+        ENS --> RECORDS
+        RECORDS -.-> ID_REG
+        ID_REG -.-> REP_REG
+        ID_REG -.-> VAL_REG
+    end
+
+    %% ===== POLICY LAYER =====
+    subgraph P["📜 POLICY ENFORCEMENT"]
+        subgraph P1["Mode A: Intent-First"]
+            INTENT["EIP-712 Intent<br/><small>slippage • deadline • tokens</small>"]
+            INTENT_VAL["IntentRouter validates"]
+        end
+        subgraph P2["Mode B: Safe+Roles"]
+            EXECUTOR["AgentExecutor"]
+            ROLES["Roles Modifier<br/><small>execTransactionWithRole()</small>"]
+            SAFE["Gnosis Safe<br/><small>execTransactionFromModule()</small>"]
+
+            EXECUTOR -->|"1. submit"| ROLES
+            ROLES -->|"2. if permitted"| SAFE
+        end
+    end
+
+    %% ===== UNISWAP V4 =====
+    subgraph V4["🦄 UNISWAP V4 (Sepolia)"]
+        PM["PoolManager<br/><small>0xE03A...3543</small>"]
+        HOOK["Receipt Hook<br/><small>afterSwap()</small>"]
+
+        PM --> HOOK
+    end
+
+    %% ===== RECEIPTS =====
+    subgraph R["📝 RECEIPT SYSTEM"]
+        RECEIPT_EVENT["ExecutionReceipt Event<br/><small>strategyId • quoteId<br/>amount0 • amount1<br/>actualSlippage • policyCompliant</small>"]
+        INDEX["Indexer / Dashboard"]
+
+        HOOK -->|"emit"| RECEIPT_EVENT
+        RECEIPT_EVENT --> INDEX
+        RECEIPT_EVENT -.->|"feed"| REP_REG
+    end
+
+    %% ===== STRATEGY LAYER =====
+    subgraph S["🎯 STRATEGY MARKETPLACE"]
+        STRAT_MOD["Strategy Modules<br/><small>routing • rebalance • lp</small>"]
+        QUOTE["Quote Generation<br/><small>quoteId for attribution</small>"]
+        SCORE["On-chain Scoring<br/><small>avgSlippage • complianceRate</small>"]
+
+        STRAT_MOD --> QUOTE
+        RECEIPT_EVENT -.-> SCORE
+    end
+
+    %% ===== AGENT SERVICES (Cloudflare Workers) =====
+    subgraph AGENTS["☁️ AGENT SERVICES (Cloudflare Workers)"]
+        subgraph A2A_MCP["Protocol Stack"]
+            A2A["A2A Protocol<br/><small>agent-to-agent</small>"]
+            MCP["MCP Protocol<br/><small>AI tool exposure</small>"]
+            X402["x402 Payments<br/><small>Base Sepolia USDC</small>"]
+        end
+
+        TREAS_AGENT["treasury-agent<br/><small>policy • rebalance</small>"]
+        ROUTER_AGENT["router-agent<br/><small>execute • receipt</small>"]
+        STRAT_AGENT["strategy-agent<br/><small>quotes • MEV planning</small>"]
+
+        TREAS_AGENT <--> A2A
+        ROUTER_AGENT <--> A2A
+        STRAT_AGENT <--> A2A
+        STRAT_AGENT <-.-> X402
+    end
+
+    %% ===== FRONTEND =====
+    subgraph FE["📱 FRONTEND"]
+        UI["Dashboard UI"]
+        LB["Strategy Leaderboard"]
+    end
+
+    %% ===== CONNECTIONS =====
+
+    %% User flows
+    U1 -->|"sign intent"| INTENT
+    U2 -->|"configure"| EXECUTOR
+    U3 -->|"resolve"| ENS
+
+    %% Mode A flow
+    INTENT --> INTENT_VAL
+    INTENT_VAL -->|"execute"| PM
+
+    %% Mode B flow
+    SAFE -->|"3. execute"| PM
+
+    %% Strategy integration
+    STRAT_MOD -->|"hookData"| PM
+    QUOTE -->|"quoteId"| HOOK
+
+    %% Agent service connections
+    TREAS_AGENT --> EXECUTOR
+    ROUTER_AGENT --> INTENT_VAL
+    STRAT_AGENT --> STRAT_MOD
+
+    %% Frontend connections
+    UI --> ENS
+    UI --> INDEX
+    SCORE --> LB
+
+    %% ===== STYLES =====
+    classDef user fill:#7c3aed,stroke:#5b21b6,color:#fff
+    classDef disc fill:#3b82f6,stroke:#2563eb,color:#fff
+    classDef policy fill:#f59e0b,stroke:#d97706,color:#fff
+    classDef v4 fill:#ff007a,stroke:#cc0062,color:#fff
+    classDef receipt fill:#06b6d4,stroke:#0891b2,color:#fff
+    classDef strat fill:#ec4899,stroke:#db2777,color:#fff
+    classDef agent fill:#6366f1,stroke:#4f46e5,color:#fff
+    classDef fe fill:#10b981,stroke:#059669,color:#fff
+
+    class U1,U2,U3 user
+    class ENS,RECORDS,ID_REG,REP_REG,VAL_REG disc
+    class INTENT,INTENT_VAL,EXECUTOR,ROLES,SAFE policy
+    class PM,HOOK v4
+    class RECEIPT_EVENT,INDEX receipt
+    class STRAT_MOD,QUOTE,SCORE strat
+    class A2A,MCP,X402,TREAS_AGENT,ROUTER_AGENT,STRAT_AGENT agent
+    class UI,LB fe
