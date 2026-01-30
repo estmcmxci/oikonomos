@@ -5,6 +5,8 @@ import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {HookDataLib} from "../libraries/HookDataLib.sol";
@@ -12,7 +14,16 @@ import {HookDataLib} from "../libraries/HookDataLib.sol";
 /// @title IntentRouter
 /// @notice Mode A intent-first execution router for Oikonomos
 /// @dev Validates EIP-712 signed intents and executes swaps via Uniswap v4
-contract IntentRouter is EIP712 {
+///
+/// MVP LIMITATIONS:
+/// - This is a validation-only implementation that verifies intent signatures
+/// - Actual swap execution via PoolManager is not yet implemented
+/// - Tokens are NOT transferred in this MVP version to prevent fund lockup
+/// - Full v4 integration requires UniversalRouter or custom unlock callback
+/// - Slippage enforcement happens in ReceiptHook after actual swap execution
+///
+/// @custom:security-contact security@oikonomos.eth
+contract IntentRouter is EIP712, Ownable, Pausable {
     using ECDSA for bytes32;
     using SafeERC20 for IERC20;
 
@@ -37,12 +48,10 @@ contract IntentRouter is EIP712 {
     );
 
     /// @notice User nonces for replay protection
+    /// @dev Nonces provide sufficient replay protection; no separate hash tracking needed
     mapping(address => uint256) public nonces;
 
-    /// @notice Track executed intents to prevent double execution
-    mapping(bytes32 => bool) public executedIntents;
-
-    /// @notice Emitted when an intent is executed
+    /// @notice Emitted when an intent is validated and executed
     event IntentExecuted(
         bytes32 indexed intentHash,
         address indexed user,
@@ -57,49 +66,51 @@ contract IntentRouter is EIP712 {
     /// @notice Error thrown when intent has expired
     error IntentExpired();
 
-    /// @notice Error thrown when intent was already executed
-    error IntentAlreadyExecuted();
-
     /// @notice Error thrown when nonce is invalid
     error InvalidNonce();
 
-    constructor(address _poolManager) EIP712("OikonomosIntentRouter", "1") {
+    /// @notice Error thrown when trying to rescue zero address token
+    error InvalidToken();
+
+    constructor(address _poolManager) EIP712("OikonomosIntentRouter", "1") Ownable(msg.sender) {
         poolManager = IPoolManager(_poolManager);
     }
 
     /// @notice Execute a signed intent
     /// @param intent The intent to execute
     /// @param signature The EIP-712 signature from the user
-    /// @param poolKey The Uniswap v4 pool key
+    /// @param poolKey The Uniswap v4 pool key (unused in MVP)
     /// @param strategyData Additional strategy-specific data
-    /// @return amountOut The amount of tokens received (placeholder for now)
+    /// @return amountOut The amount of tokens received (0 in MVP - actual swap not implemented)
+    ///
+    /// @dev MVP LIMITATIONS:
+    /// - Validates signature and intent parameters only
+    /// - Does NOT transfer tokens (prevents fund lockup until swap is implemented)
+    /// - Does NOT execute actual swap via PoolManager
+    /// - Emits IntentExecuted event for off-chain tracking
+    /// - Full implementation requires UniversalRouter or PoolManager.unlock() callback
     function executeIntent(
         Intent calldata intent,
         bytes calldata signature,
         PoolKey calldata poolKey,
         bytes calldata strategyData
-    ) external returns (int256 amountOut) {
+    ) external whenNotPaused returns (int256 amountOut) {
         // 1. Compute intent hash
         bytes32 intentHash = _hashIntent(intent);
 
-        // 2. Validate intent
-        if (executedIntents[intentHash]) revert IntentAlreadyExecuted();
+        // 2. Validate intent timing and nonce
         if (block.timestamp > intent.deadline) revert IntentExpired();
         if (intent.nonce != nonces[intent.user]) revert InvalidNonce();
 
-        // 3. Verify signature
+        // 3. Verify signature BEFORE incrementing nonce
         bytes32 digest = _hashTypedDataV4(intentHash);
         address signer = digest.recover(signature);
         if (signer != intent.user) revert InvalidSignature();
 
-        // 4. Mark as executed and increment nonce
-        executedIntents[intentHash] = true;
+        // 4. Increment nonce AFTER successful validation (replay protection)
         nonces[intent.user]++;
 
-        // 5. Transfer tokens from user to this contract
-        IERC20(intent.tokenIn).safeTransferFrom(intent.user, address(this), intent.amountIn);
-
-        // 6. Build hookData for ReceiptHook
+        // 5. Build hookData for ReceiptHook (prepared for future swap execution)
         bytes32 quoteId = keccak256(strategyData);
         bytes memory hookData = HookDataLib.encode(
             intent.strategyId,
@@ -107,18 +118,21 @@ contract IntentRouter is EIP712 {
             intent.maxSlippage
         );
 
-        // 7. Execute swap via PoolManager
-        // Note: In production, this would integrate with UniversalRouter or custom unlock callback
-        // For MVP, we emit the event and return placeholder
-        // The actual swap execution depends on v4 integration pattern
+        // 6. MVP: Emit event for off-chain tracking
+        // NOTE: In production, this is where we would:
+        // - Transfer tokens from user: IERC20(intent.tokenIn).safeTransferFrom(...)
+        // - Execute swap via PoolManager.unlock() with custom callback
+        // - Verify output meets slippage requirements
+        // - Transfer output tokens to user
+        // Slippage enforcement happens in ReceiptHook.afterSwap()
 
-        // Silence unused variable warnings
+        // Silence unused variable warnings (will be used in production)
         poolKey;
         hookData;
 
         emit IntentExecuted(intentHash, intent.user, intent.strategyId, intent.amountIn, 0);
 
-        return 0; // Placeholder - actual amount would come from swap
+        return 0; // MVP placeholder - actual amount would come from swap
     }
 
     /// @notice Hash an intent for signing
@@ -156,5 +170,29 @@ contract IntentRouter is EIP712 {
     /// @return The domain separator
     function DOMAIN_SEPARATOR() external view returns (bytes32) {
         return _domainSeparatorV4();
+    }
+
+    // ============ Admin Functions ============
+
+    /// @notice Pause the contract in case of emergency
+    /// @dev Only callable by owner
+    function pause() external onlyOwner {
+        _pause();
+    }
+
+    /// @notice Unpause the contract
+    /// @dev Only callable by owner
+    function unpause() external onlyOwner {
+        _unpause();
+    }
+
+    /// @notice Rescue tokens accidentally sent to this contract
+    /// @param token The token address to rescue
+    /// @param to The address to send rescued tokens to
+    /// @param amount The amount to rescue
+    /// @dev Only callable by owner. Safety mechanism for accidentally stuck tokens.
+    function rescueTokens(address token, address to, uint256 amount) external onlyOwner {
+        if (token == address(0)) revert InvalidToken();
+        IERC20(token).safeTransfer(to, amount);
     }
 }
