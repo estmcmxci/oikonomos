@@ -118,4 +118,15 @@ export const IntentRouterABI = [
     outputs: [{ name: '', type: 'bytes32' }],
     stateMutability: 'view',
   },
+  {
+    type: 'event',
+    name: 'IntentExecuted',
+    inputs: [
+      { name: 'intentHash', type: 'bytes32', indexed: true },
+      { name: 'user', type: 'address', indexed: true },
+      { name: 'strategyId', type: 'bytes32', indexed: true },
+      { name: 'amountIn', type: 'uint256', indexed: false },
+      { name: 'amountOut', type: 'uint256', indexed: false },
+    ],
+  },
 ] as const;
