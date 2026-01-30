@@ -1,7 +1,12 @@
 export const CHAIN_ID = 11155111; // Sepolia
 
 export const ADDRESSES = {
-  // Uniswap v4
+  // ============ Oikonomos Contracts (Sepolia) ============
+  RECEIPT_HOOK: '0x028E4abd1C581eC7231d1d17e13b4dfAF9913F2B' as `0x${string}`,
+  IDENTITY_REGISTRY: '0x462c09195E468823845C60C12Ec9eB72d16C7584' as `0x${string}`,
+  INTENT_ROUTER: '0x3C75bA40780C1d25098eF6f90a8221638F3dCd86' as `0x${string}`,
+
+  // ============ Uniswap v4 ============
   POOL_MANAGER: '0xE03A1074c86CFeDd5C142C4F04F1a1536e203543',
   UNIVERSAL_ROUTER: '0x3A9D48AB9751398BbFa63ad67599Bb04e4BdF98b',
   POSITION_MANAGER: '0x429ba70129df741B2Ca2a85BC3A2a3328e5c09b4',
