@@ -1,0 +1,204 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ═══════════════════════════════════════════════════════════════════
+   OIKONOMOS DESIGN SYSTEM — Arkham-Inspired Dark Theme
+   ═══════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* Background Layers (darkest to lightest) */
+  --color-bg-base: #06060a;
+  --color-bg-raised: #0c0c12;
+  --color-bg-elevated: #12121a;
+  --color-bg-overlay: #1a1a24;
+
+  /* Borders */
+  --color-border-subtle: #1a1a24;
+  --color-border-default: #252530;
+  --color-border-strong: #353545;
+
+  /* Text Hierarchy */
+  --color-text-primary: #fafafa;
+  --color-text-secondary: #a1a1aa;
+  --color-text-tertiary: #71717a;
+  --color-text-muted: #52525b;
+
+  /* Brand Colors - Blue accent (similar to ENS) */
+  --color-brand-blue: #5298ff;
+  --color-brand-purple: #a099ff;
+  --color-brand-gradient-start: #5298ff;
+  --color-brand-gradient-end: #a099ff;
+
+  /* Semantic: Success/Positive */
+  --color-success: #22c55e;
+  --color-success-muted: #166534;
+
+  /* Semantic: Warning */
+  --color-warning: #f59e0b;
+  --color-warning-muted: #92400e;
+
+  /* Semantic: Danger/Negative */
+  --color-danger: #ef4444;
+  --color-danger-muted: #991b1b;
+
+  /* Semantic: Info */
+  --color-info: #3b82f6;
+  --color-info-muted: #1e40af;
+
+  /* Interactive */
+  --color-interactive: #5298ff;
+  --color-interactive-hover: #6ba5ff;
+  --color-interactive-active: #4080dd;
+
+  /* Border Radius */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+
+  /* Transitions */
+  --transition-fast: 0.1s ease;
+  --transition-default: 0.15s ease;
+  --transition-slow: 0.3s ease;
+}
+
+body {
+  background: var(--color-bg-base);
+  color: var(--color-text-secondary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Typography Utilities
+   ═══════════════════════════════════════════════════════════════════ */
+
+.text-primary {
+  color: var(--color-text-primary);
+}
+
+.text-secondary {
+  color: var(--color-text-secondary);
+}
+
+.text-tertiary {
+  color: var(--color-text-tertiary);
+}
+
+.text-muted {
+  color: var(--color-text-muted);
+}
+
+/* Brand gradient text */
+.text-brand-gradient {
+  background: linear-gradient(135deg, var(--color-brand-gradient-start), var(--color-brand-gradient-end));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Uppercase labels */
+.label {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-text-tertiary);
+}
+
+/* Data/numeric typography */
+.data-value {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Custom Scrollbar
+   ═══════════════════════════════════════════════════════════════════ */
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-bg-raised);
+  border-radius: var(--radius-md);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border-default);
+  border-radius: var(--radius-md);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-border-strong);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Semantic Color Utilities
+   ═══════════════════════════════════════════════════════════════════ */
+
+.text-positive {
+  color: var(--color-success);
+}
+
+.text-negative {
+  color: var(--color-danger);
+}
+
+.text-warning {
+  color: var(--color-warning);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Loading States
+   ═══════════════════════════════════════════════════════════════════ */
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--color-bg-overlay) 0%,
+    var(--color-bg-elevated) 50%,
+    var(--color-bg-overlay) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-pulse 1.5s ease-in-out infinite;
+  border-radius: var(--radius-md);
+}
+
+@keyframes skeleton-pulse {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Interactive States
+   ═══════════════════════════════════════════════════════════════════ */
+
+.interactive {
+  transition: background var(--transition-fast),
+              border-color var(--transition-fast);
+}
+
+.interactive:hover {
+  background: var(--color-bg-elevated);
+  border-color: var(--color-border-default);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Reduced Motion
+   ═══════════════════════════════════════════════════════════════════ */
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+    background: var(--color-bg-overlay);
+  }
+
+  * {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
