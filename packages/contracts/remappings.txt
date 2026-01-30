@@ -1,0 +1,6 @@
+@uniswap/v4-core/=lib/v4-core/
+@uniswap/v4-periphery/=lib/v4-periphery/
+@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/
+@safe-global/=lib/safe-smart-account/contracts/
+@gnosis.pm/zodiac/=lib/zodiac/contracts/
+forge-std/=lib/forge-std/src/

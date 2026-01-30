@@ -1,0 +1,17 @@
+{
+  "name": "@oikonomos/indexer",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "ponder dev",
+    "start": "ponder start",
+    "codegen": "ponder codegen"
+  },
+  "dependencies": {
+    "@oikonomos/shared": "workspace:*",
+    "ponder": "^0.16.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0"
+  }
+}
