@@ -3,6 +3,25 @@ import { IdentityRegistryABI } from '@oikonomos/shared';
 
 export { IdentityRegistryABI };
 
+export class WalletError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'WalletError';
+  }
+}
+
+/**
+ * Get the first account from a wallet client, with validation
+ * @throws WalletError if no accounts are available
+ */
+async function getAccount(walletClient: WalletClient): Promise<Address> {
+  const accounts = await walletClient.getAddresses();
+  if (!accounts.length) {
+    throw new WalletError('No accounts available in wallet client');
+  }
+  return accounts[0];
+}
+
 export const IdentityRegistryExtendedABI = [
   ...IdentityRegistryABI,
   {
@@ -53,7 +72,7 @@ export async function registerAgent(
   agentURI: string,
   metadata: `0x${string}` = '0x'
 ): Promise<`0x${string}`> {
-  const [account] = await walletClient.getAddresses();
+  const account = await getAccount(walletClient);
   const hash = await walletClient.writeContract({
     account,
     chain: walletClient.chain,
@@ -88,7 +107,7 @@ export async function updateAgentWallet(
   newWallet: Address,
   signature: `0x${string}`
 ): Promise<`0x${string}`> {
-  const [account] = await walletClient.getAddresses();
+  const account = await getAccount(walletClient);
   const hash = await walletClient.writeContract({
     account,
     chain: walletClient.chain,
