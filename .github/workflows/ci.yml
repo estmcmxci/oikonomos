@@ -24,6 +24,9 @@ jobs:
         with:
           version: nightly
 
+      - name: Install Foundry dependencies
+        run: forge install
+
       - name: Run Forge build
         run: forge build --sizes
 
