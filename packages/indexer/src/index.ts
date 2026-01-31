@@ -32,6 +32,11 @@ import { executionReceipt, strategyMetrics, agent } from 'ponder:schema';
  * See: packages/sdk/src/services/reputationService.ts
  */
 
+// Helper: Calculate absolute value for BigInt (OIK-8 code review fix)
+function absBigInt(n: bigint): bigint {
+  return n >= 0n ? n : -n;
+}
+
 // ReceiptHook handlers
 ponder.on('ReceiptHook:ExecutionReceipt', async ({ event, context }) => {
   const receiptId = `${event.transaction.hash}-${event.log.logIndex}`;
@@ -53,7 +58,13 @@ ponder.on('ReceiptHook:ExecutionReceipt', async ({ event, context }) => {
 
   // Update strategy metrics using upsert pattern
   const strategyIdKey = event.args.strategyId;
-  const volume = event.args.amount0 > 0n ? event.args.amount0 : -event.args.amount0;
+
+  // Volume calculation: sum of absolute values of both amounts
+  // This captures total value moved regardless of swap direction
+  const volume = absBigInt(event.args.amount0) + absBigInt(event.args.amount1);
+
+  // Determine if execution was successful (policyCompliant is a good proxy for now)
+  const isSuccess = event.args.policyCompliant;
 
   await context.db
     .insert(strategyMetrics)
@@ -61,23 +72,36 @@ ponder.on('ReceiptHook:ExecutionReceipt', async ({ event, context }) => {
       id: strategyIdKey,
       totalExecutions: 1n,
       totalVolume: volume,
+      // Store raw values for precise calculation on query
+      slippageSum: event.args.actualSlippage,
+      compliantCount: event.args.policyCompliant ? 1n : 0n,
+      successCount: isSuccess ? 1n : 0n,
+      lastExecutionAt: event.args.timestamp,
+      // Legacy computed fields (for backwards compatibility)
       avgSlippage: event.args.actualSlippage,
-      successRate: 10000n, // 100% initially
+      successRate: isSuccess ? 10000n : 0n,
       complianceRate: event.args.policyCompliant ? 10000n : 0n,
-      lastExecutionAt: event.args.timestamp,
     })
-    .onConflictDoUpdate((existing) => ({
-      totalExecutions: existing.totalExecutions + 1n,
-      totalVolume: existing.totalVolume + volume,
-      avgSlippage:
-        (existing.avgSlippage * existing.totalExecutions + event.args.actualSlippage) /
-        (existing.totalExecutions + 1n),
-      complianceRate:
-        (existing.complianceRate * existing.totalExecutions +
-          (event.args.policyCompliant ? 10000n : 0n)) /
-        (existing.totalExecutions + 1n),
-      lastExecutionAt: event.args.timestamp,
-    }));
+    .onConflictDoUpdate((existing) => {
+      const newTotalExecutions = existing.totalExecutions + 1n;
+      const newSlippageSum = existing.slippageSum + event.args.actualSlippage;
+      const newCompliantCount = existing.compliantCount + (event.args.policyCompliant ? 1n : 0n);
+      const newSuccessCount = existing.successCount + (isSuccess ? 1n : 0n);
+
+      return {
+        totalExecutions: newTotalExecutions,
+        totalVolume: existing.totalVolume + volume,
+        // Store sums (calculate rates on query for precision)
+        slippageSum: newSlippageSum,
+        compliantCount: newCompliantCount,
+        successCount: newSuccessCount,
+        lastExecutionAt: event.args.timestamp,
+        // Legacy computed fields (truncation still occurs, but sums are available for precise calc)
+        avgSlippage: newSlippageSum / newTotalExecutions,
+        successRate: (newSuccessCount * 10000n) / newTotalExecutions,
+        complianceRate: (newCompliantCount * 10000n) / newTotalExecutions,
+      };
+    });
 });
 
 // Canonical ERC-8004 IdentityRegistry handlers (howto8004.com)

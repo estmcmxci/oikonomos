@@ -22,10 +22,15 @@ export const strategyMetrics = onchainTable('strategy_metrics', (t) => ({
   id: t.hex().primaryKey(), // strategyId
   totalExecutions: t.bigint().notNull(),
   totalVolume: t.bigint().notNull(),
-  avgSlippage: t.bigint().notNull(), // basis points
-  successRate: t.bigint().notNull(), // basis points (10000 = 100%)
-  complianceRate: t.bigint().notNull(), // basis points
+  // Store sums for precise rate calculation on query (avoids BigInt division truncation)
+  slippageSum: t.bigint().notNull(), // Sum of all slippage values (divide by totalExecutions for avg)
+  compliantCount: t.bigint().notNull(), // Number of compliant executions
+  successCount: t.bigint().notNull(), // Number of successful executions
   lastExecutionAt: t.bigint().notNull(),
+  // Legacy fields (computed on insert for backwards compatibility, but prefer calculating from sums)
+  avgSlippage: t.bigint().notNull(), // basis points - DEPRECATED: use slippageSum/totalExecutions
+  successRate: t.bigint().notNull(), // basis points - DEPRECATED: use successCount/totalExecutions*10000
+  complianceRate: t.bigint().notNull(), // basis points - DEPRECATED: use compliantCount/totalExecutions*10000
 }));
 
 export const agent = onchainTable('agent', (t) => ({
