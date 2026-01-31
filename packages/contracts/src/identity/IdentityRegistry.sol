@@ -8,6 +8,10 @@ import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 /// @title IdentityRegistry
 /// @notice ERC-8004 compliant agent identity registry
 /// @dev Each agent is represented as an ERC-721 NFT with associated metadata
+/// @dev IMPORTANT: NFT transfers do NOT update agentWallet. This is intentional -
+///      the agentWallet represents the operational wallet for the agent, which may
+///      differ from the NFT owner (who controls governance/ownership). Use
+///      updateAgentWallet() to change the operational wallet after transfer if needed.
 contract IdentityRegistry is ERC721, EIP712 {
     using ECDSA for bytes32;
 
@@ -24,9 +28,9 @@ contract IdentityRegistry is ERC721, EIP712 {
     /// @notice Counter for generating unique agent IDs
     uint256 public nextAgentId;
 
-    /// @notice EIP-712 typehash for wallet updates
+    /// @notice EIP-712 typehash for wallet updates (includes deadline for expiration)
     bytes32 private constant WALLET_UPDATE_TYPEHASH =
-        keccak256("WalletUpdate(uint256 agentId,address newWallet,uint256 nonce)");
+        keccak256("WalletUpdate(uint256 agentId,address newWallet,uint256 nonce,uint256 deadline)");
 
     /// @notice Nonces for replay protection on wallet updates
     mapping(uint256 => uint256) public nonces;
@@ -48,6 +52,12 @@ contract IdentityRegistry is ERC721, EIP712 {
 
     /// @notice Error thrown when signature is invalid
     error InvalidSignature();
+
+    /// @notice Error thrown when new wallet address is zero
+    error InvalidWallet();
+
+    /// @notice Error thrown when signature has expired
+    error SignatureExpired();
 
     constructor() ERC721("Oikonomos Agent", "OIKO") EIP712("OikonomosIdentity", "1") {}
 
@@ -77,21 +87,30 @@ contract IdentityRegistry is ERC721, EIP712 {
 
     /// @notice Update an agent's wallet address with signature verification
     /// @param agentId The agent ID to update
-    /// @param newWallet The new wallet address
+    /// @param newWallet The new wallet address (must not be zero address)
+    /// @param deadline Timestamp after which the signature is no longer valid
     /// @param signature EIP-712 signature from current wallet or NFT owner
     function updateAgentWallet(
         uint256 agentId,
         address newWallet,
+        uint256 deadline,
         bytes calldata signature
     ) external {
+        // Validate inputs
         if (_ownerOf(agentId) == address(0)) revert AgentDoesNotExist();
+        if (newWallet == address(0)) revert InvalidWallet();
+        if (block.timestamp > deadline) revert SignatureExpired();
+
+        // Get current nonce BEFORE incrementing (for signature verification)
+        uint256 currentNonce = nonces[agentId];
 
         // Build EIP-712 digest
         bytes32 structHash = keccak256(abi.encode(
             WALLET_UPDATE_TYPEHASH,
             agentId,
             newWallet,
-            nonces[agentId]++
+            currentNonce,
+            deadline
         ));
         bytes32 digest = _hashTypedDataV4(structHash);
         address signer = digest.recover(signature);
@@ -100,6 +119,9 @@ contract IdentityRegistry is ERC721, EIP712 {
         if (signer != agents[agentId].agentWallet && signer != ownerOf(agentId)) {
             revert InvalidSignature();
         }
+
+        // Increment nonce AFTER successful signature validation
+        nonces[agentId] = currentNonce + 1;
 
         address oldWallet = agents[agentId].agentWallet;
         agents[agentId].agentWallet = newWallet;

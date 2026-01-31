@@ -12,11 +12,38 @@ contract IdentityRegistryTest is Test {
     address public bob;
     uint256 public bobKey;
 
+    // Updated typehash to include deadline
+    bytes32 constant WALLET_UPDATE_TYPEHASH =
+        keccak256("WalletUpdate(uint256 agentId,address newWallet,uint256 nonce,uint256 deadline)");
+
     function setUp() public {
         registry = new IdentityRegistry();
 
         (alice, aliceKey) = makeAddrAndKey("alice");
         (bob, bobKey) = makeAddrAndKey("bob");
+    }
+
+    function _signWalletUpdate(
+        uint256 agentId,
+        address newWallet,
+        uint256 nonce,
+        uint256 deadline,
+        uint256 privateKey
+    ) internal view returns (bytes memory) {
+        bytes32 structHash = keccak256(abi.encode(
+            WALLET_UPDATE_TYPEHASH,
+            agentId,
+            newWallet,
+            nonce,
+            deadline
+        ));
+        bytes32 digest = keccak256(abi.encodePacked(
+            "\x19\x01",
+            registry.DOMAIN_SEPARATOR(),
+            structHash
+        ));
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, digest);
+        return abi.encodePacked(r, s, v);
     }
 
     function test_Register() public {
@@ -68,23 +95,11 @@ contract IdentityRegistryTest is Test {
         vm.prank(alice);
         uint256 agentId = registry.register("ipfs://QmTest", "");
 
-        // Build signature from alice (NFT owner)
-        bytes32 structHash = keccak256(abi.encode(
-            keccak256("WalletUpdate(uint256 agentId,address newWallet,uint256 nonce)"),
-            agentId,
-            bob,
-            0 // nonce
-        ));
-        bytes32 digest = keccak256(abi.encodePacked(
-            "\x19\x01",
-            registry.DOMAIN_SEPARATOR(),
-            structHash
-        ));
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(aliceKey, digest);
-        bytes memory signature = abi.encodePacked(r, s, v);
+        uint256 deadline = block.timestamp + 1 hours;
+        bytes memory signature = _signWalletUpdate(agentId, bob, 0, deadline, aliceKey);
 
         // Update wallet
-        registry.updateAgentWallet(agentId, bob, signature);
+        registry.updateAgentWallet(agentId, bob, deadline, signature);
 
         IdentityRegistry.Agent memory agent = registry.getAgent(agentId);
         assertEq(agent.agentWallet, bob, "Wallet should be updated to bob");
@@ -94,23 +109,59 @@ contract IdentityRegistryTest is Test {
         vm.prank(alice);
         uint256 agentId = registry.register("ipfs://QmTest", "");
 
-        // Build invalid signature (from bob, not alice)
-        bytes32 structHash = keccak256(abi.encode(
-            keccak256("WalletUpdate(uint256 agentId,address newWallet,uint256 nonce)"),
-            agentId,
-            bob,
-            0
-        ));
-        bytes32 digest = keccak256(abi.encodePacked(
-            "\x19\x01",
-            registry.DOMAIN_SEPARATOR(),
-            structHash
-        ));
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(bobKey, digest);
-        bytes memory signature = abi.encodePacked(r, s, v);
+        uint256 deadline = block.timestamp + 1 hours;
+        // Sign with bob's key (invalid - bob is not owner or current wallet)
+        bytes memory signature = _signWalletUpdate(agentId, bob, 0, deadline, bobKey);
 
         vm.expectRevert(IdentityRegistry.InvalidSignature.selector);
-        registry.updateAgentWallet(agentId, bob, signature);
+        registry.updateAgentWallet(agentId, bob, deadline, signature);
+    }
+
+    function test_UpdateAgentWallet_RevertWithZeroAddress() public {
+        vm.prank(alice);
+        uint256 agentId = registry.register("ipfs://QmTest", "");
+
+        uint256 deadline = block.timestamp + 1 hours;
+        bytes memory signature = _signWalletUpdate(agentId, address(0), 0, deadline, aliceKey);
+
+        vm.expectRevert(IdentityRegistry.InvalidWallet.selector);
+        registry.updateAgentWallet(agentId, address(0), deadline, signature);
+    }
+
+    function test_UpdateAgentWallet_RevertWithExpiredDeadline() public {
+        vm.prank(alice);
+        uint256 agentId = registry.register("ipfs://QmTest", "");
+
+        uint256 deadline = block.timestamp - 1; // Already expired
+        bytes memory signature = _signWalletUpdate(agentId, bob, 0, deadline, aliceKey);
+
+        vm.expectRevert(IdentityRegistry.SignatureExpired.selector);
+        registry.updateAgentWallet(agentId, bob, deadline, signature);
+    }
+
+    function test_UpdateAgentWallet_NonceNotConsumedOnFailure() public {
+        vm.prank(alice);
+        uint256 agentId = registry.register("ipfs://QmTest", "");
+
+        uint256 nonceBefore = registry.nonces(agentId);
+
+        // Try with invalid signature (should fail)
+        uint256 deadline = block.timestamp + 1 hours;
+        bytes memory badSignature = _signWalletUpdate(agentId, bob, 0, deadline, bobKey);
+
+        vm.expectRevert(IdentityRegistry.InvalidSignature.selector);
+        registry.updateAgentWallet(agentId, bob, deadline, badSignature);
+
+        // Nonce should NOT have changed
+        uint256 nonceAfter = registry.nonces(agentId);
+        assertEq(nonceAfter, nonceBefore, "Nonce should not be consumed on failed validation");
+
+        // Now try with valid signature using the same nonce
+        bytes memory goodSignature = _signWalletUpdate(agentId, bob, 0, deadline, aliceKey);
+        registry.updateAgentWallet(agentId, bob, deadline, goodSignature);
+
+        // Now nonce should have incremented
+        assertEq(registry.nonces(agentId), nonceBefore + 1, "Nonce should increment after success");
     }
 
     function test_GetAgent_RevertIfNotExists() public {
