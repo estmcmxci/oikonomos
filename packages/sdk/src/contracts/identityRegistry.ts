@@ -3,6 +3,26 @@ import { IdentityRegistryABI, getERC8004Addresses } from '@oikonomos/shared';
 
 export { IdentityRegistryABI };
 
+// Error class for wallet-related errors (from code review OIK-8)
+export class WalletError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'WalletError';
+  }
+}
+
+/**
+ * Get the first account from a wallet client, with validation
+ * @throws WalletError if no accounts are available
+ */
+async function getAccount(walletClient: WalletClient): Promise<Address> {
+  const accounts = await walletClient.getAddresses();
+  if (!accounts.length) {
+    throw new WalletError('No accounts available in wallet client');
+  }
+  return accounts[0];
+}
+
 // ERC-8004 Registration v1 format (per howto8004.com)
 export interface ERC8004Service {
   name: 'web' | 'ENS' | 'A2A' | 'MCP' | 'email' | 'DID' | string;
@@ -50,7 +70,7 @@ export function parseAgentURI(agentURI: string): ERC8004Registration | null {
 
 // Get canonical registry address for the current chain
 export function getIdentityRegistryAddress(chainId: number): Address {
-  return getERC8004Addresses(chainId).IDENTITY_REGISTRY as Address;
+  return getERC8004Addresses(chainId).identity as Address;
 }
 
 // Register agent with canonical ERC-8004 IdentityRegistry
@@ -58,11 +78,10 @@ export async function registerAgent(
   walletClient: WalletClient,
   registration: ERC8004Registration
 ): Promise<{ hash: `0x${string}`; agentURI: string }> {
-  const account = walletClient.account;
-  if (!account) throw new Error('WalletClient must have an account');
+  const account = await getAccount(walletClient);
 
   const chainId = walletClient.chain?.id;
-  if (!chainId) throw new Error('Chain ID not available');
+  if (!chainId) throw new WalletError('Chain ID not available');
 
   const registryAddress = getIdentityRegistryAddress(chainId);
   const agentURI = createAgentURI(registration);
@@ -85,8 +104,7 @@ export async function registerAgentWithAddress(
   registryAddress: Address,
   agentURI: string
 ): Promise<`0x${string}`> {
-  const account = walletClient.account;
-  if (!account) throw new Error('WalletClient must have an account');
+  const account = await getAccount(walletClient);
 
   const hash = await walletClient.writeContract({
     account,
@@ -164,11 +182,10 @@ export async function setAgentURI(
   newURI: string,
   registryAddress?: Address
 ): Promise<`0x${string}`> {
-  const account = walletClient.account;
-  if (!account) throw new Error('WalletClient must have an account');
+  const account = await getAccount(walletClient);
 
   const chainId = walletClient.chain?.id;
-  if (!chainId) throw new Error('Chain ID not available');
+  if (!chainId) throw new WalletError('Chain ID not available');
 
   const address = registryAddress ?? getIdentityRegistryAddress(chainId);
 
