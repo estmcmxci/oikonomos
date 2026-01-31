@@ -93,7 +93,7 @@ contract IntentRouterTest is Test {
         bytes memory signature = _signIntent(intent, aliceKey);
         PoolKey memory poolKey = _createPoolKey();
 
-        // Execute should succeed (tokens transferred, event emitted)
+        // Execute should succeed (event emitted)
         vm.expectEmit(true, true, true, true);
         emit IntentRouter.IntentExecuted(
             router.getIntentHash(intent),
@@ -105,9 +105,9 @@ contract IntentRouterTest is Test {
 
         router.executeIntent(intent, signature, poolKey, "");
 
-        // Tokens should be transferred from alice to router
-        assertEq(tokenIn.balanceOf(alice), 900 ether);
-        assertEq(tokenIn.balanceOf(address(router)), 100 ether);
+        // MVP: Tokens are NOT transferred (prevents fund lockup until swap implemented)
+        assertEq(tokenIn.balanceOf(alice), 1000 ether, "MVP: tokens should remain with user");
+        assertEq(tokenIn.balanceOf(address(router)), 0, "MVP: router should have no tokens");
     }
 
     function test_ExecuteIntent_RevertIfExpired() public {
@@ -163,7 +163,7 @@ contract IntentRouterTest is Test {
         router.executeIntent(intent, signature, poolKey, "");
     }
 
-    function test_ExecuteIntent_RevertIfAlreadyExecuted() public {
+    function test_ExecuteIntent_RevertOnReplay() public {
         IntentRouter.Intent memory intent = _createIntent(
             alice,
             100 ether,
@@ -178,10 +178,9 @@ contract IntentRouterTest is Test {
         // First execution succeeds
         router.executeIntent(intent, signature, poolKey, "");
 
-        // Create new intent with updated nonce for same hash check
-        // Actually, after first execution, nonce incremented, so same intent hash won't work
-        // Let's try to replay the same signed message
-        vm.expectRevert(IntentRouter.IntentAlreadyExecuted.selector);
+        // Replay attempt fails due to nonce increment
+        // The same signature cannot be reused because nonce is now 1, not 0
+        vm.expectRevert(IntentRouter.InvalidNonce.selector);
         router.executeIntent(intent, signature, poolKey, "");
     }
 
@@ -222,5 +221,89 @@ contract IntentRouterTest is Test {
     function test_DomainSeparator_IsSet() public view {
         bytes32 domainSeparator = router.DOMAIN_SEPARATOR();
         assertTrue(domainSeparator != bytes32(0), "Domain separator should be set");
+    }
+
+    // ============ Pause Tests ============
+
+    function test_Pause_BlocksExecution() public {
+        // Owner pauses
+        router.pause();
+
+        IntentRouter.Intent memory intent = _createIntent(
+            alice,
+            100 ether,
+            50,
+            block.timestamp + 1 hours,
+            keccak256("test")
+        );
+
+        bytes memory signature = _signIntent(intent, aliceKey);
+        PoolKey memory poolKey = _createPoolKey();
+
+        // Execution should revert when paused
+        vm.expectRevert(abi.encodeWithSignature("EnforcedPause()"));
+        router.executeIntent(intent, signature, poolKey, "");
+    }
+
+    function test_Unpause_AllowsExecution() public {
+        // Pause then unpause
+        router.pause();
+        router.unpause();
+
+        IntentRouter.Intent memory intent = _createIntent(
+            alice,
+            100 ether,
+            50,
+            block.timestamp + 1 hours,
+            keccak256("test")
+        );
+
+        bytes memory signature = _signIntent(intent, aliceKey);
+        PoolKey memory poolKey = _createPoolKey();
+
+        // Should succeed after unpause
+        router.executeIntent(intent, signature, poolKey, "");
+        assertEq(router.getNonce(alice), 1, "Nonce should increment after execution");
+    }
+
+    function test_OnlyOwnerCanPause() public {
+        vm.prank(bob);
+        vm.expectRevert(abi.encodeWithSignature("OwnableUnauthorizedAccount(address)", bob));
+        router.pause();
+    }
+
+    function test_OnlyOwnerCanUnpause() public {
+        router.pause();
+
+        vm.prank(bob);
+        vm.expectRevert(abi.encodeWithSignature("OwnableUnauthorizedAccount(address)", bob));
+        router.unpause();
+    }
+
+    // ============ Rescue Tests ============
+
+    function test_RescueTokens() public {
+        // Accidentally send tokens to router
+        tokenIn.mint(address(router), 50 ether);
+        assertEq(tokenIn.balanceOf(address(router)), 50 ether);
+
+        // Owner rescues tokens
+        router.rescueTokens(address(tokenIn), alice, 50 ether);
+
+        assertEq(tokenIn.balanceOf(address(router)), 0, "Router should have no tokens");
+        assertEq(tokenIn.balanceOf(alice), 1050 ether, "Alice should receive rescued tokens");
+    }
+
+    function test_RescueTokens_RevertIfNotOwner() public {
+        tokenIn.mint(address(router), 50 ether);
+
+        vm.prank(bob);
+        vm.expectRevert(abi.encodeWithSignature("OwnableUnauthorizedAccount(address)", bob));
+        router.rescueTokens(address(tokenIn), bob, 50 ether);
+    }
+
+    function test_RescueTokens_RevertIfZeroAddress() public {
+        vm.expectRevert(IntentRouter.InvalidToken.selector);
+        router.rescueTokens(address(0), alice, 50 ether);
     }
 }
