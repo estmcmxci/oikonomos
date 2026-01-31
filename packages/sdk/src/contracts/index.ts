@@ -8,11 +8,19 @@ export {
 
 export {
   IdentityRegistryABI,
-  IdentityRegistryExtendedABI,
   registerAgent,
-  getAgent,
-  updateAgentWallet,
-  decodeAgentRegisteredLog,
+  registerAgentWithAddress,
+  getAgentURI,
+  getAgentOwner,
+  getAgentWallet,
+  setAgentURI,
+  decodeRegisteredLog,
+  extractAgentIdFromTransferLog,
+  createAgentURI,
+  parseAgentURI,
+  getIdentityRegistryAddress,
+  type ERC8004Registration,
+  type ERC8004Service,
   type AgentData,
 } from './identityRegistry';
 
