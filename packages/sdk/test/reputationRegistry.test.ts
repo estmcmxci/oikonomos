@@ -68,29 +68,31 @@ describe('ReputationRegistry ABI', () => {
 
 describe('ERC8004 Addresses', () => {
   it('should have Sepolia addresses', () => {
-    expect(ERC8004_ADDRESSES.SEPOLIA.IDENTITY_REGISTRY).toBe('0x8004A818BFB912233c491871b3d84c89A494BD9e');
-    expect(ERC8004_ADDRESSES.SEPOLIA.REPUTATION_REGISTRY).toBe('0x8004B663056A597Dffe9eCcC1965A193B7388713');
+    expect(ERC8004_ADDRESSES.SEPOLIA.IDENTITY).toBe('0x8004A818BFB912233c491871b3d84c89A494BD9e');
+    expect(ERC8004_ADDRESSES.SEPOLIA.REPUTATION).toBe('0x8004B663056A597Dffe9eCcC1965A193B7388713');
   });
 
   it('should have Mainnet addresses', () => {
-    expect(ERC8004_ADDRESSES.MAINNET.IDENTITY_REGISTRY).toBe('0x8004A169FB4a3325136EB29fA0ceB6D2e539a432');
-    expect(ERC8004_ADDRESSES.MAINNET.REPUTATION_REGISTRY).toBe('0x8004BAa17C55a88189AE136b182e5fdA19dE9b63');
+    expect(ERC8004_ADDRESSES.MAINNET.IDENTITY).toBe('0x8004A169FB4a3325136EB29fA0ceB6D2e539a432');
+    expect(ERC8004_ADDRESSES.MAINNET.REPUTATION).toBe('0x8004BAa17C55a88189AE136b182e5fdA19dE9b63');
   });
 
   it('should get Sepolia addresses by chainId', () => {
     const addresses = getERC8004Addresses(11155111);
-    expect(addresses.IDENTITY_REGISTRY).toBe(ERC8004_ADDRESSES.SEPOLIA.IDENTITY_REGISTRY);
-    expect(addresses.REPUTATION_REGISTRY).toBe(ERC8004_ADDRESSES.SEPOLIA.REPUTATION_REGISTRY);
+    expect(addresses.identity).toBe(ERC8004_ADDRESSES.SEPOLIA.IDENTITY);
+    expect(addresses.reputation).toBe(ERC8004_ADDRESSES.SEPOLIA.REPUTATION);
   });
 
   it('should get Mainnet addresses by chainId', () => {
     const addresses = getERC8004Addresses(1);
-    expect(addresses.IDENTITY_REGISTRY).toBe(ERC8004_ADDRESSES.MAINNET.IDENTITY_REGISTRY);
-    expect(addresses.REPUTATION_REGISTRY).toBe(ERC8004_ADDRESSES.MAINNET.REPUTATION_REGISTRY);
+    expect(addresses.identity).toBe(ERC8004_ADDRESSES.MAINNET.IDENTITY);
+    expect(addresses.reputation).toBe(ERC8004_ADDRESSES.MAINNET.REPUTATION);
   });
 
-  it('should throw for unsupported chainId', () => {
-    expect(() => getERC8004Addresses(137)).toThrow('ERC-8004 not deployed on chain 137');
+  it('should default to Sepolia for unsupported chainId', () => {
+    const addresses = getERC8004Addresses(137);
+    expect(addresses.identity).toBe(ERC8004_ADDRESSES.SEPOLIA.IDENTITY);
+    expect(addresses.reputation).toBe(ERC8004_ADDRESSES.SEPOLIA.REPUTATION);
   });
 });
 

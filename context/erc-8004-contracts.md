@@ -9,9 +9,13 @@ ERC-8004 provides three on-chain registries for agent discovery and trust:
 - **Reputation Registry**: Feedback signals and aggregation
 - **Validation Registry**: Third-party validator attestations
 
-**Repository**: `/Users/oakgroup/Desktop/webdev/ethglobal/erc-8004-contracts`
+**IMPORTANT**: Oikonomos uses the **canonical ERC-8004 registries** deployed by the ERC-8004 team.
+We do NOT deploy our own registry contracts. See [howto8004.com](https://howto8004.com) for details.
+
+**Repository**: `/Users/oakgroup/Desktop/webdev/ethglobal/erc-8004-contracts` (reference only)
 **Spec**: [ERC-8004 Full Specification](https://eips.ethereum.org/EIPS/eip-8004)
 **Website**: https://www.8004.org
+**Integration Guide**: https://howto8004.com
 
 ## Agent Scaffolding with create-8004-agent
 
@@ -158,13 +162,25 @@ export const tools = {
 - **@x402/evm**: x402 payment handling for EVM chains
 - **Coinbase x402**: Micropayments with USDC
 
-## Contract Addresses
+## Canonical Contract Addresses (USE THESE)
+
+These are the official ERC-8004 registries deployed by the protocol team. **Do not deploy custom registries.**
 
 | Chain | Identity Registry | Reputation Registry |
 |-------|-------------------|---------------------|
 | Mainnet | `0x8004A169FB4a3325136EB29fA0ceB6D2e539a432` | `0x8004BAa17C55a88189AE136b182e5fdA19dE9b63` |
 | Sepolia | `0x8004A818BFB912233c491871b3d84c89A494BD9e` | `0x8004B663056A597Dffe9eCcC1965A193B7388713` |
 | Base Sepolia | TBD | TBD |
+
+**Integration in Oikonomos:**
+```typescript
+import { getERC8004Addresses } from '@oikonomos/shared';
+
+// Get addresses for current chain
+const addresses = getERC8004Addresses(chainId);
+// addresses.IDENTITY_REGISTRY
+// addresses.REPUTATION_REGISTRY
+```
 
 **Note**: Validation Registry addresses not yet deployed on public networks.
 
@@ -343,14 +359,32 @@ function getValidatorRequests(address validatorAddress) external view returns (b
 ### Registration Flow
 
 ```typescript
+import { registerAgent, type ERC8004Registration } from '@oikonomos/sdk';
+
 // 1. Register ENS name (primary identity)
 // treasury.brand.eth -> set text records
 
-// 2. Mint ERC-8004 agentId (for registry access)
-const agentId = await identityRegistry.register(agentURI);
+// 2. Mint ERC-8004 agentId via canonical registry
+const registration: ERC8004Registration = {
+  type: 'https://eips.ethereum.org/EIPS/eip-8004#registration-v1',
+  name: 'Treasury Agent',
+  description: 'Autonomous treasury management',
+  active: true,
+  services: [
+    { type: 'a2a', url: 'https://treasury.example.eth.limo/.well-known/agent-card.json' },
+    { type: 'ens', url: 'treasury.example.eth' },
+  ],
+};
+
+const { hash, agentURI } = await registerAgent(walletClient, registration);
 
 // 3. Link in ENS
 // Set text record: agent:erc8004 = "eip155:11155111:0x8004A818...:42"
+```
+
+**CLI Registration:**
+```bash
+PRIVATE_KEY=0x... npx ts-node packages/sdk/src/scripts/registerAgent.ts
 ```
 
 ### Receipt → Reputation Flow

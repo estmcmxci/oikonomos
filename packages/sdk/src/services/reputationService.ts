@@ -39,7 +39,7 @@ export async function submitReceiptFeedback(
   }
 
   const addresses = getERC8004Addresses(config.chainId);
-  const registryAddress = addresses.REPUTATION_REGISTRY as Address;
+  const registryAddress = addresses.reputation;
 
   const slippageScore = calculateSlippageScore(receipt.actualSlippage);
 
