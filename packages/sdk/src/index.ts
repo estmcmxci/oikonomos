@@ -26,7 +26,24 @@ export {
   getNamehash,
   getEnsAddress,
   getEnsText,
+  generateERC8004Record,
+  parseERC8004Record,
+  resolveAgentERC8004,
+  type ERC8004Record,
 } from './ens';
+
+// Agents
+export {
+  buildRegistrationJSON,
+  buildAgentRegistrationJSON,
+  parseAgentRegistrationJSON,
+  buildTreasuryAgentRegistration,
+  buildStrategyAgentRegistration,
+  type AgentType,
+  type AgentService,
+  type ERC8004RegistrationJSON,
+  type BuildRegistrationParams,
+} from './agents';
 
 // Intents
 export {
@@ -50,4 +67,6 @@ export {
   CHAIN_ID,
   ADDRESSES,
   ENS_RECORDS,
+  ERC8004_ADDRESSES,
+  getERC8004Addresses,
 } from '@oikonomos/shared';
