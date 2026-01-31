@@ -11,9 +11,13 @@ import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
 /// @title ReceiptHook
 /// @notice Uniswap v4 hook that emits ExecutionReceipt events after swaps
 /// @dev This is the trust anchor for the Oikonomos strategy marketplace
+/// @dev Reentrancy: This contract is read-only (emits events only), no state modifications
 contract ReceiptHook is IHooks {
     /// @notice The PoolManager this hook is registered with
     IPoolManager public immutable poolManager;
+
+    /// @notice Maximum allowed slippage in basis points (100%)
+    uint256 public constant MAX_SLIPPAGE_BPS = 10000;
 
     /// @notice Emitted after each swap with strategy attribution data
     event ExecutionReceipt(
@@ -33,6 +37,15 @@ contract ReceiptHook is IHooks {
     /// @notice Error thrown when hook function is not implemented
     error HookNotImplemented();
 
+    /// @notice Error thrown when hook address flags don't match permissions
+    error InvalidHookAddress();
+
+    /// @notice Error thrown when maxSlippage exceeds bounds
+    error InvalidSlippageBounds();
+
+    /// @notice Error thrown when expectedAmount is zero
+    error InvalidExpectedAmount();
+
     /// @notice Only allow calls from the PoolManager
     modifier onlyPoolManager() {
         if (msg.sender != address(poolManager)) revert NotPoolManager();
@@ -41,8 +54,8 @@ contract ReceiptHook is IHooks {
 
     constructor(IPoolManager _poolManager) {
         poolManager = _poolManager;
-        // Note: In production, we need to validate hook address flags
-        // This is skipped for testing - use HookMiner for deployment
+        // Validate hook address has correct flags for afterSwap
+        Hooks.validateHookPermissions(IHooks(address(this)), getHookPermissions());
     }
 
     /// @notice Returns the hook permissions - only afterSwap is enabled
@@ -128,7 +141,7 @@ contract ReceiptHook is IHooks {
     /// @param sender The address that initiated the swap
     /// @param params The swap parameters
     /// @param delta The balance changes from the swap
-    /// @param hookData Encoded (strategyId, quoteId, maxSlippage)
+    /// @param hookData Encoded (strategyId, quoteId, expectedAmount, maxSlippage)
     /// @return The function selector and zero delta modifier
     function afterSwap(
         address sender,
@@ -139,11 +152,16 @@ contract ReceiptHook is IHooks {
     ) external override onlyPoolManager returns (bytes4, int128) {
         // Only emit receipt if hookData is provided
         if (hookData.length > 0) {
-            (bytes32 strategyId, bytes32 quoteId, uint256 maxSlippage) =
-                abi.decode(hookData, (bytes32, bytes32, uint256));
+            (bytes32 strategyId, bytes32 quoteId, uint256 expectedAmount, uint256 maxSlippage) =
+                abi.decode(hookData, (bytes32, bytes32, uint256, uint256));
+
+            // Validate hookData parameters
+            if (maxSlippage > MAX_SLIPPAGE_BPS) revert InvalidSlippageBounds();
+            if (expectedAmount == 0) revert InvalidExpectedAmount();
 
             // Calculate actual slippage in basis points
-            uint256 actualSlippage = _calculateSlippage(params, delta);
+            // Compare expected vs actual for the SAME token (output for exactIn, input for exactOut)
+            uint256 actualSlippage = _calculateSlippage(params, delta, expectedAmount);
 
             emit ExecutionReceipt(
                 strategyId,
@@ -180,30 +198,63 @@ contract ReceiptHook is IHooks {
 
     // ============ Internal Functions ============
 
-    /// @notice Calculate slippage in basis points
+    /// @notice Calculate slippage in basis points by comparing expected vs actual amounts
+    /// @dev For exactIn: compares expected output vs actual output (both in output token)
+    /// @dev For exactOut: compares expected input vs actual input (both in input token)
     /// @param params The swap parameters
     /// @param delta The actual balance changes
+    /// @param expectedAmount The expected amount from the quote (output for exactIn, input for exactOut)
     /// @return Slippage in basis points (0-10000)
     function _calculateSlippage(
         IPoolManager.SwapParams calldata params,
-        BalanceDelta delta
+        BalanceDelta delta,
+        uint256 expectedAmount
     ) internal pure returns (uint256) {
-        int256 amountSpecified = params.amountSpecified;
+        if (expectedAmount == 0) return 0;
 
-        if (amountSpecified == 0) return 0;
+        // Get the actual amount for the relevant token
+        // For exactIn (amountSpecified < 0): compare output amounts
+        //   - zeroForOne=true: selling token0 for token1, so output is amount1 (positive = received)
+        //   - zeroForOne=false: selling token1 for token0, so output is amount0 (positive = received)
+        // For exactOut (amountSpecified > 0): compare input amounts
+        //   - zeroForOne=true: selling token0 for token1, so input is amount0 (negative = spent)
+        //   - zeroForOne=false: selling token1 for token0, so input is amount1 (negative = spent)
 
-        // For exactIn (amountSpecified < 0): we specify input, compare output
-        // For exactOut (amountSpecified > 0): we specify output, compare input
-        int128 actualAmount = params.zeroForOne ? delta.amount1() : delta.amount0();
+        int128 relevantDelta;
+        bool isExactIn = params.amountSpecified < 0;
 
-        // Calculate absolute values for comparison
-        uint256 expected = uint256(amountSpecified > 0 ? amountSpecified : -amountSpecified);
-        uint256 actual = uint256(actualAmount > 0 ? int256(actualAmount) : -int256(actualAmount));
+        if (isExactIn) {
+            // For exactIn, we care about the output token amount
+            relevantDelta = params.zeroForOne ? delta.amount1() : delta.amount0();
+        } else {
+            // For exactOut, we care about the input token amount
+            relevantDelta = params.zeroForOne ? delta.amount0() : delta.amount1();
+        }
 
-        // If we got more than expected, no slippage
-        if (actual >= expected) return 0;
+        // Convert to absolute value for comparison
+        // For exactIn output: positive delta is good (received tokens)
+        // For exactOut input: negative delta means spent tokens, so negate to get positive
+        uint256 actualAmount;
+        if (isExactIn) {
+            // Output should be positive (tokens received)
+            actualAmount = relevantDelta > 0 ? uint256(int256(relevantDelta)) : 0;
+        } else {
+            // Input should be negative (tokens spent), convert to positive
+            actualAmount = relevantDelta < 0 ? uint256(-int256(relevantDelta)) : 0;
+        }
 
-        // Slippage = (expected - actual) / expected * 10000
-        return ((expected - actual) * 10000) / expected;
+        // For exactIn: if we got more output than expected, no slippage (favorable)
+        // For exactOut: if we spent less input than expected, no slippage (favorable)
+        if (isExactIn && actualAmount >= expectedAmount) return 0;
+        if (!isExactIn && actualAmount <= expectedAmount) return 0;
+
+        // Calculate slippage as percentage difference
+        // For exactIn: slippage = (expected - actual) / expected * 10000
+        // For exactOut: slippage = (actual - expected) / expected * 10000
+        if (isExactIn) {
+            return ((expectedAmount - actualAmount) * MAX_SLIPPAGE_BPS) / expectedAmount;
+        } else {
+            return ((actualAmount - expectedAmount) * MAX_SLIPPAGE_BPS) / expectedAmount;
+        }
     }
 }
