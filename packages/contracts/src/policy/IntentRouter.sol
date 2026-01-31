@@ -101,9 +101,13 @@ contract IntentRouter is EIP712 {
 
         // 6. Build hookData for ReceiptHook
         bytes32 quoteId = keccak256(strategyData);
+        // Note: expectedAmount should come from the strategy quote in production
+        // For MVP, we use amountIn as a placeholder since actual swap isn't executed
+        uint256 expectedAmount = intent.amountIn;
         bytes memory hookData = HookDataLib.encode(
             intent.strategyId,
             quoteId,
+            expectedAmount,
             intent.maxSlippage
         );
 
