@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+
+jobs:
+  contracts:
+    name: Foundry Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/contracts
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
+
+      - name: Install Foundry dependencies
+        run: |
+          git config user.email "ci@github.com"
+          git config user.name "CI"
+          forge install foundry-rs/forge-std
+          forge install OpenZeppelin/openzeppelin-contracts
+          forge install Uniswap/v4-core
+          forge install Uniswap/v4-periphery
+          forge install safe-global/safe-smart-account
+          forge install gnosis/zodiac
+
+      - name: Run Forge build
+        run: forge build --sizes
+
+      - name: Run Forge tests
+        run: forge test -vvv
+
+      - name: Run Forge fmt check
+        run: forge fmt --check
+        continue-on-error: true
+
+  typescript:
+    name: TypeScript Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build shared package
+        run: pnpm --filter @oikonomos/shared build
+
+      - name: Build SDK
+        run: pnpm --filter @oikonomos/sdk build
+
+      - name: TypeScript check (shared)
+        run: pnpm --filter @oikonomos/shared exec tsc --noEmit
+
+      - name: TypeScript check (SDK)
+        run: pnpm --filter @oikonomos/sdk exec tsc --noEmit
