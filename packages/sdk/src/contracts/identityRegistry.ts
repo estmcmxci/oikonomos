@@ -49,7 +49,7 @@ export interface AgentData {
 // Creates a base64-encoded data URI for ERC-8004 registration
 export function createAgentURI(registration: ERC8004Registration): string {
   const json = JSON.stringify(registration);
-  const base64 = Buffer.from(json).toString('base64');
+  const base64 = btoa(json);
   return `data:application/json;base64,${base64}`;
 }
 
@@ -58,7 +58,7 @@ export function parseAgentURI(agentURI: string): ERC8004Registration | null {
   try {
     if (agentURI.startsWith('data:application/json;base64,')) {
       const base64 = agentURI.replace('data:application/json;base64,', '');
-      const json = Buffer.from(base64, 'base64').toString('utf-8');
+      const json = atob(base64);
       return JSON.parse(json);
     }
     // Try direct JSON parsing for non-data-URI formats

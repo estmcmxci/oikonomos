@@ -70,7 +70,7 @@ async function main() {
 
   console.log('=== ERC-8004 Agent Registration ===\n');
   console.log('Network: Sepolia');
-  console.log('Registry:', getERC8004Addresses(sepolia.id).IDENTITY_REGISTRY);
+  console.log('Registry:', getERC8004Addresses(sepolia.id).identity);
   console.log('Account:', account.address);
   console.log('\nAgent Details:');
   console.log('  Name:', registration.name);
@@ -103,7 +103,7 @@ async function main() {
       console.log('Agent ID:', agentId.toString());
       console.log('View on 8004scan: https://www.8004scan.io/agent/' + agentId);
       console.log('\nENS text record to set:');
-      console.log(`  agent:erc8004 = "eip155:${sepolia.id}:${getERC8004Addresses(sepolia.id).IDENTITY_REGISTRY}:${agentId}"`);
+      console.log(`  agent:erc8004 = "eip155:${sepolia.id}:${getERC8004Addresses(sepolia.id).identity}:${agentId}"`);
     } else {
       console.log('\nWarning: Could not extract agentId from logs');
       console.log('Check transaction on Etherscan:', `https://sepolia.etherscan.io/tx/${hash}`);
