@@ -24,25 +24,24 @@ export const ADDRESSES = {
 
 // Canonical ERC-8004 Registry Addresses (howto8004.com)
 export const ERC8004_ADDRESSES = {
-  sepolia: {
-    IDENTITY_REGISTRY: '0x8004A818BFB912233c491871b3d84c89A494BD9e',
-    REPUTATION_REGISTRY: '0x8004B663056A597Dffe9eCcC1965A193B7388713',
+  SEPOLIA: {
+    IDENTITY: '0x8004A818BFB912233c491871b3d84c89A494BD9e' as const,
+    REPUTATION: '0x8004B663056A597Dffe9eCcC1965A193B7388713' as const,
   },
-  mainnet: {
-    IDENTITY_REGISTRY: '0x8004A169FB4a3325136EB29fA0ceB6D2e539a432',
-    REPUTATION_REGISTRY: '0x8004BAa17C55a88189AE136b182e5fdA19dE9b63',
+  MAINNET: {
+    IDENTITY: '0x8004A169FB4a3325136EB29fA0ceB6D2e539a432' as const,
+    REPUTATION: '0x8004BAa17C55a88189AE136b182e5fdA19dE9b63' as const,
   },
 } as const;
 
 // Helper to get ERC-8004 addresses by chain ID
-export function getERC8004Addresses(chainId: number) {
+export function getERC8004Addresses(chainId: number): { identity: `0x${string}`; reputation: `0x${string}` } {
   switch (chainId) {
     case 1:
-      return ERC8004_ADDRESSES.mainnet;
+      return { identity: ERC8004_ADDRESSES.MAINNET.IDENTITY, reputation: ERC8004_ADDRESSES.MAINNET.REPUTATION };
     case 11155111:
-      return ERC8004_ADDRESSES.sepolia;
     default:
-      throw new Error(`ERC-8004 registries not available on chain ${chainId}`);
+      return { identity: ERC8004_ADDRESSES.SEPOLIA.IDENTITY, reputation: ERC8004_ADDRESSES.SEPOLIA.REPUTATION };
   }
 }
 
@@ -58,24 +57,3 @@ export const ENS_RECORDS = {
   ROLES_MODIFIER: 'agent:rolesModifier',
   ERC8004: 'agent:erc8004',
 } as const;
-
-export const ERC8004_ADDRESSES = {
-  SEPOLIA: {
-    IDENTITY: '0x8004A818BFB912233c491871b3d84c89A494BD9e' as const,
-    REPUTATION: '0x8004B663056A597Dffe9eCcC1965A193B7388713' as const,
-  },
-  MAINNET: {
-    IDENTITY: '0x8004A169FB4a3325136EB29fA0ceB6D2e539a432' as const,
-    REPUTATION: '0x8004BAa17C55a88189AE136b182e5fdA19dE9b63' as const,
-  },
-} as const;
-
-export function getERC8004Addresses(chainId: number): { identity: `0x${string}`; reputation: `0x${string}` } {
-  switch (chainId) {
-    case 1:
-      return { identity: ERC8004_ADDRESSES.MAINNET.IDENTITY, reputation: ERC8004_ADDRESSES.MAINNET.REPUTATION };
-    case 11155111:
-    default:
-      return { identity: ERC8004_ADDRESSES.SEPOLIA.IDENTITY, reputation: ERC8004_ADDRESSES.SEPOLIA.REPUTATION };
-  }
-}

@@ -25,7 +25,28 @@ export {
   getNonce,
   getDomainSeparator,
   executeIntent,
+  ReputationRegistryABI,
+  giveFeedback,
+  getSummary,
+  readFeedback,
+  getClients,
+  revokeFeedback,
+  decodeNewFeedbackLog,
+  submitExecutionFeedback,
+  type FeedbackSummary,
+  type FeedbackEntry,
+  type FeedbackParams,
+  type ExecutionFeedbackParams,
 } from './contracts';
+
+// Services
+export {
+  submitReceiptFeedback,
+  batchSubmitReceiptFeedback,
+  calculateSlippageScore,
+  type ExecutionReceiptData,
+  type ReputationServiceConfig,
+} from './services';
 
 // ENS
 export {

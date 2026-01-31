@@ -1,6 +1,37 @@
 import { ponder } from 'ponder:registry';
 import { executionReceipt, strategyMetrics, agent } from 'ponder:schema';
 
+/**
+ * NOTE: Reputation Registry Integration (OIK-12)
+ *
+ * The Ponder indexer is read-only and cannot make transactions.
+ * To submit feedback to the canonical ERC-8004 ReputationRegistry after
+ * ExecutionReceipt events, use the SDK's reputationService in a separate
+ * service/worker that:
+ *
+ * 1. Listens to the indexer API for new receipts, OR
+ * 2. Subscribes directly to ReceiptHook:ExecutionReceipt events
+ *
+ * Example using the SDK:
+ * ```typescript
+ * import { submitReceiptFeedback, type ReputationServiceConfig } from '@oikonomos/sdk';
+ *
+ * const config: ReputationServiceConfig = {
+ *   chainId: 11155111,
+ *   walletClient,
+ *   publicClient,
+ *   resolveAgentId: async (strategyId) => {
+ *     // Resolve strategyId -> agentId via ENS agent:erc8004 record
+ *     // or query indexer for agent mapping
+ *   },
+ * };
+ *
+ * await submitReceiptFeedback(config, receiptData);
+ * ```
+ *
+ * See: packages/sdk/src/services/reputationService.ts
+ */
+
 // ReceiptHook handlers
 ponder.on('ReceiptHook:ExecutionReceipt', async ({ event, context }) => {
   const receiptId = `${event.transaction.hash}-${event.log.logIndex}`;
