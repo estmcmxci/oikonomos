@@ -17,7 +17,28 @@ export {
   getNonce,
   getDomainSeparator,
   executeIntent,
+  ReputationRegistryABI,
+  giveFeedback,
+  getSummary,
+  readFeedback,
+  getClients,
+  revokeFeedback,
+  decodeNewFeedbackLog,
+  submitExecutionFeedback,
+  type FeedbackSummary,
+  type FeedbackEntry,
+  type FeedbackParams,
+  type ExecutionFeedbackParams,
 } from './contracts';
+
+// Services
+export {
+  submitReceiptFeedback,
+  batchSubmitReceiptFeedback,
+  calculateSlippageScore,
+  type ExecutionReceiptData,
+  type ReputationServiceConfig,
+} from './services';
 
 // ENS
 export {
@@ -50,4 +71,6 @@ export {
   CHAIN_ID,
   ADDRESSES,
   ENS_RECORDS,
+  ERC8004_ADDRESSES,
+  getERC8004Addresses,
 } from '@oikonomos/shared';

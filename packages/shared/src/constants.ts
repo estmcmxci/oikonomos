@@ -22,6 +22,28 @@ export const ADDRESSES = {
   ENS_RESOLVER: '0x8FADE66B79cC9f707aB26799354482EB93a5B7dD',
 } as const;
 
+export const ERC8004_ADDRESSES = {
+  SEPOLIA: {
+    IDENTITY_REGISTRY: '0x8004A818BFB912233c491871b3d84c89A494BD9e',
+    REPUTATION_REGISTRY: '0x8004B663056A597Dffe9eCcC1965A193B7388713',
+  },
+  MAINNET: {
+    IDENTITY_REGISTRY: '0x8004A169FB4a3325136EB29fA0ceB6D2e539a432',
+    REPUTATION_REGISTRY: '0x8004BAa17C55a88189AE136b182e5fdA19dE9b63',
+  },
+} as const;
+
+export function getERC8004Addresses(chainId: number) {
+  switch (chainId) {
+    case 1:
+      return ERC8004_ADDRESSES.MAINNET;
+    case 11155111:
+      return ERC8004_ADDRESSES.SEPOLIA;
+    default:
+      throw new Error(`ERC-8004 not deployed on chain ${chainId}`);
+  }
+}
+
 export const ENS_RECORDS = {
   TYPE: 'agent:type',
   MODE: 'agent:mode',

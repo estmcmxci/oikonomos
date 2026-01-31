@@ -23,3 +23,18 @@ export {
   getDomainSeparator,
   executeIntent,
 } from './intentRouter';
+
+export {
+  ReputationRegistryABI,
+  giveFeedback,
+  getSummary,
+  readFeedback,
+  getClients,
+  revokeFeedback,
+  decodeNewFeedbackLog,
+  submitExecutionFeedback,
+  type FeedbackSummary,
+  type FeedbackEntry,
+  type FeedbackParams,
+  type ExecutionFeedbackParams,
+} from './reputationRegistry';
