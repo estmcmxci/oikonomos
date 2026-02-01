@@ -5,6 +5,8 @@ import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {IUnlockCallback} from "@uniswap/v4-core/src/interfaces/callback/IUnlockCallback.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
@@ -16,7 +18,7 @@ import {HookDataLib} from "../libraries/HookDataLib.sol";
 /// @title IntentRouter
 /// @notice Mode A intent-first execution router for Oikonomos
 /// @dev Validates EIP-712 signed intents and executes swaps via Uniswap v4
-contract IntentRouter is EIP712, IUnlockCallback {
+contract IntentRouter is EIP712, IUnlockCallback, Ownable, Pausable {
     using ECDSA for bytes32;
     using SafeERC20 for IERC20;
 
@@ -81,7 +83,10 @@ contract IntentRouter is EIP712, IUnlockCallback {
     /// @notice Error thrown when slippage exceeds maximum
     error SlippageExceeded();
 
-    constructor(address _poolManager) EIP712("OikonomosIntentRouter", "1") {
+    /// @notice Error thrown when token address is invalid
+    error InvalidToken();
+
+    constructor(address _poolManager) EIP712("OikonomosIntentRouter", "1") Ownable(msg.sender) {
         POOL_MANAGER = IPoolManager(_poolManager);
     }
 
@@ -96,7 +101,7 @@ contract IntentRouter is EIP712, IUnlockCallback {
         bytes calldata signature,
         PoolKey calldata poolKey,
         bytes calldata strategyData
-    ) external returns (int256 amountOut) {
+    ) external whenNotPaused returns (int256 amountOut) {
         // 1. Compute intent hash
         bytes32 intentHash = _hashIntent(intent);
 
@@ -122,9 +127,12 @@ contract IntentRouter is EIP712, IUnlockCallback {
 
         // 7. Build hookData for ReceiptHook
         bytes32 quoteId = keccak256(strategyData);
+        // expectedAmount is the minimum output (amountIn minus max slippage)
+        uint256 expectedAmount = intent.amountIn * (10000 - intent.maxSlippage) / 10000;
         bytes memory hookData = HookDataLib.encode(
             intent.strategyId,
             quoteId,
+            expectedAmount,
             intent.maxSlippage
         );
 
@@ -274,5 +282,28 @@ contract IntentRouter is EIP712, IUnlockCallback {
     /// @return The domain separator
     function DOMAIN_SEPARATOR() external view returns (bytes32) {
         return _domainSeparatorV4();
+    }
+
+    // ============ Admin Functions ============
+
+    /// @notice Pause the contract
+    /// @dev Only callable by owner
+    function pause() external onlyOwner {
+        _pause();
+    }
+
+    /// @notice Unpause the contract
+    /// @dev Only callable by owner
+    function unpause() external onlyOwner {
+        _unpause();
+    }
+
+    /// @notice Rescue tokens accidentally sent to this contract
+    /// @param token The token address to rescue
+    /// @param to The recipient address
+    /// @param amount The amount to rescue
+    function rescueTokens(address token, address to, uint256 amount) external onlyOwner {
+        if (token == address(0)) revert InvalidToken();
+        IERC20(token).safeTransfer(to, amount);
     }
 }
