@@ -15,6 +15,11 @@ STRATEGY_AGENT_URL = "http://localhost:8787"
 # PRIVATE_KEY - Agent executor private key
 # RPC_URL - Sepolia RPC URL
 
-# Cron triggers for scheduled drift checks
-# [triggers]
-# crons = ["0 * * * *"]  # Every hour
+# KV namespace for state and policy storage
+[[kv_namespaces]]
+binding = "TREASURY_KV"
+id = "c271c958a1ce4d38b256b6f0868f4314"
+
+# Cron triggers for scheduled drift checks (every 5 minutes)
+[triggers]
+crons = ["*/5 * * * *"]

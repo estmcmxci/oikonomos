@@ -1,6 +1,43 @@
 import { ponder } from 'ponder:registry';
 import { executionReceipt, strategyMetrics, agent } from 'ponder:schema';
 
+// Treasury agent webhook URL (configurable via env)
+const TREASURY_AGENT_WEBHOOK_URL = process.env.TREASURY_AGENT_WEBHOOK_URL;
+
+/**
+ * Dispatch webhook to treasury agent for ExecutionReceipt events
+ * This enables the observation loop to react to on-chain events
+ */
+async function dispatchWebhook(
+  eventType: string,
+  eventId: string,
+  data: Record<string, unknown>,
+  chainId: number
+): Promise<void> {
+  if (!TREASURY_AGENT_WEBHOOK_URL) {
+    // Webhook not configured, skip silently
+    return;
+  }
+
+  try {
+    const response = await fetch(`${TREASURY_AGENT_WEBHOOK_URL}/events`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        events: [{ type: eventType, eventId, data }],
+        chainId,
+      }),
+    });
+
+    if (!response.ok) {
+      console.error(`[webhook] Failed to dispatch ${eventType}: ${response.status}`);
+    }
+  } catch (error) {
+    // Don't let webhook failures break indexing
+    console.error(`[webhook] Error dispatching ${eventType}:`, error);
+  }
+}
+
 /**
  * NOTE: Reputation Registry Integration (OIK-12)
  *
@@ -102,6 +139,24 @@ ponder.on('ReceiptHook:ExecutionReceipt', async ({ event, context }) => {
         complianceRate: (newCompliantCount * 10000n) / newTotalExecutions,
       };
     });
+
+  // Dispatch webhook to treasury agent observation loop
+  await dispatchWebhook(
+    'ExecutionReceipt',
+    receiptId,
+    {
+      sender: event.args.sender,
+      strategyId: event.args.strategyId,
+      quoteId: event.args.quoteId,
+      amount0: event.args.amount0.toString(),
+      amount1: event.args.amount1.toString(),
+      actualSlippage: event.args.actualSlippage.toString(),
+      policyCompliant: event.args.policyCompliant,
+      timestamp: event.args.timestamp.toString(),
+      transactionHash: event.transaction.hash,
+    },
+    11155111 // Sepolia chain ID
+  );
 });
 
 // Canonical ERC-8004 IdentityRegistry handlers (howto8004.com)

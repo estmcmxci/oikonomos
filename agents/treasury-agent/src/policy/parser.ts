@@ -11,6 +11,8 @@ interface ConfigureRequest {
 interface ConfigureResponse {
   success: boolean;
   policyId?: string;
+  userAddress?: string;
+  policy?: Policy;
   error?: string;
   validationErrors?: string[];
 }
@@ -58,6 +60,8 @@ export async function handleConfigure(
   const response: ConfigureResponse = {
     success: true,
     policyId,
+    userAddress: body.userAddress,
+    policy: body.policy,
   };
 
   return new Response(JSON.stringify(response), {
