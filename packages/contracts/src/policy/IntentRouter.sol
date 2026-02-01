@@ -161,7 +161,8 @@ contract IntentRouter is EIP712, IUnlockCallback, Ownable, Pausable {
         BalanceDelta delta = abi.decode(result, (BalanceDelta));
 
         // 13. Calculate amountOut (positive value = tokens received)
-        amountOut = zeroForOne ? -int256(int128(delta.amount1())) : -int256(int128(delta.amount0()));
+        // With correct Uniswap V4 semantics: positive delta = pool owes us = tokens received
+        amountOut = zeroForOne ? int256(int128(delta.amount1())) : int256(int128(delta.amount0()));
 
         // 14. Check slippage (simplified - in production would compare to quote)
         // The ReceiptHook will emit the actual slippage in the ExecutionReceipt event
@@ -205,29 +206,29 @@ contract IntentRouter is EIP712, IUnlockCallback, Ownable, Pausable {
         BalanceDelta delta,
         bool /* zeroForOne - unused but kept for interface compatibility */
     ) internal {
-        // delta.amount0() and delta.amount1() represent the changes to the pool
-        // Positive = pool received tokens (we need to pay)
-        // Negative = pool sent tokens (we need to take)
+        // Uniswap V4 BalanceDelta semantics:
+        // NEGATIVE delta = we OWE tokens to the pool (must pay/settle)
+        // POSITIVE delta = pool OWES tokens to us (can take)
 
         int128 amount0 = delta.amount0();
         int128 amount1 = delta.amount1();
 
         // Settle currency0
-        if (amount0 > 0) {
-            // Pool expects to receive - we pay
-            _pay(poolKey.currency0, uint128(amount0));
-        } else if (amount0 < 0) {
-            // Pool sends to us - we take
-            _take(poolKey.currency0, uint128(-amount0));
+        if (amount0 < 0) {
+            // We owe the pool - pay
+            _pay(poolKey.currency0, uint128(-amount0));
+        } else if (amount0 > 0) {
+            // Pool owes us - take
+            _take(poolKey.currency0, uint128(amount0));
         }
 
         // Settle currency1
-        if (amount1 > 0) {
-            // Pool expects to receive - we pay
-            _pay(poolKey.currency1, uint128(amount1));
-        } else if (amount1 < 0) {
-            // Pool sends to us - we take
-            _take(poolKey.currency1, uint128(-amount1));
+        if (amount1 < 0) {
+            // We owe the pool - pay
+            _pay(poolKey.currency1, uint128(-amount1));
+        } else if (amount1 > 0) {
+            // Pool owes us - take
+            _take(poolKey.currency1, uint128(amount1));
         }
     }
 
