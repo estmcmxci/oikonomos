@@ -1,7 +1,8 @@
-import type { Address } from 'viem';
+import type { Address, Hex } from 'viem';
 import type { Env } from '../index';
 import type { Policy } from '../policy/templates';
 import { checkDrift } from '../triggers/drift';
+import { buildAndSignIntent, submitIntent, getNonce } from '../modes/intentMode';
 
 interface RebalanceRequest {
   userAddress: Address;
@@ -26,6 +27,16 @@ interface RebalanceResult {
   receipts: string[];
   error?: string;
 }
+
+// Default pool configuration - in production, this would be fetched from config or strategy agent
+const DEFAULT_POOL_KEY = {
+  // Aave test tokens on Sepolia
+  currency0: '0x94a9D9AC8a22534E3FaCa9F4e7F2E2cf85d5E4C8' as Address, // USDC
+  currency1: '0xFF34B3d4Aee8ddCd6F9AFFFB6Fe49bD371b8a357' as Address, // DAI
+  fee: 500,
+  tickSpacing: 10,
+  hooks: '0x15d3b7CbC9463f92a88cE7B1B384277DA741C040' as Address, // ReceiptHook
+};
 
 export async function handleRebalance(
   request: Request,
@@ -105,28 +116,60 @@ async function executeRebalance(env: Env, request: RebalanceRequest): Promise<Re
           continue;
         }
 
-        const quote = await quoteResponse.json() as {
+        const quote = (await quoteResponse.json()) as {
           quoteId: string;
           expectedAmountOut: string;
         };
 
-        trades.push({
+        const trade: TradeResult = {
           tokenIn: drift.token,
           tokenOut: buyToken.token,
           amountIn: drift.amount.toString(),
           expectedAmountOut: quote.expectedAmountOut,
           quoteId: quote.quoteId,
           status: 'pending',
-        });
+        };
 
-        // 3. Execute via IntentRouter (simplified for MVP)
-        // In production:
-        // - Build intent with user's nonce
-        // - Sign with agent's key (if authorized) or use user's signature
-        // - Submit to IntentRouter contract
-        // - Wait for confirmation
-        // - Record receipt
+        trades.push(trade);
 
+        // 3. Execute via IntentRouter
+        try {
+          // Get current nonce for user
+          const nonce = await getNonce(env, request.userAddress);
+
+          // Build and sign intent
+          const signedIntent = await buildAndSignIntent(env, {
+            user: request.userAddress,
+            tokenIn: drift.token,
+            tokenOut: buyToken.token,
+            amountIn: drift.amount,
+            maxSlippageBps: request.policy.maxSlippageBps,
+            strategyId: (env.STRATEGY_ID || '0x0000000000000000000000000000000000000000000000000000000000000001') as Hex,
+            nonce,
+            ttlSeconds: 3600, // 1 hour validity
+          });
+
+          // Determine pool key based on token pair
+          // In production, this would query the strategy agent or a pool registry
+          const poolKey = getPoolKeyForPair(drift.token, buyToken.token);
+
+          // Submit intent to IntentRouter
+          const txHash = await submitIntent(
+            env,
+            signedIntent,
+            poolKey,
+            quote.quoteId as Hex
+          );
+
+          trade.txHash = txHash;
+          trade.status = 'executed';
+          receipts.push(txHash);
+
+          console.log(`Trade executed successfully: ${txHash}`);
+        } catch (error) {
+          console.error('Intent execution failed:', error);
+          trade.status = 'failed';
+        }
       } catch (error) {
         console.error('Error processing trade:', error);
       }
@@ -138,5 +181,22 @@ async function executeRebalance(env: Env, request: RebalanceRequest): Promise<Re
     needsRebalance: true,
     trades,
     receipts,
+  };
+}
+
+/**
+ * Get the pool key for a token pair
+ * In production, this would query a pool registry or the strategy agent
+ */
+function getPoolKeyForPair(tokenIn: Address, tokenOut: Address) {
+  // Ensure currency0 < currency1 (required by Uniswap v4)
+  const isToken0First = tokenIn.toLowerCase() < tokenOut.toLowerCase();
+
+  return {
+    currency0: isToken0First ? tokenIn : tokenOut,
+    currency1: isToken0First ? tokenOut : tokenIn,
+    fee: DEFAULT_POOL_KEY.fee,
+    tickSpacing: DEFAULT_POOL_KEY.tickSpacing,
+    hooks: DEFAULT_POOL_KEY.hooks,
   };
 }

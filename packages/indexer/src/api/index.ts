@@ -144,9 +144,6 @@ app.get('/agents', async (c) => {
   return c.json(agents);
 });
 
-// Health check endpoint
-app.get('/health', async (c) => {
-  return c.json({ status: 'ok', timestamp: Date.now() });
-});
+// Note: /health, /ready, /metrics are reserved by Ponder
 
 export default app;
