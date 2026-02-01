@@ -2,6 +2,8 @@ import { handleAgentCard } from './a2a/agent-card';
 import { handleConfigure } from './policy/parser';
 import { handleTriggerCheck } from './triggers/drift';
 import { handleRebalance } from './rebalance/executor';
+import { handlePortfolio } from './portfolio/handler';
+import { handleScheduledTrigger, handleEventsWebhook, savePolicy } from './observation';
 
 export interface Env {
   CHAIN_ID: string;
@@ -11,6 +13,7 @@ export interface Env {
   RPC_URL: string;
   STRATEGY_ID?: string; // Optional: Default strategy ID for this agent
   RECEIPT_HOOK?: string; // ReceiptHook address for verifying receipts
+  TREASURY_KV: KVNamespace; // KV namespace for state and policy storage
 }
 
 const CORS_HEADERS = {
@@ -39,7 +42,22 @@ export default {
 
       // Policy Configuration
       if (url.pathname === '/configure' && request.method === 'POST') {
-        return handleConfigure(request, env, CORS_HEADERS);
+        // Also save policy to KV for observation loop
+        const response = await handleConfigure(request, env, CORS_HEADERS);
+        if (response.ok) {
+          // Clone and parse the response to get the saved policy
+          const clonedResponse = response.clone();
+          const result = await clonedResponse.json() as { userAddress?: string; policy?: unknown };
+          if (result.userAddress && result.policy) {
+            await savePolicy(env.TREASURY_KV, result.userAddress as `0x${string}`, result.policy as import('./policy/templates').Policy);
+          }
+        }
+        return response;
+      }
+
+      // Events Webhook (from Ponder indexer)
+      if (url.pathname === '/events' && request.method === 'POST') {
+        return handleEventsWebhook(request, env, env.TREASURY_KV, CORS_HEADERS);
       }
 
       // Trigger Check (called by scheduler or manually)
@@ -80,6 +98,11 @@ export default {
         }
       }
 
+      // Portfolio State
+      if (url.pathname === '/portfolio' && request.method === 'GET') {
+        return handlePortfolio(request, env, CORS_HEADERS);
+      }
+
       // Health check
       if (url.pathname === '/health') {
         return new Response(
@@ -100,11 +123,6 @@ export default {
 
   // Scheduled trigger (Cloudflare Cron)
   async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
-    ctx.waitUntil(checkAndRebalance(env));
+    ctx.waitUntil(handleScheduledTrigger(env, env.TREASURY_KV));
   },
 };
-
-async function checkAndRebalance(env: Env) {
-  console.log('Scheduled drift check running at:', new Date().toISOString());
-  // In production: Iterate through configured users/policies and check drift
-}
