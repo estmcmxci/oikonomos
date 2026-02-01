@@ -1,0 +1,9 @@
+# Treasury Agent Local Development Secrets
+# Copy this file to .dev.vars and fill in your values
+# DO NOT commit .dev.vars to git
+
+# Private key for the agent executor wallet (must have ETH for gas)
+PRIVATE_KEY=0x...
+
+# Sepolia RPC URL (Alchemy or Infura recommended)
+RPC_URL=https://eth-sepolia.g.alchemy.com/v2/YOUR_API_KEY

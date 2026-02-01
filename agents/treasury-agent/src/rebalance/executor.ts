@@ -33,8 +33,8 @@ const DEFAULT_POOL_KEY = {
   // Aave test tokens on Sepolia
   currency0: '0x94a9D9AC8a22534E3FaCa9F4e7F2E2cf85d5E4C8' as Address, // USDC
   currency1: '0xFF34B3d4Aee8ddCd6F9AFFFB6Fe49bD371b8a357' as Address, // DAI
-  fee: 500,
-  tickSpacing: 10,
+  fee: 3000,       // 0.3% fee tier - matches our initialized pool
+  tickSpacing: 60, // tick spacing for 0.3% fee tier
   hooks: '0x15d3b7CbC9463f92a88cE7B1B384277DA741C040' as Address, // ReceiptHook
 };
 
