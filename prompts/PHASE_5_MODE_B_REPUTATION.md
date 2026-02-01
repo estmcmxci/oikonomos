@@ -4,9 +4,21 @@
 
 Implement Mode B execution (Safe + Zodiac Roles Modifier) for DAO treasuries and the ReputationRegistry for on-chain trust scores. This phase is **optional for MVP** but required for full DAO support.
 
+> **Architecture Decision: Hybrid Approach**
+>
+> The ReputationRegistry in this phase should follow the **hybrid architecture** defined in `/prompts/IMPLEMENT_REPUTATION_REGISTRY.md`:
+>
+> | Component | Responsibility |
+> |-----------|----------------|
+> | **Indexer** | Receipt storage, fast queries, historical data |
+> | **ReputationRegistry** | On-chain verifiable scores, portable trust signals |
+>
+> The indexer continues storing receipts for fast querying, while the ReputationRegistry provides ERC-8004 compliant on-chain reputation that's portable across protocols. See `IMPLEMENT_REPUTATION_REGISTRY.md` for detailed implementation guidance.
+
 ## Prerequisites
 
 - Phases 0-4 completed
+- Phase E2E Integration completed (see `/prompts/PHASE_E2E_INTEGRATION.md`)
 - Understanding of Gnosis Safe and Zodiac Roles Modifier
 - A test Safe deployed on Sepolia
 
@@ -14,7 +26,8 @@ Implement Mode B execution (Safe + Zodiac Roles Modifier) for DAO treasuries and
 
 Read these before starting:
 - `/EED.md` - Sections on Mode B, ReputationRegistry
-- `/ENS-native Agent Registry for Uniswap v4 Automation.md` - DAO Treasury Journey (7.2)
+- `/prompts/IMPLEMENT_REPUTATION_REGISTRY.md` - Hybrid architecture details
+- `/context/erc-8004-contracts.md` - ERC-8004 standard reference
 - `/context/gnosis-safe.md` - Safe contract interactions
 - `/context/zodiac-modifier-roles.md` - Roles Modifier configuration
 

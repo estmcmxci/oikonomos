@@ -1,7 +1,15 @@
-import { createWalletClient, http, type Address } from 'viem';
+import {
+  createWalletClient,
+  createPublicClient,
+  http,
+  getContract,
+  type Address,
+  type Hex,
+} from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { sepolia } from 'viem/chains';
 import type { Env } from '../index';
+import { IntentRouterABI } from '../../../shared/src/abis/IntentRouterABI';
 
 interface IntentParams {
   user: Address;
@@ -10,7 +18,7 @@ interface IntentParams {
   amountIn: bigint;
   maxSlippageBps: number;
   ttlSeconds: number;
-  strategyId: `0x${string}`;
+  strategyId: Hex;
   nonce: bigint;
 }
 
@@ -20,14 +28,22 @@ interface SignedIntentData extends IntentParams {
 
 interface SignedIntent {
   intent: SignedIntentData;
-  signature: `0x${string}`;
+  signature: Hex;
+}
+
+interface PoolKey {
+  currency0: Address;
+  currency1: Address;
+  fee: number;
+  tickSpacing: number;
+  hooks: Address;
 }
 
 export async function buildAndSignIntent(
   env: Env,
   params: IntentParams
 ): Promise<SignedIntent> {
-  const account = privateKeyToAccount(env.PRIVATE_KEY as `0x${string}`);
+  const account = privateKeyToAccount(env.PRIVATE_KEY as Hex);
 
   const walletClient = createWalletClient({
     account,
@@ -49,7 +65,7 @@ export async function buildAndSignIntent(
       name: 'OikonomosIntentRouter',
       version: '1',
       chainId: parseInt(env.CHAIN_ID),
-      verifyingContract: env.INTENT_ROUTER as `0x${string}`,
+      verifyingContract: env.INTENT_ROUTER as Address,
     },
     types: {
       Intent: [
@@ -82,19 +98,21 @@ export async function buildAndSignIntent(
   };
 }
 
+/**
+ * Submit a signed intent to the IntentRouter contract
+ * @param env Environment variables including INTENT_ROUTER address
+ * @param signedIntent The signed intent from buildAndSignIntent
+ * @param poolKey The Uniswap v4 pool key
+ * @param strategyData Additional strategy-specific data
+ * @returns Transaction hash
+ */
 export async function submitIntent(
   env: Env,
   signedIntent: SignedIntent,
-  poolKey: {
-    currency0: Address;
-    currency1: Address;
-    fee: number;
-    tickSpacing: number;
-    hooks: Address;
-  },
-  strategyData: `0x${string}` = '0x'
-): Promise<`0x${string}`> {
-  const account = privateKeyToAccount(env.PRIVATE_KEY as `0x${string}`);
+  poolKey: PoolKey,
+  strategyData: Hex = '0x'
+): Promise<Hex> {
+  const account = privateKeyToAccount(env.PRIVATE_KEY as Hex);
 
   const walletClient = createWalletClient({
     account,
@@ -102,10 +120,98 @@ export async function submitIntent(
     transport: http(env.RPC_URL),
   });
 
-  // In production: Call IntentRouter.executeIntent
-  // This would require the full contract ABI and proper encoding
+  const publicClient = createPublicClient({
+    chain: sepolia,
+    transport: http(env.RPC_URL),
+  });
 
-  // For MVP: Return a placeholder
-  console.log('Would submit intent:', signedIntent);
-  return '0x0000000000000000000000000000000000000000000000000000000000000000';
+  // Create contract instance
+  const intentRouter = getContract({
+    address: env.INTENT_ROUTER as Address,
+    abi: IntentRouterABI,
+    client: { public: publicClient, wallet: walletClient },
+  });
+
+  // Prepare intent struct for contract call
+  const intentStruct = {
+    user: signedIntent.intent.user,
+    tokenIn: signedIntent.intent.tokenIn,
+    tokenOut: signedIntent.intent.tokenOut,
+    amountIn: signedIntent.intent.amountIn,
+    maxSlippage: BigInt(signedIntent.intent.maxSlippageBps),
+    deadline: signedIntent.intent.deadline,
+    strategyId: signedIntent.intent.strategyId as Hex,
+    nonce: signedIntent.intent.nonce,
+  };
+
+  // Prepare poolKey struct for contract call
+  const poolKeyStruct = {
+    currency0: poolKey.currency0,
+    currency1: poolKey.currency1,
+    fee: poolKey.fee,
+    tickSpacing: poolKey.tickSpacing,
+    hooks: poolKey.hooks,
+  };
+
+  console.log('Submitting intent to IntentRouter:', {
+    intentRouter: env.INTENT_ROUTER,
+    user: intentStruct.user,
+    tokenIn: intentStruct.tokenIn,
+    tokenOut: intentStruct.tokenOut,
+    amountIn: intentStruct.amountIn.toString(),
+  });
+
+  try {
+    // Estimate gas first
+    const gasEstimate = await intentRouter.estimateGas.executeIntent([
+      intentStruct,
+      signedIntent.signature,
+      poolKeyStruct,
+      strategyData,
+    ]);
+
+    console.log('Gas estimate:', gasEstimate.toString());
+
+    // Execute transaction with 10% gas buffer
+    const hash = await intentRouter.write.executeIntent(
+      [intentStruct, signedIntent.signature, poolKeyStruct, strategyData],
+      { gas: gasEstimate + gasEstimate / 10n }
+    );
+
+    console.log('Transaction submitted:', hash);
+
+    // Wait for confirmation
+    const receipt = await publicClient.waitForTransactionReceipt({ hash });
+
+    if (receipt.status === 'reverted') {
+      throw new Error(`Transaction reverted: ${hash}`);
+    }
+
+    console.log('Intent executed successfully:', hash);
+    return hash;
+  } catch (error) {
+    console.error('Failed to submit intent:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get the current nonce for a user
+ * @param env Environment variables
+ * @param user User address
+ * @returns Current nonce
+ */
+export async function getNonce(env: Env, user: Address): Promise<bigint> {
+  const publicClient = createPublicClient({
+    chain: sepolia,
+    transport: http(env.RPC_URL),
+  });
+
+  const intentRouter = getContract({
+    address: env.INTENT_ROUTER as Address,
+    abi: IntentRouterABI,
+    client: publicClient,
+  });
+
+  return await intentRouter.read.getNonce([user]);
 }

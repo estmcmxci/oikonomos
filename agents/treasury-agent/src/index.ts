@@ -9,6 +9,8 @@ export interface Env {
   STRATEGY_AGENT_URL: string;
   PRIVATE_KEY: string;
   RPC_URL: string;
+  STRATEGY_ID?: string; // Optional: Default strategy ID for this agent
+  RECEIPT_HOOK?: string; // ReceiptHook address for verifying receipts
 }
 
 const CORS_HEADERS = {
