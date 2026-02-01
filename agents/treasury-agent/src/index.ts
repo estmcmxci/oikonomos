@@ -2,6 +2,7 @@ import { handleAgentCard } from './a2a/agent-card';
 import { handleConfigure } from './policy/parser';
 import { handleTriggerCheck } from './triggers/drift';
 import { handleRebalance } from './rebalance/executor';
+import { handlePortfolio } from './portfolio/handler';
 
 export interface Env {
   CHAIN_ID: string;
@@ -78,6 +79,11 @@ export default {
           // Release lock
           activeRebalances.delete(userAddress);
         }
+      }
+
+      // Portfolio State
+      if (url.pathname === '/portfolio' && request.method === 'GET') {
+        return handlePortfolio(request, env, CORS_HEADERS);
       }
 
       // Health check
