@@ -142,7 +142,7 @@ async function executeRebalance(env: Env, request: RebalanceRequest): Promise<Re
             user: request.userAddress,
             tokenIn: drift.token,
             tokenOut: buyToken.token,
-            amountIn: drift.amount,
+            amountIn: BigInt(drift.amount), // Convert string back to bigint
             maxSlippageBps: request.policy.maxSlippageBps,
             strategyId: (env.STRATEGY_ID || '0x0000000000000000000000000000000000000000000000000000000000000001') as Hex,
             nonce,

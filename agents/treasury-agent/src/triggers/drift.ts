@@ -6,7 +6,7 @@ import type { Policy, TokenAllocation } from '../policy/templates';
 interface Allocation {
   token: Address;
   symbol: string;
-  balance: bigint;
+  balance: string; // BigInt as string for JSON serialization
   percentage: number;
   targetPercentage: number;
 }
@@ -18,14 +18,14 @@ interface DriftItem {
   targetPercentage: number;
   drift: number;
   action: 'buy' | 'sell';
-  amount: bigint;
+  amount: string; // BigInt as string for JSON serialization
 }
 
 interface DriftResult {
   hasDrift: boolean;
   drifts: DriftItem[];
   allocations: Allocation[];
-  totalValueWei: bigint;
+  totalValueWei: string; // BigInt as string for JSON serialization
 }
 
 interface TriggerCheckRequest {
@@ -90,56 +90,69 @@ export async function checkDrift(
           functionName: 'balanceOf',
           args: [userAddress],
         });
-        return { ...token, balance };
+        const decimals = token.decimals ?? 18;
+        return { ...token, balance, decimals };
       } catch (error) {
         console.error(`Error fetching balance for ${token.symbol}:`, error);
-        return { ...token, balance: 0n };
+        const decimals = token.decimals ?? 18;
+        return { ...token, balance: 0n, decimals };
       }
     })
   );
 
-  // Calculate total value (simplified - assumes all tokens have same value per unit)
-  // In production: Use price oracle for accurate USD values
-  const totalBalance = balances.reduce((sum, t) => sum + t.balance, 0n);
+  // Normalize balances to 18 decimals for comparison
+  // This ensures proper percentage calculations across different token decimals
+  const normalizedBalances = balances.map((t) => {
+    const multiplier = 10n ** BigInt(18 - t.decimals);
+    return { ...t, normalizedBalance: t.balance * multiplier };
+  });
 
-  if (totalBalance === 0n) {
+  // Calculate total value using normalized balances
+  // Note: This assumes 1:1 value. In production, use price oracle for accurate USD values
+  const totalNormalized = normalizedBalances.reduce((sum, t) => sum + t.normalizedBalance, 0n);
+
+  if (totalNormalized === 0n) {
     return {
       hasDrift: false,
       drifts: [],
       allocations: [],
-      totalValueWei: 0n,
+      totalValueWei: '0',
     };
   }
 
-  // Calculate current allocations
-  const allocations: Allocation[] = balances.map((token) => ({
+  // Calculate current allocations using normalized balances
+  const allocations: Allocation[] = normalizedBalances.map((token) => ({
     token: token.address,
     symbol: token.symbol,
-    balance: token.balance,
-    percentage: Number((token.balance * 10000n) / totalBalance) / 100,
+    balance: token.balance.toString(),
+    percentage: Number((token.normalizedBalance * 10000n) / totalNormalized) / 100,
     targetPercentage: token.targetPercentage,
   }));
 
   // Find drifts exceeding threshold
-  const drifts: DriftItem[] = allocations
-    .map((alloc) => {
-      const drift = Math.abs(alloc.percentage - alloc.targetPercentage);
-      const action: 'buy' | 'sell' = alloc.percentage > alloc.targetPercentage ? 'sell' : 'buy';
+  const drifts: DriftItem[] = normalizedBalances
+    .map((token) => {
+      const percentage = Number((token.normalizedBalance * 10000n) / totalNormalized) / 100;
+      const drift = Math.abs(percentage - token.targetPercentage);
+      const action: 'buy' | 'sell' = percentage > token.targetPercentage ? 'sell' : 'buy';
 
-      // Calculate amount to trade to reach target
-      const targetBalance = (totalBalance * BigInt(Math.floor(alloc.targetPercentage * 100))) / 10000n;
-      const amountDiff = alloc.balance > targetBalance
-        ? alloc.balance - targetBalance
-        : targetBalance - alloc.balance;
+      // Calculate amount to trade to reach target (in original token decimals)
+      const targetNormalized = (totalNormalized * BigInt(Math.floor(token.targetPercentage * 100))) / 10000n;
+      const normalizedDiff = token.normalizedBalance > targetNormalized
+        ? token.normalizedBalance - targetNormalized
+        : targetNormalized - token.normalizedBalance;
+      // Convert back to original token decimals
+      const divisor = 10n ** BigInt(18 - token.decimals);
+      const amountDiff = normalizedDiff / divisor;
 
       return {
-        token: alloc.token,
-        symbol: alloc.symbol,
-        currentPercentage: alloc.percentage,
-        targetPercentage: alloc.targetPercentage,
+        token: token.address,
+        symbol: token.symbol,
+        currentPercentage: percentage,
+        targetPercentage: token.targetPercentage,
         drift,
         action,
-        amount: amountDiff,
+        amount: amountDiff.toString(),
       };
     })
     .filter((d) => d.drift > policy.driftThreshold);
@@ -148,6 +161,6 @@ export async function checkDrift(
     hasDrift: drifts.length > 0,
     drifts,
     allocations,
-    totalValueWei: totalBalance,
+    totalValueWei: totalNormalized.toString(),
   };
 }
