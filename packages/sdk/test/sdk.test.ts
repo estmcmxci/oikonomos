@@ -7,6 +7,12 @@ import {
   ensNameToStrategyId,
   INTENT_TYPES,
   getIntentDomain,
+  generateERC8004Record,
+  parseERC8004Record,
+  buildAgentRegistrationJSON,
+  parseAgentRegistrationJSON,
+  buildTreasuryAgentRegistration,
+  ERC8004_ADDRESSES,
 } from '../src';
 
 describe('Intent Builder', () => {
@@ -114,5 +120,84 @@ describe('EIP-712 Types', () => {
     expect(domain.version).toBe('1');
     expect(domain.chainId).toBe(chainId);
     expect(domain.verifyingContract).toBe(routerAddress);
+  });
+});
+
+describe('ERC-8004 Record Utilities', () => {
+  it('should generate ERC-8004 record for Sepolia', () => {
+    const record = generateERC8004Record(11155111, 42n);
+    expect(record).toBe(`eip155:11155111:${ERC8004_ADDRESSES.SEPOLIA.IDENTITY}:42`);
+  });
+
+  it('should generate ERC-8004 record for Mainnet', () => {
+    const record = generateERC8004Record(1, 100n);
+    expect(record).toBe(`eip155:1:${ERC8004_ADDRESSES.MAINNET.IDENTITY}:100`);
+  });
+
+  it('should parse valid ERC-8004 record', () => {
+    const record = `eip155:11155111:${ERC8004_ADDRESSES.SEPOLIA.IDENTITY}:42`;
+    const parsed = parseERC8004Record(record);
+
+    expect(parsed).not.toBeNull();
+    expect(parsed?.chainId).toBe(11155111);
+    expect(parsed?.registryAddress).toBe(ERC8004_ADDRESSES.SEPOLIA.IDENTITY);
+    expect(parsed?.agentId).toBe(42n);
+  });
+
+  it('should return null for invalid ERC-8004 record', () => {
+    expect(parseERC8004Record('invalid')).toBeNull();
+    expect(parseERC8004Record('eip155:11155111')).toBeNull();
+    expect(parseERC8004Record('eip155:notanumber:0x1234:42')).toBeNull();
+    expect(parseERC8004Record('eip155:11155111:invalid:42')).toBeNull();
+  });
+
+  it('should roundtrip generate and parse', () => {
+    const original = generateERC8004Record(11155111, 639n);
+    const parsed = parseERC8004Record(original);
+
+    expect(parsed?.chainId).toBe(11155111);
+    expect(parsed?.agentId).toBe(639n);
+  });
+});
+
+describe('Agent Registration', () => {
+  it('should build valid registration JSON', () => {
+    const uri = buildAgentRegistrationJSON({
+      agentType: 'treasury',
+      agentName: 'Test Treasury Agent',
+      agentDescription: 'A test agent',
+      a2aEndpoint: 'https://example.com/a2a',
+      ensName: 'test.oikonomos.eth',
+      webEndpoint: 'https://example.com',
+    });
+
+    expect(uri.startsWith('data:application/json;base64,')).toBe(true);
+
+    const parsed = parseAgentRegistrationJSON(uri);
+    expect(parsed).not.toBeNull();
+    expect(parsed?.type).toBe('https://eips.ethereum.org/EIPS/eip-8004#registration-v1');
+    expect(parsed?.name).toBe('Test Treasury Agent');
+    expect(parsed?.active).toBe(true);
+    expect(parsed?.services).toHaveLength(3);
+    expect(parsed?.services[0].name).toBe('A2A');
+    expect(parsed?.services[1].name).toBe('ENS');
+    expect(parsed?.services[2].name).toBe('web');
+  });
+
+  it('should build treasury agent registration', () => {
+    const uri = buildTreasuryAgentRegistration(
+      'treasury.oikonomos.eth',
+      'https://treasury.example.com'
+    );
+
+    const parsed = parseAgentRegistrationJSON(uri);
+    expect(parsed?.name).toBe('Oikonomos Treasury Agent');
+    expect(parsed?.services[0].endpoint).toBe('https://treasury.example.com/.well-known/agent-card.json');
+    expect(parsed?.services[1].endpoint).toBe('treasury.oikonomos.eth');
+  });
+
+  it('should return null for invalid registration URI', () => {
+    expect(parseAgentRegistrationJSON('invalid')).toBeNull();
+    expect(parseAgentRegistrationJSON('data:text/plain;base64,invalid')).toBeNull();
   });
 });

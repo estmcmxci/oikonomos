@@ -1,6 +1,42 @@
 import { ponder } from 'ponder:registry';
 import { executionReceipt, strategyMetrics, agent } from 'ponder:schema';
 
+/**
+ * NOTE: Reputation Registry Integration (OIK-12)
+ *
+ * The Ponder indexer is read-only and cannot make transactions.
+ * To submit feedback to the canonical ERC-8004 ReputationRegistry after
+ * ExecutionReceipt events, use the SDK's reputationService in a separate
+ * service/worker that:
+ *
+ * 1. Listens to the indexer API for new receipts, OR
+ * 2. Subscribes directly to ReceiptHook:ExecutionReceipt events
+ *
+ * Example using the SDK:
+ * ```typescript
+ * import { submitReceiptFeedback, type ReputationServiceConfig } from '@oikonomos/sdk';
+ *
+ * const config: ReputationServiceConfig = {
+ *   chainId: 11155111,
+ *   walletClient,
+ *   publicClient,
+ *   resolveAgentId: async (strategyId) => {
+ *     // Resolve strategyId -> agentId via ENS agent:erc8004 record
+ *     // or query indexer for agent mapping
+ *   },
+ * };
+ *
+ * await submitReceiptFeedback(config, receiptData);
+ * ```
+ *
+ * See: packages/sdk/src/services/reputationService.ts
+ */
+
+// Helper: Calculate absolute value for BigInt (OIK-8 code review fix)
+function absBigInt(n: bigint): bigint {
+  return n >= 0n ? n : -n;
+}
+
 // ReceiptHook handlers
 ponder.on('ReceiptHook:ExecutionReceipt', async ({ event, context }) => {
   const receiptId = `${event.transaction.hash}-${event.log.logIndex}`;
@@ -22,7 +58,13 @@ ponder.on('ReceiptHook:ExecutionReceipt', async ({ event, context }) => {
 
   // Update strategy metrics using upsert pattern
   const strategyIdKey = event.args.strategyId;
-  const volume = event.args.amount0 > 0n ? event.args.amount0 : -event.args.amount0;
+
+  // Volume calculation: sum of absolute values of both amounts
+  // This captures total value moved regardless of swap direction
+  const volume = absBigInt(event.args.amount0) + absBigInt(event.args.amount1);
+
+  // Determine if execution was successful (policyCompliant is a good proxy for now)
+  const isSuccess = event.args.policyCompliant;
 
   await context.db
     .insert(strategyMetrics)
@@ -30,27 +72,41 @@ ponder.on('ReceiptHook:ExecutionReceipt', async ({ event, context }) => {
       id: strategyIdKey,
       totalExecutions: 1n,
       totalVolume: volume,
+      // Store raw values for precise calculation on query
+      slippageSum: event.args.actualSlippage,
+      compliantCount: event.args.policyCompliant ? 1n : 0n,
+      successCount: isSuccess ? 1n : 0n,
+      lastExecutionAt: event.args.timestamp,
+      // Legacy computed fields (for backwards compatibility)
       avgSlippage: event.args.actualSlippage,
-      successRate: 10000n, // 100% initially
+      successRate: isSuccess ? 10000n : 0n,
       complianceRate: event.args.policyCompliant ? 10000n : 0n,
-      lastExecutionAt: event.args.timestamp,
     })
-    .onConflictDoUpdate((existing) => ({
-      totalExecutions: existing.totalExecutions + 1n,
-      totalVolume: existing.totalVolume + volume,
-      avgSlippage:
-        (existing.avgSlippage * existing.totalExecutions + event.args.actualSlippage) /
-        (existing.totalExecutions + 1n),
-      complianceRate:
-        (existing.complianceRate * existing.totalExecutions +
-          (event.args.policyCompliant ? 10000n : 0n)) /
-        (existing.totalExecutions + 1n),
-      lastExecutionAt: event.args.timestamp,
-    }));
+    .onConflictDoUpdate((existing) => {
+      const newTotalExecutions = existing.totalExecutions + 1n;
+      const newSlippageSum = existing.slippageSum + event.args.actualSlippage;
+      const newCompliantCount = existing.compliantCount + (event.args.policyCompliant ? 1n : 0n);
+      const newSuccessCount = existing.successCount + (isSuccess ? 1n : 0n);
+
+      return {
+        totalExecutions: newTotalExecutions,
+        totalVolume: existing.totalVolume + volume,
+        // Store sums (calculate rates on query for precision)
+        slippageSum: newSlippageSum,
+        compliantCount: newCompliantCount,
+        successCount: newSuccessCount,
+        lastExecutionAt: event.args.timestamp,
+        // Legacy computed fields (truncation still occurs, but sums are available for precise calc)
+        avgSlippage: newSlippageSum / newTotalExecutions,
+        successRate: (newSuccessCount * 10000n) / newTotalExecutions,
+        complianceRate: (newCompliantCount * 10000n) / newTotalExecutions,
+      };
+    });
 });
 
-// IdentityRegistry handlers
-ponder.on('IdentityRegistry:AgentRegistered', async ({ event, context }) => {
+// Canonical ERC-8004 IdentityRegistry handlers (howto8004.com)
+// Event: Registered(uint256 indexed agentId, string agentURI, address indexed owner)
+ponder.on('IdentityRegistry:Registered', async ({ event, context }) => {
   await context.db.insert(agent).values({
     id: event.args.agentId.toString(),
     owner: event.args.owner,
@@ -60,10 +116,28 @@ ponder.on('IdentityRegistry:AgentRegistered', async ({ event, context }) => {
   });
 });
 
-ponder.on('IdentityRegistry:AgentWalletUpdated', async ({ event, context }) => {
+// Event: URIUpdated(uint256 indexed agentId, string newURI, address indexed updatedBy)
+ponder.on('IdentityRegistry:URIUpdated', async ({ event, context }) => {
   await context.db
     .update(agent, { id: event.args.agentId.toString() })
     .set({
-      agentWallet: event.args.newWallet,
+      agentURI: event.args.newURI,
+    });
+});
+
+// Event: Transfer(address indexed from, address indexed to, uint256 indexed tokenId)
+// Handle ownership transfers (ERC-721)
+ponder.on('IdentityRegistry:Transfer', async ({ event, context }) => {
+  // Skip mint events (from = 0x0) as they're handled by Registered
+  if (event.args.from === '0x0000000000000000000000000000000000000000') {
+    return;
+  }
+
+  await context.db
+    .update(agent, { id: event.args.tokenId.toString() })
+    .set({
+      owner: event.args.to,
+      // Agent wallet is cleared on transfer per ERC-8004 spec
+      agentWallet: event.args.to,
     });
 });
