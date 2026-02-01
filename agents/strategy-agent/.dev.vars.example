@@ -1,0 +1,9 @@
+# Strategy Agent Local Development Secrets
+# Copy this file to .dev.vars and fill in your values
+# DO NOT commit .dev.vars to git
+
+# Private key for the agent executor wallet (must have ETH for gas)
+PRIVATE_KEY=0x5bac2a365ad5db99a387f07c3f352032d13063fdc5277cf7fe3385a02f14ae3a
+
+# Sepolia RPC URL (Alchemy or Infura recommended)
+RPC_URL=https://eth-sepolia.g.alchemy.com/v2/MIpa-idKGvSRwUYBT9gAr

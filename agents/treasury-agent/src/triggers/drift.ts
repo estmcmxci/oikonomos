@@ -58,7 +58,11 @@ export async function handleTriggerCheck(
 
   try {
     const result = await checkDrift(env, body.userAddress, body.policy);
-    return new Response(JSON.stringify(result), {
+    // BigInt values need to be converted to strings for JSON serialization
+    const serializable = JSON.stringify(result, (_, value) =>
+      typeof value === 'bigint' ? value.toString() : value
+    );
+    return new Response(serializable, {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error) {
