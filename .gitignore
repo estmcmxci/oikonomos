@@ -11,8 +11,11 @@ dist/
 .env
 .env.local
 .env.*.local
+.dev.vars
+.wrangler/
 
 # Foundry
+packages/contracts/broadcast/
 packages/contracts/out/
 packages/contracts/cache/
 packages/contracts/lib/
@@ -29,6 +32,9 @@ Thumbs.db
 
 # Turbo
 .turbo/
+
+# Ponder
+.ponder/
 
 # Logs
 *.log

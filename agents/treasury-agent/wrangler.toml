@@ -4,8 +4,12 @@ compatibility_date = "2024-01-01"
 
 [vars]
 CHAIN_ID = "11155111"
-INTENT_ROUTER = ""
-STRATEGY_AGENT_URL = "https://oikonomos-strategy-agent.workers.dev"
+INTENT_ROUTER = "0xFD699481f0aA60e0014EEd79d16cbe4b954FfaEf"
+RECEIPT_HOOK = "0x15d3b7CbC9463f92a88cE7B1B384277DA741C040"
+STRATEGY_ID = "0x0000000000000000000000000000000000000000000000000000000000000001"
+# For local testing, use: http://localhost:8787
+# For production, use: https://oikonomos-strategy-agent.workers.dev
+STRATEGY_AGENT_URL = "http://localhost:8787"
 
 # Secrets (set via wrangler secret put)
 # PRIVATE_KEY - Agent executor private key
