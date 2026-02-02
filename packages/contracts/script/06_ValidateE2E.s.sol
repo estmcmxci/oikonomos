@@ -33,8 +33,8 @@ interface IERC20 {
 contract ValidateE2E is Script {
     // Deployed addresses from OIK-13
     address constant POOL_MANAGER = 0xE03A1074c86CFeDd5C142C4F04F1a1536e203543;
-    address constant RECEIPT_HOOK = 0x15d3b7CbC9463f92a88cE7B1B384277DA741C040;
-    address constant INTENT_ROUTER = 0x855B735aC495f06E46cf01A1607706dF43c82348;
+    address constant RECEIPT_HOOK = 0x41a75f07bA1958EcA78805D8419C87a393764040;
+    address constant INTENT_ROUTER = 0x89223f6157cDE457B37763A70ed4E6A302F23683;
     address constant IDENTITY_REGISTRY = 0x8004A818BFB912233c491871b3d84c89A494BD9e;
 
     // Test tokens (Aave Sepolia)

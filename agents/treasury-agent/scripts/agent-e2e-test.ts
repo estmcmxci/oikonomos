@@ -29,8 +29,8 @@ import { sepolia } from 'viem/chains';
 import { privateKeyToAccount } from 'viem/accounts';
 
 // Contract addresses from OIK-24
-const INTENT_ROUTER = '0xFD699481f0aA60e0014EEd79d16cbe4b954FfaEf' as Address;
-const RECEIPT_HOOK = '0x15d3b7CbC9463f92a88cE7B1B384277DA741C040' as Address;
+const INTENT_ROUTER = '0x89223f6157cDE457B37763A70ed4E6A302F23683' as Address;
+const RECEIPT_HOOK = '0x41a75f07bA1958EcA78805D8419C87a393764040' as Address;
 
 // Token addresses
 const WETH = '0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9' as Address;

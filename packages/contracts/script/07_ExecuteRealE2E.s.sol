@@ -15,7 +15,7 @@ import {IntentRouter} from "../src/policy/IntentRouter.sol";
 contract ExecuteRealE2E is Script {
     // Deployed contracts
     address constant POOL_MANAGER = 0xE03A1074c86CFeDd5C142C4F04F1a1536e203543;
-    address constant RECEIPT_HOOK = 0x15d3b7CbC9463f92a88cE7B1B384277DA741C040;
+    address constant RECEIPT_HOOK = 0x41a75f07bA1958EcA78805D8419C87a393764040;
 
     // Pool tokens (Aave Sepolia)
     address constant USDC = 0x94a9D9AC8a22534E3FaCa9F4e7F2E2cf85d5E4C8;

@@ -30,8 +30,8 @@ contract RegisterTestAgent is Script {
     address constant IDENTITY_REGISTRY = 0x8004A818BFB912233c491871b3d84c89A494BD9e;
 
     // Deployed contract addresses
-    address constant INTENT_ROUTER = 0x855B735aC495f06E46cf01A1607706dF43c82348;
-    address constant RECEIPT_HOOK = 0x15d3b7CbC9463f92a88cE7B1B384277DA741C040;
+    address constant INTENT_ROUTER = 0x89223f6157cDE457B37763A70ed4E6A302F23683;
+    address constant RECEIPT_HOOK = 0x41a75f07bA1958EcA78805D8419C87a393764040;
 
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");

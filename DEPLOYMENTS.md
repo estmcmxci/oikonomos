@@ -7,8 +7,8 @@
 | Contract | Address | Notes |
 |----------|---------|-------|
 | PoolManager | `0xE03A1074c86CFeDd5C142C4F04F1a1536e203543` | Uniswap V4 (existing) |
-| ReceiptHook | `0x15d3b7CbC9463f92a88cE7B1B384277DA741C040` | afterSwap hook enabled |
-| IntentRouter | `0x855B735aC495f06E46cf01A1607706dF43c82348` | IUnlockCallback implemented |
+| ReceiptHook | `0x41a75f07bA1958EcA78805D8419C87a393764040` | afterSwap hook, user address in hookData (OIK-31) |
+| IntentRouter | `0x89223f6157cDE457B37763A70ed4E6A302F23683` | Passes user address to hookData (OIK-31) |
 
 ### Identity
 
@@ -25,14 +25,14 @@
 | currency1 | `0xFF34B3d4Aee8ddCd6F9AFFFB6Fe49bD371b8a357` (Aave DAI) |
 | fee | 500 (0.05%) |
 | tickSpacing | 10 |
-| hooks | `0x15d3b7CbC9463f92a88cE7B1B384277DA741C040` |
+| hooks | `0x41a75f07bA1958EcA78805D8419C87a393764040` |
 
 ### ENS Text Records (treasury.oikonomos.eth)
 
 ```
 agent:type = treasury
 agent:mode = intent-only
-agent:entrypoint = 0x855B735aC495f06E46cf01A1607706dF43c82348
+agent:entrypoint = 0x89223f6157cDE457B37763A70ed4E6A302F23683
 agent:erc8004 = eip155:11155111:0x8004A818BFB912233c491871b3d84c89A494BD9e:642
 agent:a2a = https://treasury-agent.oikonomos.workers.dev
 ```
@@ -42,8 +42,8 @@ agent:a2a = https://treasury-agent.oikonomos.workers.dev
 ```bash
 CHAIN_ID=11155111
 IDENTITY_REGISTRY=0x8004A818BFB912233c491871b3d84c89A494BD9e
-INTENT_ROUTER=0x855B735aC495f06E46cf01A1607706dF43c82348
-RECEIPT_HOOK=0x15d3b7CbC9463f92a88cE7B1B384277DA741C040
+INTENT_ROUTER=0x89223f6157cDE457B37763A70ed4E6A302F23683
+RECEIPT_HOOK=0x41a75f07bA1958EcA78805D8419C87a393764040
 AGENT_ID=642
 STRATEGY_ID=0x0000000000000000000000000000000000000000000000000000000000000282
 ```
@@ -63,8 +63,8 @@ export default createConfig({
     ReceiptHook: {
       chain: 'sepolia',
       abi: ReceiptHookABI,
-      address: '0x15d3b7CbC9463f92a88cE7B1B384277DA741C040',
-      startBlock: 10165500,
+      address: '0x41a75f07bA1958EcA78805D8419C87a393764040',
+      startBlock: 10176818,
     },
     IdentityRegistry: {
       chain: 'sepolia',
