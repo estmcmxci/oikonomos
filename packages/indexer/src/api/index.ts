@@ -5,6 +5,21 @@ import { desc, eq } from 'ponder';
 
 const app = new Hono();
 
+// Helper to serialize BigInts to strings for JSON
+function serializeBigInts<T>(obj: T): T {
+  if (obj === null || obj === undefined) return obj;
+  if (typeof obj === 'bigint') return obj.toString() as unknown as T;
+  if (Array.isArray(obj)) return obj.map(serializeBigInts) as unknown as T;
+  if (typeof obj === 'object') {
+    const result: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(obj)) {
+      result[key] = serializeBigInts(value);
+    }
+    return result as T;
+  }
+  return obj;
+}
+
 // Get receipts for a strategy
 app.get('/receipts/:strategyId', async (c) => {
   const strategyId = c.req.param('strategyId') as `0x${string}`;
@@ -16,7 +31,7 @@ app.get('/receipts/:strategyId', async (c) => {
     .orderBy(desc(executionReceipt.timestamp))
     .limit(100);
 
-  return c.json(receipts);
+  return c.json(serializeBigInts(receipts));
 });
 
 // Get receipts for a user
@@ -30,7 +45,7 @@ app.get('/receipts/user/:sender', async (c) => {
     .orderBy(desc(executionReceipt.timestamp))
     .limit(100);
 
-  return c.json(receipts);
+  return c.json(serializeBigInts(receipts));
 });
 
 // Get a single receipt by ID
@@ -47,7 +62,7 @@ app.get('/receipt/:id', async (c) => {
     return c.json({ error: 'Receipt not found' }, 404);
   }
 
-  return c.json(receipt);
+  return c.json(serializeBigInts(receipt));
 });
 
 // Get strategy metrics
@@ -64,7 +79,7 @@ app.get('/strategies/:strategyId', async (c) => {
     return c.json({ error: 'Strategy not found' }, 404);
   }
 
-  return c.json(metrics);
+  return c.json(serializeBigInts(metrics));
 });
 
 // Get leaderboard (top strategies by volume)
@@ -75,7 +90,7 @@ app.get('/leaderboard', async (c) => {
     .orderBy(desc(strategyMetrics.totalVolume))
     .limit(50);
 
-  return c.json(strategies);
+  return c.json(serializeBigInts(strategies));
 });
 
 // Get leaderboard by compliance rate
@@ -86,7 +101,7 @@ app.get('/leaderboard/compliance', async (c) => {
     .orderBy(desc(strategyMetrics.complianceRate))
     .limit(50);
 
-  return c.json(strategies);
+  return c.json(serializeBigInts(strategies));
 });
 
 // Get leaderboard by execution count
@@ -97,7 +112,7 @@ app.get('/leaderboard/executions', async (c) => {
     .orderBy(desc(strategyMetrics.totalExecutions))
     .limit(50);
 
-  return c.json(strategies);
+  return c.json(serializeBigInts(strategies));
 });
 
 // Get agent by ID
@@ -114,7 +129,7 @@ app.get('/agents/:agentId', async (c) => {
     return c.json({ error: 'Agent not found' }, 404);
   }
 
-  return c.json(agentRecord);
+  return c.json(serializeBigInts(agentRecord));
 });
 
 // Get agents by owner
@@ -127,7 +142,7 @@ app.get('/agents/owner/:owner', async (c) => {
     .where(eq(agent.owner, owner))
     .limit(50);
 
-  return c.json(agents);
+  return c.json(serializeBigInts(agents));
 });
 
 // Get all agents (paginated)
@@ -141,7 +156,7 @@ app.get('/agents', async (c) => {
     .limit(Math.min(limit, 100))
     .offset(offset);
 
-  return c.json(agents);
+  return c.json(serializeBigInts(agents));
 });
 
 // Note: /health, /ready, /metrics are reserved by Ponder

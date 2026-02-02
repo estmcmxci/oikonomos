@@ -160,8 +160,8 @@ ponder.on('ReceiptHook:ExecutionReceipt', async ({ event, context }) => {
 });
 
 // Canonical ERC-8004 IdentityRegistry handlers (howto8004.com)
-// Event: Registered(uint256 indexed agentId, string agentURI, address indexed owner)
-ponder.on('IdentityRegistry:Registered', async ({ event, context }) => {
+// Event: AgentRegistered(uint256 indexed agentId, address indexed owner, string agentURI)
+ponder.on('IdentityRegistry:AgentRegistered', async ({ event, context }) => {
   await context.db.insert(agent).values({
     id: event.args.agentId.toString(),
     owner: event.args.owner,
@@ -171,28 +171,11 @@ ponder.on('IdentityRegistry:Registered', async ({ event, context }) => {
   });
 });
 
-// Event: URIUpdated(uint256 indexed agentId, string newURI, address indexed updatedBy)
-ponder.on('IdentityRegistry:URIUpdated', async ({ event, context }) => {
+// Event: AgentWalletUpdated(uint256 indexed agentId, address oldWallet, address newWallet)
+ponder.on('IdentityRegistry:AgentWalletUpdated', async ({ event, context }) => {
   await context.db
     .update(agent, { id: event.args.agentId.toString() })
     .set({
-      agentURI: event.args.newURI,
-    });
-});
-
-// Event: Transfer(address indexed from, address indexed to, uint256 indexed tokenId)
-// Handle ownership transfers (ERC-721)
-ponder.on('IdentityRegistry:Transfer', async ({ event, context }) => {
-  // Skip mint events (from = 0x0) as they're handled by Registered
-  if (event.args.from === '0x0000000000000000000000000000000000000000') {
-    return;
-  }
-
-  await context.db
-    .update(agent, { id: event.args.tokenId.toString() })
-    .set({
-      owner: event.args.to,
-      // Agent wallet is cleared on transfer per ERC-8004 spec
-      agentWallet: event.args.to,
+      agentWallet: event.args.newWallet,
     });
 });
