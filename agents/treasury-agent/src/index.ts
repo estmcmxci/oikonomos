@@ -3,6 +3,7 @@ import { handleConfigure } from './policy/parser';
 import { handleTriggerCheck } from './triggers/drift';
 import { handleRebalance } from './rebalance/executor';
 import { handlePortfolio } from './portfolio/handler';
+import { handleSuggestPolicy } from './suggestion/handler';
 import { handleScheduledTrigger, handleEventsWebhook, savePolicy, saveAuthorization, deleteAuthorization, type UserAuthorization } from './observation';
 
 export interface Env {
@@ -213,6 +214,11 @@ export default {
       // Portfolio State
       if (url.pathname === '/portfolio' && request.method === 'GET') {
         return handlePortfolio(request, env, CORS_HEADERS);
+      }
+
+      // Policy Suggestion (OIK-33)
+      if (url.pathname === '/suggest-policy' && request.method === 'POST') {
+        return handleSuggestPolicy(request, env, CORS_HEADERS);
       }
 
       // Health check
