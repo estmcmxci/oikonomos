@@ -11,7 +11,7 @@ import { privateKeyToAccount } from 'viem/accounts';
 
 const PRIVATE_KEY = process.env.PRIVATE_KEY as `0x${string}`;
 const RPC_URL = process.env.RPC_URL || 'https://eth-sepolia.g.alchemy.com/v2/demo';
-const INTENT_ROUTER = (process.env.INTENT_ROUTER || '0xFD699481f0aA60e0014EEd79d16cbe4b954FfaEf') as Address;
+const INTENT_ROUTER = (process.env.INTENT_ROUTER || '0x89223f6157cDE457B37763A70ed4E6A302F23683') as Address;
 
 if (!PRIVATE_KEY) {
   console.error('Error: PRIVATE_KEY environment variable required');
