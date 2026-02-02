@@ -3,7 +3,7 @@ import { handleConfigure } from './policy/parser';
 import { handleTriggerCheck } from './triggers/drift';
 import { handleRebalance } from './rebalance/executor';
 import { handlePortfolio } from './portfolio/handler';
-import { handleScheduledTrigger, handleEventsWebhook, savePolicy } from './observation';
+import { handleScheduledTrigger, handleEventsWebhook, savePolicy, saveAuthorization, deleteAuthorization, type UserAuthorization } from './observation';
 
 export interface Env {
   CHAIN_ID: string;
@@ -25,6 +25,108 @@ const CORS_HEADERS = {
 // In-memory lock for preventing concurrent rebalances per user
 // Note: In production, use Durable Objects or KV for distributed locking
 const activeRebalances = new Set<string>();
+
+interface AuthorizeRequest {
+  userAddress: string;
+  signature: string;
+  expiry: number;
+  maxDailyUsd: number;
+  allowedTokens?: string[];
+}
+
+async function handleAuthorize(
+  request: Request,
+  env: Env,
+  corsHeaders: Record<string, string>
+): Promise<Response> {
+  let body: AuthorizeRequest;
+
+  try {
+    body = await request.json();
+  } catch {
+    return new Response(
+      JSON.stringify({ success: false, error: 'Invalid JSON body' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  if (!body.userAddress || !body.signature || !body.expiry || body.maxDailyUsd === undefined) {
+    return new Response(
+      JSON.stringify({ success: false, error: 'Missing required fields: userAddress, signature, expiry, maxDailyUsd' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  // Validate expiry is in the future
+  if (body.expiry <= Date.now()) {
+    return new Response(
+      JSON.stringify({ success: false, error: 'Expiry must be in the future' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  // TODO: In production, verify the signature is valid EIP-712 signed by userAddress
+  // For MVP, we trust the signature
+
+  const auth: UserAuthorization = {
+    signature: body.signature,
+    expiry: body.expiry,
+    maxDailyUsd: body.maxDailyUsd,
+    allowedTokens: (body.allowedTokens || []) as `0x${string}`[],
+    createdAt: Date.now(),
+  };
+
+  try {
+    await saveAuthorization(env.TREASURY_KV, body.userAddress as `0x${string}`, auth);
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message: 'Authorization saved',
+        expiry: auth.expiry,
+        maxDailyUsd: auth.maxDailyUsd,
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  } catch (error) {
+    console.error('Error saving authorization:', error);
+    return new Response(
+      JSON.stringify({ success: false, error: 'Failed to save authorization' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+}
+
+async function handleRevokeAuthorization(
+  request: Request,
+  env: Env,
+  corsHeaders: Record<string, string>
+): Promise<Response> {
+  const url = new URL(request.url);
+  const userAddress = url.searchParams.get('userAddress');
+
+  if (!userAddress) {
+    return new Response(
+      JSON.stringify({ success: false, error: 'Missing userAddress query parameter' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  try {
+    await deleteAuthorization(env.TREASURY_KV, userAddress as `0x${string}`);
+
+    return new Response(
+      JSON.stringify({ success: true, message: 'Authorization revoked' }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  } catch (error) {
+    console.error('Error revoking authorization:', error);
+    return new Response(
+      JSON.stringify({ success: false, error: 'Failed to revoke authorization' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+}
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -58,6 +160,16 @@ export default {
       // Events Webhook (from Ponder indexer)
       if (url.pathname === '/events' && request.method === 'POST') {
         return handleEventsWebhook(request, env, env.TREASURY_KV, CORS_HEADERS);
+      }
+
+      // User Authorization for auto-execution
+      if (url.pathname === '/authorize' && request.method === 'POST') {
+        return handleAuthorize(request, env, CORS_HEADERS);
+      }
+
+      // Revoke Authorization
+      if (url.pathname === '/authorize' && request.method === 'DELETE') {
+        return handleRevokeAuthorization(request, env, CORS_HEADERS);
       }
 
       // Trigger Check (called by scheduler or manually)
