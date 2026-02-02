@@ -72,9 +72,8 @@ async function fetchUnprocessedReceipts(
   env: Env,
   lastProcessedId: string | null
 ): Promise<ExecutionReceipt[]> {
-  const url = new URL(`${env.INDEXER_URL}/executionReceipt`);
+  const url = new URL(`${env.INDEXER_URL}/receipts`);
   url.searchParams.set('limit', '50');
-  url.searchParams.set('orderBy', 'timestamp');
   url.searchParams.set('orderDirection', 'asc');
 
   const response = await fetch(url.toString());

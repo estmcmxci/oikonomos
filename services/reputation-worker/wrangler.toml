@@ -4,7 +4,7 @@ compatibility_date = "2024-01-01"
 
 [vars]
 CHAIN_ID = "11155111"
-INDEXER_URL = "https://oikonomos-indexer.up.railway.app"
+INDEXER_URL = "https://indexer-production-323e.up.railway.app"
 REPUTATION_REGISTRY = "0x8004B663056A597Dffe9eCcC1965A193B7388713"
 # Treasury agent = tokenId 731, Strategy agent = tokenId 732
 TREASURY_AGENT_ID = "731"
@@ -17,4 +17,4 @@ crons = ["*/5 * * * *"]
 # KV namespace for tracking processed receipts
 [[kv_namespaces]]
 binding = "REPUTATION_KV"
-id = "TBD"  # Run: wrangler kv:namespace create REPUTATION_KV
+id = "793c6249cd964a8bbab87847d7f0d5b4"
