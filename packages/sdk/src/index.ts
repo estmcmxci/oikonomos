@@ -58,8 +58,22 @@ export {
   generateERC8004Record,
   parseERC8004Record,
   resolveAgentERC8004,
+  setEnsText,
+  setAgentERC8004Record,
+  formatERC8004Record,
+  getPublicResolverAddress,
+  buildSetTextCalldata,
   type ERC8004Record,
 } from './ens';
+
+// Validation
+export {
+  validateEndpointFormat,
+  validateA2AEndpoint,
+  validateENSName,
+  validateWebEndpoint,
+  type ValidationResult,
+} from './validation';
 
 // Agents
 export {

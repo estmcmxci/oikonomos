@@ -20,6 +20,20 @@ function serializeBigInts<T>(obj: T): T {
   return obj;
 }
 
+// Get all receipts (for reputation worker polling)
+app.get('/receipts', async (c) => {
+  const limit = Math.min(parseInt(c.req.query('limit') || '50'), 100);
+  const orderDirection = c.req.query('orderDirection') || 'asc';
+
+  const receipts = await db
+    .select()
+    .from(executionReceipt)
+    .orderBy(orderDirection === 'desc' ? desc(executionReceipt.timestamp) : executionReceipt.timestamp)
+    .limit(limit);
+
+  return c.json({ items: serializeBigInts(receipts) });
+});
+
 // Get receipts for a strategy
 app.get('/receipts/:strategyId', async (c) => {
   const strategyId = c.req.param('strategyId') as `0x${string}`;
