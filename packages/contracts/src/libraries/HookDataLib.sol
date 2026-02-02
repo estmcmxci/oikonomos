@@ -10,20 +10,26 @@ library HookDataLib {
     /// @notice Error thrown when maxSlippage exceeds bounds
     error InvalidSlippageBounds();
 
+    /// @notice Error thrown when user address is zero
+    error InvalidUserAddress();
+
     /// @notice Encode strategy data for hook consumption
     /// @param strategyId The strategy identifier (ENS namehash or agent ID)
     /// @param quoteId The quote identifier for tracking
     /// @param expectedAmount Expected output (exactIn) or expected input (exactOut) from quote
     /// @param maxSlippage Maximum acceptable slippage in basis points (0-10000)
+    /// @param userAddress The actual user who initiated the swap (not the router)
     /// @return Encoded bytes for hookData parameter
     function encode(
         bytes32 strategyId,
         bytes32 quoteId,
         uint256 expectedAmount,
-        uint256 maxSlippage
+        uint256 maxSlippage,
+        address userAddress
     ) internal pure returns (bytes memory) {
         if (maxSlippage > MAX_SLIPPAGE_BPS) revert InvalidSlippageBounds();
-        return abi.encode(strategyId, quoteId, expectedAmount, maxSlippage);
+        if (userAddress == address(0)) revert InvalidUserAddress();
+        return abi.encode(strategyId, quoteId, expectedAmount, maxSlippage, userAddress);
     }
 
     /// @notice Decode hook data back to components
@@ -32,13 +38,15 @@ library HookDataLib {
     /// @return quoteId The quote identifier
     /// @return expectedAmount Expected output (exactIn) or expected input (exactOut)
     /// @return maxSlippage Maximum acceptable slippage in basis points
+    /// @return userAddress The actual user who initiated the swap
     function decode(bytes memory hookData) internal pure returns (
         bytes32 strategyId,
         bytes32 quoteId,
         uint256 expectedAmount,
-        uint256 maxSlippage
+        uint256 maxSlippage,
+        address userAddress
     ) {
-        return abi.decode(hookData, (bytes32, bytes32, uint256, uint256));
+        return abi.decode(hookData, (bytes32, bytes32, uint256, uint256, address));
     }
 
     /// @notice Generate a strategy ID from an ENS name

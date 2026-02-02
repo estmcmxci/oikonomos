@@ -20,10 +20,13 @@ contract ReceiptHook is IHooks {
     uint256 public constant MAX_SLIPPAGE_BPS = 10000;
 
     /// @notice Emitted after each swap with strategy attribution data
+    /// @dev The 'user' field is the actual wallet that initiated the swap (from hookData)
+    /// @dev The 'router' field is the contract that called PoolManager (e.g., IntentRouter)
     event ExecutionReceipt(
         bytes32 indexed strategyId,
         bytes32 indexed quoteId,
-        address indexed sender,
+        address indexed user,
+        address router,
         int128 amount0,
         int128 amount1,
         uint256 actualSlippage,
@@ -138,10 +141,10 @@ contract ReceiptHook is IHooks {
     }
 
     /// @notice Called after a swap to emit the ExecutionReceipt event
-    /// @param sender The address that initiated the swap
+    /// @param sender The address that initiated the swap (router contract)
     /// @param params The swap parameters
     /// @param delta The balance changes from the swap
-    /// @param hookData Encoded (strategyId, quoteId, expectedAmount, maxSlippage)
+    /// @param hookData Encoded (strategyId, quoteId, expectedAmount, maxSlippage, userAddress)
     /// @return The function selector and zero delta modifier
     function afterSwap(
         address sender,
@@ -152,8 +155,8 @@ contract ReceiptHook is IHooks {
     ) external override onlyPoolManager returns (bytes4, int128) {
         // Only emit receipt if hookData is provided
         if (hookData.length > 0) {
-            (bytes32 strategyId, bytes32 quoteId, uint256 expectedAmount, uint256 maxSlippage) =
-                abi.decode(hookData, (bytes32, bytes32, uint256, uint256));
+            (bytes32 strategyId, bytes32 quoteId, uint256 expectedAmount, uint256 maxSlippage, address userAddress) =
+                abi.decode(hookData, (bytes32, bytes32, uint256, uint256, address));
 
             // Validate hookData parameters
             if (maxSlippage > MAX_SLIPPAGE_BPS) revert InvalidSlippageBounds();
@@ -166,7 +169,8 @@ contract ReceiptHook is IHooks {
             emit ExecutionReceipt(
                 strategyId,
                 quoteId,
-                sender,
+                userAddress,  // The actual user wallet (from hookData)
+                sender,       // The router contract that called swap
                 delta.amount0(),
                 delta.amount1(),
                 actualSlippage,

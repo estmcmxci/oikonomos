@@ -9,7 +9,8 @@ interface WebhookEvent {
   type: string;
   eventId: string;
   data: {
-    sender?: Address;
+    user?: Address; // The actual user wallet (from hookData)
+    router?: Address; // The router contract
     strategyId?: string;
     quoteId?: string;
     amount0?: string;
@@ -164,8 +165,8 @@ async function processEvents(
 function extractUserAddress(event: WebhookEvent): Address | null {
   switch (event.type) {
     case 'ExecutionReceipt':
-      // The sender is the user whose trade was executed
-      return event.data.sender || null;
+      // The user field contains the actual wallet (extracted from hookData by ReceiptHook)
+      return event.data.user || null;
     default:
       return null;
   }
