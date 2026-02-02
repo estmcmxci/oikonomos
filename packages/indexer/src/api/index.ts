@@ -35,13 +35,13 @@ app.get('/receipts/:strategyId', async (c) => {
 });
 
 // Get receipts for a user
-app.get('/receipts/user/:sender', async (c) => {
-  const sender = c.req.param('sender') as `0x${string}`;
+app.get('/receipts/user/:user', async (c) => {
+  const user = c.req.param('user') as `0x${string}`;
 
   const receipts = await db
     .select()
     .from(executionReceipt)
-    .where(eq(executionReceipt.sender, sender))
+    .where(eq(executionReceipt.user, user))
     .orderBy(desc(executionReceipt.timestamp))
     .limit(100);
 

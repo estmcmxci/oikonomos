@@ -83,7 +83,8 @@ ponder.on('ReceiptHook:ExecutionReceipt', async ({ event, context }) => {
     id: receiptId,
     strategyId: event.args.strategyId,
     quoteId: event.args.quoteId,
-    sender: event.args.sender,
+    user: event.args.user, // The actual user wallet (from hookData)
+    router: event.args.router, // The router contract
     amount0: event.args.amount0,
     amount1: event.args.amount1,
     actualSlippage: event.args.actualSlippage,
@@ -145,7 +146,8 @@ ponder.on('ReceiptHook:ExecutionReceipt', async ({ event, context }) => {
     'ExecutionReceipt',
     receiptId,
     {
-      sender: event.args.sender,
+      user: event.args.user, // The actual user wallet
+      router: event.args.router, // The router contract
       strategyId: event.args.strategyId,
       quoteId: event.args.quoteId,
       amount0: event.args.amount0.toString(),

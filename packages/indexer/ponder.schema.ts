@@ -4,7 +4,8 @@ export const executionReceipt = onchainTable('execution_receipt', (t) => ({
   id: t.text().primaryKey(),
   strategyId: t.hex().notNull(),
   quoteId: t.hex().notNull(),
-  sender: t.hex().notNull(),
+  user: t.hex().notNull(), // The actual user wallet (from hookData)
+  router: t.hex().notNull(), // The router contract that executed the swap
   amount0: t.bigint().notNull(),
   amount1: t.bigint().notNull(),
   actualSlippage: t.bigint().notNull(),
@@ -14,7 +15,8 @@ export const executionReceipt = onchainTable('execution_receipt', (t) => ({
   transactionHash: t.hex().notNull(),
 }), (table) => ({
   strategyIdIdx: index().on(table.strategyId),
-  senderIdx: index().on(table.sender),
+  userIdx: index().on(table.user),
+  routerIdx: index().on(table.router),
   timestampIdx: index().on(table.timestamp),
 }));
 

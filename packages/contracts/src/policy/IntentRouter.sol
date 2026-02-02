@@ -125,7 +125,7 @@ contract IntentRouter is EIP712, IUnlockCallback, Ownable, Pausable {
         // 6. Approve PoolManager to spend tokens
         IERC20(intent.tokenIn).approve(address(POOL_MANAGER), intent.amountIn);
 
-        // 7. Build hookData for ReceiptHook
+        // 7. Build hookData for ReceiptHook (includes user address for attribution)
         bytes32 quoteId = keccak256(strategyData);
         // expectedAmount is the minimum output (amountIn minus max slippage)
         uint256 expectedAmount = intent.amountIn * (10000 - intent.maxSlippage) / 10000;
@@ -133,7 +133,8 @@ contract IntentRouter is EIP712, IUnlockCallback, Ownable, Pausable {
             intent.strategyId,
             quoteId,
             expectedAmount,
-            intent.maxSlippage
+            intent.maxSlippage,
+            intent.user // Pass user address for receipt attribution
         );
 
         // 8. Determine swap direction
