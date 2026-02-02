@@ -15,7 +15,7 @@ contract CreateTestPools is Script {
     address constant POOL_MANAGER = 0xE03A1074c86CFeDd5C142C4F04F1a1536e203543;
 
     // Deployed ReceiptHook address
-    address constant RECEIPT_HOOK = 0x15d3b7CbC9463f92a88cE7B1B384277DA741C040;
+    address constant RECEIPT_HOOK = 0x41a75f07bA1958EcA78805D8419C87a393764040;
 
     // Test token addresses (Sepolia)
     // Using mock tokens - in production would use real USDC/DAI
