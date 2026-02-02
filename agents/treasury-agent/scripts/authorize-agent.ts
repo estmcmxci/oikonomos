@@ -146,7 +146,7 @@ async function checkStatus() {
 
   // Check portfolio
   console.log('\nFetching portfolio...');
-  const portfolioResponse = await fetch(`${TREASURY_AGENT_URL}/portfolio?userAddress=${account.address}`);
+  const portfolioResponse = await fetch(`${TREASURY_AGENT_URL}/portfolio?address=${account.address}`);
   const portfolio = await portfolioResponse.json();
   console.log('Portfolio:', JSON.stringify(portfolio, null, 2));
 }
