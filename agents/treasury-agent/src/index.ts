@@ -2,6 +2,8 @@ import { handleAgentCard } from './a2a/agent-card';
 import { handleConfigure } from './policy/parser';
 import { handleTriggerCheck } from './triggers/drift';
 import { handleRebalance } from './rebalance/executor';
+import { handlePortfolio } from './portfolio/handler';
+import { handleScheduledTrigger, handleEventsWebhook, savePolicy, saveAuthorization, deleteAuthorization, type UserAuthorization } from './observation';
 
 export interface Env {
   CHAIN_ID: string;
@@ -11,6 +13,7 @@ export interface Env {
   RPC_URL: string;
   STRATEGY_ID?: string; // Optional: Default strategy ID for this agent
   RECEIPT_HOOK?: string; // ReceiptHook address for verifying receipts
+  TREASURY_KV: KVNamespace; // KV namespace for state and policy storage
 }
 
 const CORS_HEADERS = {
@@ -22,6 +25,108 @@ const CORS_HEADERS = {
 // In-memory lock for preventing concurrent rebalances per user
 // Note: In production, use Durable Objects or KV for distributed locking
 const activeRebalances = new Set<string>();
+
+interface AuthorizeRequest {
+  userAddress: string;
+  signature: string;
+  expiry: number;
+  maxDailyUsd: number;
+  allowedTokens?: string[];
+}
+
+async function handleAuthorize(
+  request: Request,
+  env: Env,
+  corsHeaders: Record<string, string>
+): Promise<Response> {
+  let body: AuthorizeRequest;
+
+  try {
+    body = await request.json();
+  } catch {
+    return new Response(
+      JSON.stringify({ success: false, error: 'Invalid JSON body' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  if (!body.userAddress || !body.signature || !body.expiry || body.maxDailyUsd === undefined) {
+    return new Response(
+      JSON.stringify({ success: false, error: 'Missing required fields: userAddress, signature, expiry, maxDailyUsd' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  // Validate expiry is in the future
+  if (body.expiry <= Date.now()) {
+    return new Response(
+      JSON.stringify({ success: false, error: 'Expiry must be in the future' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  // TODO: In production, verify the signature is valid EIP-712 signed by userAddress
+  // For MVP, we trust the signature
+
+  const auth: UserAuthorization = {
+    signature: body.signature,
+    expiry: body.expiry,
+    maxDailyUsd: body.maxDailyUsd,
+    allowedTokens: (body.allowedTokens || []) as `0x${string}`[],
+    createdAt: Date.now(),
+  };
+
+  try {
+    await saveAuthorization(env.TREASURY_KV, body.userAddress as `0x${string}`, auth);
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message: 'Authorization saved',
+        expiry: auth.expiry,
+        maxDailyUsd: auth.maxDailyUsd,
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  } catch (error) {
+    console.error('Error saving authorization:', error);
+    return new Response(
+      JSON.stringify({ success: false, error: 'Failed to save authorization' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+}
+
+async function handleRevokeAuthorization(
+  request: Request,
+  env: Env,
+  corsHeaders: Record<string, string>
+): Promise<Response> {
+  const url = new URL(request.url);
+  const userAddress = url.searchParams.get('userAddress');
+
+  if (!userAddress) {
+    return new Response(
+      JSON.stringify({ success: false, error: 'Missing userAddress query parameter' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  try {
+    await deleteAuthorization(env.TREASURY_KV, userAddress as `0x${string}`);
+
+    return new Response(
+      JSON.stringify({ success: true, message: 'Authorization revoked' }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  } catch (error) {
+    console.error('Error revoking authorization:', error);
+    return new Response(
+      JSON.stringify({ success: false, error: 'Failed to revoke authorization' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+}
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -39,7 +144,32 @@ export default {
 
       // Policy Configuration
       if (url.pathname === '/configure' && request.method === 'POST') {
-        return handleConfigure(request, env, CORS_HEADERS);
+        // Also save policy to KV for observation loop
+        const response = await handleConfigure(request, env, CORS_HEADERS);
+        if (response.ok) {
+          // Clone and parse the response to get the saved policy
+          const clonedResponse = response.clone();
+          const result = await clonedResponse.json() as { userAddress?: string; policy?: unknown };
+          if (result.userAddress && result.policy) {
+            await savePolicy(env.TREASURY_KV, result.userAddress as `0x${string}`, result.policy as import('./policy/templates').Policy);
+          }
+        }
+        return response;
+      }
+
+      // Events Webhook (from Ponder indexer)
+      if (url.pathname === '/events' && request.method === 'POST') {
+        return handleEventsWebhook(request, env, env.TREASURY_KV, CORS_HEADERS);
+      }
+
+      // User Authorization for auto-execution
+      if (url.pathname === '/authorize' && request.method === 'POST') {
+        return handleAuthorize(request, env, CORS_HEADERS);
+      }
+
+      // Revoke Authorization
+      if (url.pathname === '/authorize' && request.method === 'DELETE') {
+        return handleRevokeAuthorization(request, env, CORS_HEADERS);
       }
 
       // Trigger Check (called by scheduler or manually)
@@ -80,6 +210,11 @@ export default {
         }
       }
 
+      // Portfolio State
+      if (url.pathname === '/portfolio' && request.method === 'GET') {
+        return handlePortfolio(request, env, CORS_HEADERS);
+      }
+
       // Health check
       if (url.pathname === '/health') {
         return new Response(
@@ -100,11 +235,6 @@ export default {
 
   // Scheduled trigger (Cloudflare Cron)
   async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
-    ctx.waitUntil(checkAndRebalance(env));
+    ctx.waitUntil(handleScheduledTrigger(env, env.TREASURY_KV));
   },
 };
-
-async function checkAndRebalance(env: Env) {
-  console.log('Scheduled drift check running at:', new Date().toISOString());
-  // In production: Iterate through configured users/policies and check drift
-}

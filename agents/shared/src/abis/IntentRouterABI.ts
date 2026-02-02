@@ -1,6 +1,6 @@
 /**
  * IntentRouter ABI
- * Deployed at: 0x855B735aC495f06E46cf01A1607706dF43c82348 (Sepolia)
+ * Deployed at: 0xFD699481f0aA60e0014EEd79d16cbe4b954FfaEf (Sepolia)
  */
 export const IntentRouterABI = [
   {
