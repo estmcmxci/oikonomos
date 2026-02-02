@@ -59,6 +59,8 @@ const STRATEGY_ID_TO_AGENT: Record<string, string> = {
   // Default strategy IDs used by treasury-agent
   '0x0000000000000000000000000000000000000000000000000000000000000001': '731', // Treasury
   '0x0000000000000000000000000000000000000000000000000000000000000002': '732', // Strategy
+  // keccak256("treasury.oikonomos.eth") - used in E2E testing
+  '0x9fc9212705a775dc1267b361b43ccda833c07986473da79558651f874598b96c': '731', // Treasury
 };
 
 function calculateSlippageScore(actualSlippage: bigint, maxSlippage: bigint = 1000n): number {
@@ -166,7 +168,7 @@ async function submitFeedback(
   return { slippageTx, complianceTx };
 }
 
-async function processReceipts(env: Env): Promise<{ processed: number; errors: number }> {
+async function processReceipts(env: Env): Promise<{ processed: number; errors: number; lastError?: string }> {
   // Get last processed receipt ID from KV
   const lastProcessedId = await env.REPUTATION_KV.get('lastProcessedReceiptId');
 
@@ -180,6 +182,7 @@ async function processReceipts(env: Env): Promise<{ processed: number; errors: n
 
   let processed = 0;
   let errors = 0;
+  let lastError: string | undefined;
 
   for (const receipt of receipts) {
     try {
@@ -204,12 +207,14 @@ async function processReceipts(env: Env): Promise<{ processed: number; errors: n
         processed++;
       }
     } catch (error) {
-      console.error(`Error processing receipt ${receipt.id}:`, error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(`Error processing receipt ${receipt.id}:`, errorMessage);
+      lastError = `${receipt.id}: ${errorMessage}`;
       errors++;
     }
   }
 
-  return { processed, errors };
+  return { processed, errors, lastError };
 }
 
 export default {
