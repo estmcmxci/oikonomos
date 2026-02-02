@@ -10,10 +10,16 @@
     "lint": "turbo run lint",
     "contracts:build": "cd packages/contracts && forge build",
     "contracts:test": "cd packages/contracts && forge test",
-    "contracts:deploy": "cd packages/contracts && forge script"
+    "contracts:deploy": "cd packages/contracts && forge script",
+    "register-agent": "tsx scripts/register-canonical-agent.ts",
+    "update-agent": "tsx scripts/update-agent-metadata.ts"
   },
   "devDependencies": {
     "turbo": "^2.0.0",
     "typescript": "^5.4.0"
+  },
+  "dependencies": {
+    "dotenv": "^17.2.3",
+    "tsx": "^4.21.0"
   }
 }
