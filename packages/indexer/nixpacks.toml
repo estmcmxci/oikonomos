@@ -1,0 +1,7 @@
+# Nixpacks configuration for Railway deployment
+
+[phases.setup]
+nixPkgs = ["nodejs_18"]
+
+[start]
+cmd = "npm start"
