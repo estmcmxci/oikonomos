@@ -24,8 +24,11 @@ export interface ERC8004AgentMetadata {
   services?: ERC8004Service[];
 }
 
-// Registry contract address (Ethereum mainnet)
-export const ERC8004_REGISTRY = '0x8004A169FB4a3325136EB29fA0ceB6D2e539a432' as const;
+// Registry contract address (Sepolia)
+export const ERC8004_REGISTRY_SEPOLIA = '0x8004A818BFB912233c491871b3d84c89A494BD9e' as const;
+
+// Default to Sepolia for now
+export const ERC8004_REGISTRY = ERC8004_REGISTRY_SEPOLIA;
 
 // Registry ABI (minimal for registration)
 export const ERC8004_REGISTRY_ABI = [

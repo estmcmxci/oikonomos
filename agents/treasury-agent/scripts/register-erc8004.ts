@@ -10,12 +10,15 @@ import { createPublicClient, createWalletClient, http, type Address } from 'viem
 import { sepolia } from 'viem/chains';
 import { privateKeyToAccount } from 'viem/accounts';
 import {
-  ERC8004_REGISTRY,
+  ERC8004_REGISTRY_SEPOLIA,
   ERC8004_REGISTRY_ABI,
   buildAgentMetadata,
   encodeAgentURI,
   decodeAgentURI,
 } from '../src/a2a/erc8004';
+
+// Use Sepolia registry
+const ERC8004_REGISTRY = ERC8004_REGISTRY_SEPOLIA;
 
 const PRIVATE_KEY = process.env.PRIVATE_KEY as `0x${string}`;
 const RPC_URL = process.env.RPC_URL || 'https://eth-sepolia.g.alchemy.com/v2/demo';
