@@ -6,9 +6,13 @@ export {
   loadPolicy,
   savePolicy,
   listPolicyUsers,
+  loadAuthorization,
+  saveAuthorization,
+  deleteAuthorization,
   type EvaluationState,
   type EvaluationContext,
   type EvaluationResult,
+  type UserAuthorization,
 } from './loop';
 
 export { handleScheduledTrigger, type CronResult } from './cron';
