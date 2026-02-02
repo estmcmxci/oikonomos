@@ -9,3 +9,11 @@ export {
   resolveAgentERC8004,
   type ERC8004Record,
 } from './resolver';
+
+export {
+  setEnsText,
+  setAgentERC8004Record,
+  formatERC8004Record,
+  getPublicResolverAddress,
+  buildSetTextCalldata,
+} from './setter';
