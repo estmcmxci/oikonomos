@@ -9,6 +9,10 @@ export interface Env {
   QUOTER: string;
   PRIVATE_KEY: string;
   RPC_URL: string;
+  // OIK-37: Execute endpoint requirements
+  INTENT_ROUTER: string;
+  RECEIPT_HOOK: string;
+  STRATEGY_KV: KVNamespace;
 }
 
 const CORS_HEADERS = {

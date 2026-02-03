@@ -1,3 +1,4 @@
+import type { Address, Hex } from 'viem';
 import type { Env } from '../index';
 import { findOptimalRoute } from '../strategy/router';
 import { generateQuoteId } from '../utils/quoteId';
@@ -28,6 +29,21 @@ interface QuoteResponse {
   route: RouteStep[];
   hookData: string;
   expiresAt: number;
+}
+
+/**
+ * OIK-37: Stored quote for execute validation
+ */
+interface StoredQuote {
+  quoteId: string;
+  tokenIn: Address;
+  tokenOut: Address;
+  amountIn: string;
+  expectedAmountOut: string;
+  estimatedSlippageBps: number;
+  hookData: Hex;
+  expiresAt: number;
+  route: RouteStep[];
 }
 
 export async function handleQuote(
@@ -72,6 +88,8 @@ export async function handleQuote(
     const strategyId = generateStrategyId('strategy.router.oikonomos.eth');
     const hookData = encodeHookData(strategyId, quoteId, maxSlippage);
 
+    const expiresAt = Date.now() + 60000; // 1 minute expiry
+
     const response: QuoteResponse = {
       quoteId,
       tokenIn: body.tokenIn,
@@ -81,8 +99,25 @@ export async function handleQuote(
       estimatedSlippageBps: route.estimatedSlippageBps,
       route: route.steps,
       hookData,
-      expiresAt: Date.now() + 60000, // 1 minute expiry
+      expiresAt,
     };
+
+    // OIK-37: Store quote in KV for execute endpoint validation
+    const storedQuote: StoredQuote = {
+      quoteId,
+      tokenIn: body.tokenIn as Address,
+      tokenOut: body.tokenOut as Address,
+      amountIn: body.amountIn,
+      expectedAmountOut: route.expectedAmountOut.toString(),
+      estimatedSlippageBps: route.estimatedSlippageBps,
+      hookData: hookData as Hex,
+      expiresAt,
+      route: route.steps,
+    };
+
+    await env.STRATEGY_KV.put(`quote:${quoteId}`, JSON.stringify(storedQuote), {
+      expirationTtl: 120, // 2 minutes TTL (slightly longer than quote expiry)
+    });
 
     return new Response(JSON.stringify(response), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
