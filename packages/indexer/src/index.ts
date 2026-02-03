@@ -6,6 +6,29 @@ import { keccak256, toBytes } from 'viem';
 const TREASURY_AGENT_WEBHOOK_URL = process.env.TREASURY_AGENT_WEBHOOK_URL;
 
 /**
+ * Marketplace ENS Filter (OIK-45)
+ *
+ * Only index agents that belong to our marketplace (*.oikonomos.eth).
+ * This ensures the consumer journey only shows relevant strategy agents,
+ * not all 249+ agents registered in the canonical ERC-8004 registry.
+ *
+ * Why ENS suffix filtering:
+ * - Quality control: Providers must obtain a subname to participate
+ * - Relevance: Only agents built for our rebalancing use case appear
+ * - Scalability: Don't store/query irrelevant agents from public registry
+ * - Trust: We control subname issuance under oikonomos.eth
+ */
+const MARKETPLACE_ENS_SUFFIX = process.env.MARKETPLACE_ENS_SUFFIX || '.oikonomos.eth';
+
+/**
+ * Check if an ENS name belongs to our marketplace
+ */
+function isMarketplaceAgent(ens: string | null): boolean {
+  if (!ens) return false;
+  return ens.endsWith(MARKETPLACE_ENS_SUFFIX);
+}
+
+/**
  * Dispatch webhook to treasury agent for ExecutionReceipt events
  * This enables the observation loop to react to on-chain events
  */
@@ -259,46 +282,43 @@ ponder.on('IdentityRegistry:Registered', async ({ event, context }) => {
   // Extract ENS name from metadata (OIK-35, OIK-38)
   const ens = await extractENSFromAgentURI(event.args.agentURI);
 
-  // Compute strategyId from ENS name if available (OIK-38)
-  const strategyId = ens ? computeStrategyId(ens) : null;
+  // Only index agents in our marketplace (OIK-45)
+  if (!isMarketplaceAgent(ens)) {
+    console.log(`[agent] Skipping agent ${event.args.agentId} - not in marketplace (ens: ${ens || 'none'})`);
+    return;
+  }
+
+  // Compute strategyId from ENS name (OIK-38)
+  const strategyId = computeStrategyId(ens!);
 
   await context.db.insert(agent).values({
     id: event.args.agentId.toString(),
     owner: event.args.owner,
     agentURI: event.args.agentURI,
     agentWallet: event.args.owner, // Initially same as owner, updated via MetadataSet
-    ens, // ENS name from metadata (may be null)
+    ens, // ENS name from metadata
     strategyId, // keccak256(ens) for dynamic resolution (OIK-38)
     registeredAt: event.block.timestamp,
   });
 
-  console.log(`[agent] Registered agent ${event.args.agentId}${ens ? ` with ENS: ${ens}, strategyId: ${strategyId}` : ''}`);
+  console.log(`[agent] Indexed marketplace agent ${event.args.agentId}: ${ens} (strategyId: ${strategyId})`);
 });
 
 // Event: MetadataSet - handles agentWallet updates
-// Uses upsert pattern since MetadataSet can fire for agents registered before start block
+// Only updates existing marketplace agents (doesn't create new entries)
 ponder.on('IdentityRegistry:MetadataSet', async ({ event, context }) => {
   // Check if this is an agentWallet update
   if (event.args.metadataKey === 'agentWallet') {
     // metadataValue is the wallet address encoded as bytes
     const walletAddress = ('0x' + event.args.metadataValue.slice(2).slice(0, 40)) as `0x${string}`;
 
+    // Only update if agent exists (was indexed as marketplace agent via Registered)
+    // This prevents creating entries for non-marketplace agents
     await context.db
-      .insert(agent)
-      .values({
-        id: event.args.agentId.toString(),
-        owner: walletAddress, // Best guess
-        agentURI: '',
-        agentWallet: walletAddress,
-        ens: null,
-        strategyId: null,
-        registeredAt: event.block.timestamp,
-      })
-      .onConflictDoUpdate({
-        agentWallet: walletAddress,
-      });
+      .update(agent, { id: event.args.agentId.toString() })
+      .set({ agentWallet: walletAddress });
 
-    console.log(`[agent] Upserted agent ${event.args.agentId} wallet to ${walletAddress}`);
+    console.log(`[agent] Updated wallet for agent ${event.args.agentId} to ${walletAddress}`);
   }
 });
 
@@ -306,7 +326,14 @@ ponder.on('IdentityRegistry:MetadataSet', async ({ event, context }) => {
 // Uses upsert pattern since URIUpdated can fire for agents registered before start block
 ponder.on('IdentityRegistry:URIUpdated', async ({ event, context }) => {
   const ens = await extractENSFromAgentURI(event.args.newURI);
-  const strategyId = ens ? computeStrategyId(ens) : null;
+
+  // Only index agents in our marketplace (OIK-45)
+  if (!isMarketplaceAgent(ens)) {
+    console.log(`[agent] Skipping URI update for agent ${event.args.agentId} - not in marketplace`);
+    return;
+  }
+
+  const strategyId = computeStrategyId(ens!);
 
   await context.db
     .insert(agent)
@@ -325,5 +352,5 @@ ponder.on('IdentityRegistry:URIUpdated', async ({ event, context }) => {
       strategyId,
     });
 
-  console.log(`[agent] Upserted agent ${event.args.agentId} URI${ens ? `, ENS: ${ens}` : ''}`);
+  console.log(`[agent] Updated marketplace agent ${event.args.agentId}: ${ens}`);
 });
