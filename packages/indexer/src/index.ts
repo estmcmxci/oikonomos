@@ -1,5 +1,6 @@
 import { ponder } from 'ponder:registry';
 import { executionReceipt, strategyMetrics, agent } from 'ponder:schema';
+import { keccak256, toBytes } from 'viem';
 
 // Treasury agent webhook URL (configurable via env)
 const TREASURY_AGENT_WEBHOOK_URL = process.env.TREASURY_AGENT_WEBHOOK_URL;
@@ -76,6 +77,14 @@ function absBigInt(n: bigint): bigint {
 
 // IPFS Gateway URL (configurable via env, defaults to public gateway)
 const IPFS_GATEWAY_URL = process.env.IPFS_GATEWAY_URL || 'https://ipfs.io/ipfs';
+
+/**
+ * Compute strategyId from ENS name (OIK-38)
+ * strategyId = keccak256(ensName)
+ */
+function computeStrategyId(ensName: string): `0x${string}` {
+  return keccak256(toBytes(ensName));
+}
 
 /**
  * Fetch metadata from IPFS and extract ENS name (OIK-35)
@@ -206,17 +215,21 @@ ponder.on('IdentityRegistry:AgentRegistered', async ({ event, context }) => {
   // Fetch ENS name from IPFS metadata (OIK-35)
   const ens = await fetchENSFromMetadata(event.args.agentURI);
 
+  // Compute strategyId from ENS name if available (OIK-38)
+  const strategyId = ens ? computeStrategyId(ens) : null;
+
   await context.db.insert(agent).values({
     id: event.args.agentId.toString(),
     owner: event.args.owner,
     agentURI: event.args.agentURI,
     agentWallet: event.args.owner, // Initially same as owner
     ens, // ENS name from metadata (may be null)
+    strategyId, // keccak256(ens) for dynamic resolution (OIK-38)
     registeredAt: event.block.timestamp,
   });
 
   if (ens) {
-    console.log(`[agent] Registered agent ${event.args.agentId} with ENS: ${ens}`);
+    console.log(`[agent] Registered agent ${event.args.agentId} with ENS: ${ens}, strategyId: ${strategyId}`);
   }
 });
 
