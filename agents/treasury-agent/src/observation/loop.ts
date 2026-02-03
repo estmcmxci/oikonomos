@@ -3,6 +3,7 @@ import type { Env } from '../index';
 import type { Policy } from '../policy/templates';
 import { checkDrift } from '../triggers/drift';
 import { buildAndSignIntent, submitIntent, getNonce } from '../modes/intentMode';
+import { requirePoolForPair } from '../config/pools';
 
 // KV key prefixes
 const STATE_PREFIX = 'state:';
@@ -194,23 +195,13 @@ function shouldResetDaily(state: EvaluationState): boolean {
 }
 
 /**
- * Get default pool key for token pair
+ * Get pool key for token pair from the pool registry.
+ * Only pools initialized with ReceiptHook are supported.
+ *
+ * @see agents/treasury-agent/src/config/pools.ts (OIK-39)
  */
 function getPoolKeyForPair(tokenIn: Address, tokenOut: Address) {
-  const DEFAULT_POOL_KEY = {
-    fee: 3000,
-    tickSpacing: 60,
-    hooks: '0x15d3b7CbC9463f92a88cE7B1B384277DA741C040' as Address,
-  };
-
-  const isToken0First = tokenIn.toLowerCase() < tokenOut.toLowerCase();
-  return {
-    currency0: isToken0First ? tokenIn : tokenOut,
-    currency1: isToken0First ? tokenOut : tokenIn,
-    fee: DEFAULT_POOL_KEY.fee,
-    tickSpacing: DEFAULT_POOL_KEY.tickSpacing,
-    hooks: DEFAULT_POOL_KEY.hooks,
-  };
+  return requirePoolForPair(tokenIn, tokenOut);
 }
 
 /**
