@@ -276,6 +276,7 @@ ponder.on('IdentityRegistry:Registered', async ({ event, context }) => {
 });
 
 // Event: MetadataSet - handles agentWallet updates
+// Uses upsert pattern since MetadataSet can fire for agents registered before start block
 ponder.on('IdentityRegistry:MetadataSet', async ({ event, context }) => {
   // Check if this is an agentWallet update
   if (event.args.metadataKey === 'agentWallet') {
@@ -283,27 +284,46 @@ ponder.on('IdentityRegistry:MetadataSet', async ({ event, context }) => {
     const walletAddress = ('0x' + event.args.metadataValue.slice(2).slice(0, 40)) as `0x${string}`;
 
     await context.db
-      .update(agent, { id: event.args.agentId.toString() })
-      .set({
+      .insert(agent)
+      .values({
+        id: event.args.agentId.toString(),
+        owner: walletAddress, // Best guess
+        agentURI: '',
+        agentWallet: walletAddress,
+        ens: null,
+        strategyId: null,
+        registeredAt: event.block.timestamp,
+      })
+      .onConflictDoUpdate({
         agentWallet: walletAddress,
       });
 
-    console.log(`[agent] Updated agent ${event.args.agentId} wallet to ${walletAddress}`);
+    console.log(`[agent] Upserted agent ${event.args.agentId} wallet to ${walletAddress}`);
   }
 });
 
 // Event: URIUpdated - handles agent URI changes (may change ENS)
+// Uses upsert pattern since URIUpdated can fire for agents registered before start block
 ponder.on('IdentityRegistry:URIUpdated', async ({ event, context }) => {
   const ens = await extractENSFromAgentURI(event.args.newURI);
   const strategyId = ens ? computeStrategyId(ens) : null;
 
   await context.db
-    .update(agent, { id: event.args.agentId.toString() })
-    .set({
+    .insert(agent)
+    .values({
+      id: event.args.agentId.toString(),
+      owner: event.args.updatedBy, // Best guess for owner
+      agentURI: event.args.newURI,
+      agentWallet: event.args.updatedBy,
+      ens,
+      strategyId,
+      registeredAt: event.block.timestamp,
+    })
+    .onConflictDoUpdate({
       agentURI: event.args.newURI,
       ens,
       strategyId,
     });
 
-  console.log(`[agent] Updated agent ${event.args.agentId} URI${ens ? `, ENS: ${ens}` : ''}`);
+  console.log(`[agent] Upserted agent ${event.args.agentId} URI${ens ? `, ENS: ${ens}` : ''}`);
 });
