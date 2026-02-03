@@ -6,7 +6,16 @@ compatibility_date = "2024-01-01"
 CHAIN_ID = "11155111"
 POOL_MANAGER = "0xE03A1074c86CFeDd5C142C4F04F1a1536e203543"
 QUOTER = "0x61b3f2011a92d183c7dbadbda940a7555ccf9227"
+# OIK-37: Execute endpoint requirements
+INTENT_ROUTER = "0x89223f6157cDE457B37763A70ed4E6A302F23683"
+RECEIPT_HOOK = "0x41a75f07bA1958EcA78805D8419C87a393764040"
 
 # Secrets (set via wrangler secret put)
 # PRIVATE_KEY - Agent executor private key
 # RPC_URL - Sepolia RPC URL
+
+# KV Namespace for quote storage
+[[kv_namespaces]]
+binding = "STRATEGY_KV"
+id = "strategy-agent-kv"
+preview_id = "strategy-agent-kv-preview"
