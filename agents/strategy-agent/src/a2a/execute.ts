@@ -3,14 +3,35 @@ import {
   createPublicClient,
   http,
   getContract,
+  decodeEventLog,
   type Address,
   type Hex,
+  type Log,
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { sepolia } from 'viem/chains';
 import type { Env } from '../index';
 import { IntentRouterABI } from '../../../shared/src/abis/IntentRouterABI';
-import { encodeHookData } from '../utils/hookData';
+import { encodeHookData, decodeHookData, generateStrategyId as encodeStrategyId } from '../utils/hookData';
+
+// ReceiptHook ABI for parsing ExecutionReceipt events
+const ReceiptHookABI = [
+  {
+    type: 'event',
+    name: 'ExecutionReceipt',
+    inputs: [
+      { name: 'strategyId', type: 'bytes32', indexed: true },
+      { name: 'quoteId', type: 'bytes32', indexed: true },
+      { name: 'user', type: 'address', indexed: true },
+      { name: 'router', type: 'address', indexed: false },
+      { name: 'amount0', type: 'int128', indexed: false },
+      { name: 'amount1', type: 'int128', indexed: false },
+      { name: 'actualSlippage', type: 'uint256', indexed: false },
+      { name: 'policyCompliant', type: 'bool', indexed: false },
+      { name: 'timestamp', type: 'uint256', indexed: false },
+    ],
+  },
+] as const;
 
 /**
  * OIK-37: Execute endpoint request schema
@@ -253,6 +274,22 @@ async function executeIntent(
     throw new Error('No pool found for token pair');
   }
 
+  // Extract strategyId from the stored quote's hookData
+  let strategyId: `0x${string}`;
+  let quoteIdBytes32: `0x${string}`;
+
+  try {
+    const decoded = decodeHookData(quote.hookData);
+    strategyId = decoded.strategyId;
+    quoteIdBytes32 = decoded.quoteId;
+  } catch {
+    // Fallback: generate from ENS name if hookData is invalid
+    strategyId = encodeStrategyId('strategy.router.oikonomos.eth');
+    quoteIdBytes32 = request.quoteId.startsWith('0x')
+      ? (request.quoteId.padEnd(66, '0').slice(0, 66) as `0x${string}`)
+      : (`0x${request.quoteId}`.padEnd(66, '0').slice(0, 66) as `0x${string}`);
+  }
+
   // Calculate max slippage in basis points
   const amountInBig = BigInt(request.intent.amountIn);
   const minAmountOutBig = BigInt(request.intent.minAmountOut);
@@ -268,18 +305,13 @@ async function executeIntent(
     amountIn: amountInBig,
     maxSlippage: maxSlippageBps,
     deadline: BigInt(request.intent.deadline),
-    strategyId: encodeStrategyId(request.quoteId) as Hex,
+    strategyId: strategyId as Hex,
     nonce: BigInt(request.intent.nonce),
   };
 
-  // Build hookData with strategyId, quoteId, expectedAmount
-  // Ensure quoteId is bytes32 format for hookData
-  const quoteIdBytes32 = request.quoteId.startsWith('0x')
-    ? (request.quoteId.padEnd(66, '0').slice(0, 66) as `0x${string}`)
-    : (`0x${request.quoteId}`.padEnd(66, '0').slice(0, 66) as `0x${string}`);
-
+  // Build hookData with strategyId, quoteId, maxSlippage for ReceiptHook
   const hookData = encodeHookData(
-    intentStruct.strategyId as `0x${string}`,
+    strategyId,
     quoteIdBytes32,
     Number(maxSlippageBps)
   ) as Hex;
@@ -345,10 +377,16 @@ async function executeIntent(
       };
     }
 
+    // Parse IntentExecuted event to get actual amountOut
+    const { amountOut: actualOut, receiptId } = parseExecutionEvents(
+      receipt.logs,
+      env.INTENT_ROUTER as Address,
+      env.RECEIPT_HOOK as Address,
+      BigInt(quote.expectedAmountOut)
+    );
+
     // Calculate actual slippage
     const expectedOut = BigInt(quote.expectedAmountOut);
-    // TODO: Parse actual amountOut from IntentExecuted event
-    const actualOut = expectedOut; // Placeholder
     const actualSlippage = expectedOut > 0n
       ? Number(((expectedOut - actualOut) * 10000n) / expectedOut)
       : 0;
@@ -356,7 +394,7 @@ async function executeIntent(
     return {
       success: true,
       txHash,
-      receiptId: `${request.quoteId}-${txHash.slice(0, 10)}`,
+      receiptId: receiptId || `${request.quoteId}-${txHash.slice(0, 10)}`,
       actualSlippage,
       amountOut: actualOut.toString(),
     };
@@ -400,15 +438,85 @@ function findPoolForPair(
 }
 
 /**
- * Encode a strategy ID from quote ID
+ * Parse execution events from transaction logs
+ * Extracts amountOut from IntentExecuted and receiptId from ExecutionReceipt
  */
-function encodeStrategyId(quoteId: string): string {
-  // For now, use a simple hash. In production, this would be
-  // the registered ERC-8004 strategy ID
-  if (quoteId.startsWith('0x') && quoteId.length === 66) {
-    return quoteId;
+function parseExecutionEvents(
+  logs: Log[],
+  intentRouterAddress: Address,
+  receiptHookAddress: Address,
+  expectedAmountOut: bigint
+): { amountOut: bigint; receiptId: string | null } {
+  let amountOut = expectedAmountOut; // Default to expected if event not found
+  let receiptId: string | null = null;
+
+  for (const log of logs) {
+    // Parse IntentExecuted from IntentRouter
+    if (log.address.toLowerCase() === intentRouterAddress.toLowerCase()) {
+      try {
+        const decoded = decodeEventLog({
+          abi: IntentRouterABI,
+          data: log.data,
+          topics: log.topics,
+        });
+
+        if (decoded.eventName === 'IntentExecuted') {
+          const args = decoded.args as {
+            intentHash: Hex;
+            user: Address;
+            strategyId: Hex;
+            amountIn: bigint;
+            amountOut: bigint;
+          };
+          // amountOut from IntentRouter is signed (can be negative for exact output swaps)
+          // Take absolute value for our purposes
+          amountOut = args.amountOut < 0n ? -args.amountOut : args.amountOut;
+          console.log('Parsed IntentExecuted event:', {
+            intentHash: args.intentHash,
+            amountOut: amountOut.toString(),
+          });
+        }
+      } catch (e) {
+        // Not an IntentExecuted event, continue
+        console.log('Failed to parse IntentRouter event:', e);
+      }
+    }
+
+    // Parse ExecutionReceipt from ReceiptHook
+    if (log.address.toLowerCase() === receiptHookAddress.toLowerCase()) {
+      try {
+        const decoded = decodeEventLog({
+          abi: ReceiptHookABI,
+          data: log.data,
+          topics: log.topics,
+        });
+
+        if (decoded.eventName === 'ExecutionReceipt') {
+          const args = decoded.args as {
+            strategyId: Hex;
+            quoteId: Hex;
+            user: Address;
+            router: Address;
+            amount0: bigint;
+            amount1: bigint;
+            actualSlippage: bigint;
+            policyCompliant: boolean;
+            timestamp: bigint;
+          };
+          // Build receiptId from quoteId and timestamp
+          receiptId = `${args.quoteId.slice(0, 18)}-${args.timestamp.toString()}`;
+          console.log('Parsed ExecutionReceipt event:', {
+            quoteId: args.quoteId,
+            policyCompliant: args.policyCompliant,
+            actualSlippage: args.actualSlippage.toString(),
+          });
+        }
+      } catch (e) {
+        // Not an ExecutionReceipt event, continue
+        console.log('Failed to parse ReceiptHook event:', e);
+      }
+    }
   }
-  // Pad or hash to bytes32
-  const hex = quoteId.startsWith('0x') ? quoteId : `0x${quoteId}`;
-  return hex.padEnd(66, '0').slice(0, 66);
+
+  return { amountOut, receiptId };
 }
