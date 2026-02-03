@@ -5,6 +5,8 @@ import { handleRebalance } from './rebalance/executor';
 import { handlePortfolio } from './portfolio/handler';
 import { handleSuggestPolicy } from './suggestion/handler';
 import { handleQuote } from './quote/handler';
+import { handleExecute } from './execute/handler';
+import { getFeeAnalytics, getRecentEarnings } from './x402/analytics';
 import { handleScheduledTrigger, handleEventsWebhook, savePolicy, saveAuthorization, deleteAuthorization, type UserAuthorization } from './observation';
 
 export interface Env {
@@ -18,6 +20,7 @@ export interface Env {
   INDEXER_URL?: string; // OIK-34: Indexer URL for marketplace discovery
   QUOTER_V4?: string; // OIK-36: Uniswap V4 Quoter address
   POOL_MANAGER?: string; // Uniswap V4 PoolManager address
+  AGENT_WALLET?: string; // OIK-40: Agent wallet address for x402 fee collection
   TREASURY_KV: KVNamespace; // KV namespace for state and policy storage
 }
 
@@ -230,13 +233,33 @@ export default {
         return handleQuote(request, env, CORS_HEADERS);
       }
 
+      // Execute endpoint (OIK-40: x402 payment-gated execution)
+      if (url.pathname === '/execute' && request.method === 'POST') {
+        return handleExecute(request, env, CORS_HEADERS);
+      }
+
+      // Fee analytics endpoint (OIK-40)
+      if (url.pathname === '/analytics' && request.method === 'GET') {
+        const totals = await getFeeAnalytics(env.TREASURY_KV);
+        const recent = await getRecentEarnings(env.TREASURY_KV, 10);
+        return new Response(
+          JSON.stringify({ totals, recentEarnings: recent }),
+          { headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+        );
+      }
+
       // Capabilities endpoint (OIK-34: Dynamic marketplace capabilities)
       if (url.pathname === '/capabilities' && request.method === 'GET') {
         return new Response(
           JSON.stringify({
             supportedTokens: ['USDC', 'DAI', 'WETH'],
             policyTypes: ['stablecoin-rebalance', 'threshold-rebalance'],
-            pricing: '0.1%',
+            pricing: {
+              type: 'percentage',
+              value: '0.1%',
+              description: 'Fee charged per execution via x402 protocol',
+            },
+            x402Support: true,
             description: 'Treasury rebalancing for stablecoin portfolios',
             version: '1.0.0',
             chainId: env.CHAIN_ID || '11155111',

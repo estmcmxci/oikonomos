@@ -2,6 +2,7 @@ import { createPublicClient, http, encodeFunctionData, decodeFunctionResult, typ
 import { sepolia } from 'viem/chains';
 import type { Env } from '../index';
 import { QuoterV4ABI } from '../../../shared/src/abis/QuoterV4ABI';
+import { getPaymentAddress, NETWORK, PAYMENT_TOKEN, DEFAULT_FEE_BPS } from '../x402/config';
 
 export interface QuoteRequest {
   tokenIn: Address;
@@ -19,8 +20,13 @@ export interface QuoteResponse {
   validUntil: number;
   route: 'direct' | 'multi-hop';
   pricing: {
-    fee: string;
+    feeType: 'percentage' | 'fixed';
+    feeValue: string; // e.g., "0.1%"
+    fee: string; // Alias for backward compatibility
     feeAmount: string;
+    paymentToken: string;
+    paymentAddress: string;
+    network: string; // CAIP-2 format
   };
 }
 
@@ -127,7 +133,8 @@ async function generateQuote(env: Env, request: QuoteRequest): Promise<QuoteResp
 
   if (!poolKey) {
     console.log('No pool found for pair, using simulated quote');
-    return generateSimulatedQuote(quoteId, amountIn, slippageBps, request.tokenIn, request.tokenOut);
+    const paymentAddress = getPaymentAddress(env as { AGENT_WALLET?: string });
+    return generateSimulatedQuote(quoteId, amountIn, slippageBps, request.tokenIn, request.tokenOut, paymentAddress);
   }
 
   // Determine swap direction
@@ -146,6 +153,7 @@ async function generateQuote(env: Env, request: QuoteRequest): Promise<QuoteResp
       if (onchainQuote) {
         const feeRate = poolKey.fee / 1_000_000; // Convert from bps to decimal
         const feeAmount = (amountIn * BigInt(poolKey.fee)) / BigInt(1_000_000);
+        const paymentAddress = getPaymentAddress(env as { AGENT_WALLET?: string });
 
         return {
           quoteId,
@@ -155,8 +163,13 @@ async function generateQuote(env: Env, request: QuoteRequest): Promise<QuoteResp
           validUntil: Math.floor(Date.now() / 1000) + 300, // Valid for 5 minutes
           route: 'direct',
           pricing: {
-            fee: `${(feeRate * 100).toFixed(2)}%`,
+            feeType: 'percentage',
+            feeValue: `${(feeRate * 100).toFixed(2)}%`,
+            fee: `${(feeRate * 100).toFixed(2)}%`, // Backward compatibility
             feeAmount: feeAmount.toString(),
+            paymentToken: PAYMENT_TOKEN,
+            paymentAddress,
+            network: NETWORK,
           },
         };
       }
@@ -166,7 +179,8 @@ async function generateQuote(env: Env, request: QuoteRequest): Promise<QuoteResp
   }
 
   // Fallback to simulated quote
-  return generateSimulatedQuote(quoteId, amountIn, slippageBps, request.tokenIn, request.tokenOut);
+  const paymentAddress = getPaymentAddress(env as { AGENT_WALLET?: string });
+  return generateSimulatedQuote(quoteId, amountIn, slippageBps, request.tokenIn, request.tokenOut, paymentAddress);
 }
 
 /**
@@ -243,7 +257,8 @@ function generateSimulatedQuote(
   amountIn: bigint,
   slippageBps: number,
   tokenIn: Address,
-  tokenOut: Address
+  tokenOut: Address,
+  paymentAddress: Address
 ): QuoteResponse {
   // Get token info for decimal adjustment
   const tokenInInfo = TOKEN_INFO[tokenIn.toLowerCase()] || { decimals: 18 };
@@ -260,8 +275,8 @@ function generateSimulatedQuote(
     }
   }
 
-  // Stablecoins: Use ~1:1 rate with 0.05% fee (5 bps)
-  const feeAmount = (adjustedAmount * BigInt(5)) / BigInt(10000);
+  // Strategy fee: 0.1% (10 bps) - this is the x402 payment fee
+  const feeAmount = (amountIn * BigInt(DEFAULT_FEE_BPS)) / BigInt(10000);
   const amountOut = adjustedAmount - feeAmount;
 
   return {
@@ -272,8 +287,13 @@ function generateSimulatedQuote(
     validUntil: Math.floor(Date.now() / 1000) + 300, // Valid for 5 minutes
     route: 'direct',
     pricing: {
-      fee: '0.05%',
+      feeType: 'percentage',
+      feeValue: '0.1%',
+      fee: '0.1%', // Backward compatibility
       feeAmount: feeAmount.toString(),
+      paymentToken: PAYMENT_TOKEN,
+      paymentAddress,
+      network: NETWORK,
     },
   };
 }
