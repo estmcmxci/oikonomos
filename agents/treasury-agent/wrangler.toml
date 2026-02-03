@@ -17,8 +17,9 @@ QUOTER_V4 = "0x61b3f2011a92d183c7dbadbda940a7555ccf9227"
 POOL_MANAGER = "0xE03A1074c86CFeDd5C142C4F04F1a1536e203543"
 
 # Secrets (set via wrangler secret put)
-# PRIVATE_KEY - Agent executor private key
+# PRIVATE_KEY - Treasury agent dedicated private key (OIK-32)
 # RPC_URL - Sepolia RPC URL
+# AGENT_WALLET - Public address to receive x402 fees
 
 # KV namespace for state and policy storage
 [[kv_namespaces]]
