@@ -48,6 +48,25 @@ importers:
         specifier: ^3.72.0
         version: 3.114.17(@cloudflare/workers-types@4.20260130.0)
 
+  agents/strategy-agent-template:
+    dependencies:
+      viem:
+        specifier: ^2.21.0
+        version: 2.45.1(typescript@5.9.3)(zod@3.22.3)
+    devDependencies:
+      '@cloudflare/workers-types':
+        specifier: ^4.20240925.0
+        version: 4.20260130.0
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vitest:
+        specifier: ^4.0.0
+        version: 4.0.18(@opentelemetry/api@1.9.0)(@types/node@25.2.0)(tsx@4.21.0)
+      wrangler:
+        specifier: ^3.78.0
+        version: 3.114.17(@cloudflare/workers-types@4.20260130.0)
+
   agents/treasury-agent:
     dependencies:
       viem:

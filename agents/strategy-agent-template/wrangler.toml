@@ -1,0 +1,27 @@
+# Strategy Agent Worker Template
+# Copy this directory and customize for your own strategy
+
+name = "my-strategy-agent"  # CHANGE: Your worker name
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+[vars]
+# Chain configuration (Sepolia)
+CHAIN_ID = "11155111"
+
+# Uniswap v4 contracts (Sepolia)
+POOL_MANAGER = "0xE03A1074c86CFeDd5C142C4F04F1a1536e203543"
+
+# Oikonomos contracts (Sepolia)
+INTENT_ROUTER = "0x89223f6157cDE457B37763A70ed4E6A302F23683"
+RECEIPT_HOOK = "0x41a75f07bA1958EcA78805D8419C87a393764040"
+
+# Secrets (set via wrangler secret put)
+# PRIVATE_KEY - Your agent wallet private key
+# RPC_URL - Sepolia RPC URL (e.g., Alchemy, Infura)
+# AGENT_WALLET - Public address to receive x402 fees
+
+# KV Namespace for quote storage
+[[kv_namespaces]]
+binding = "STRATEGY_KV"
+id = "YOUR_KV_NAMESPACE_ID"  # CHANGE: Create via `wrangler kv:namespace create STRATEGY_KV`
