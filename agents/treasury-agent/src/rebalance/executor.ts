@@ -4,6 +4,7 @@ import type { Policy } from '../policy/templates';
 import { checkDrift } from '../triggers/drift';
 import { buildAndSignIntent, submitIntent, getNonce } from '../modes/intentMode';
 import { requirePoolForPair, type PoolConfig } from '../config/pools';
+import { validateAuthorization, trackSpending } from '../auth';
 
 interface RebalanceRequest {
   userAddress: Address;
@@ -54,7 +55,16 @@ export async function handleRebalance(
   }
 
   try {
-    const result = await executeRebalance(env, body);
+    const result = await executeRebalance(env, body, corsHeaders);
+
+    // Return 403 if authorization failed
+    if (!result.success && result.error?.includes('Authorization')) {
+      return new Response(JSON.stringify(result), {
+        status: 403,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     return new Response(JSON.stringify(result), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
@@ -67,7 +77,11 @@ export async function handleRebalance(
   }
 }
 
-async function executeRebalance(env: Env, request: RebalanceRequest): Promise<RebalanceResult> {
+async function executeRebalance(
+  env: Env,
+  request: RebalanceRequest,
+  _corsHeaders: Record<string, string>
+): Promise<RebalanceResult> {
   // 1. Check drift
   const driftResult = await checkDrift(env, request.userAddress, request.policy);
 
@@ -89,6 +103,30 @@ async function executeRebalance(env: Env, request: RebalanceRequest): Promise<Re
       // Find a token to buy (one that needs buying)
       const buyToken = driftResult.drifts.find((d) => d.action === 'buy');
       if (!buyToken) continue;
+
+      // OIK-42: Estimate USD value for authorization check
+      // For stablecoins (6 decimals), divide by 1e6 to get USD value
+      const estimatedUsdValue = Number(drift.amount) / 1e6;
+
+      // OIK-42: Validate authorization before executing trade
+      const authResult = await validateAuthorization(
+        env.TREASURY_KV,
+        request.userAddress,
+        drift.token,
+        buyToken.token,
+        estimatedUsdValue
+      );
+
+      if (!authResult.valid) {
+        console.error(`Authorization validation failed: ${authResult.error}`);
+        return {
+          success: false,
+          needsRebalance: true,
+          trades: [],
+          receipts: [],
+          error: `Authorization failed: ${authResult.error}`,
+        };
+      }
 
       try {
         // Get quote from strategy agent
@@ -155,6 +193,9 @@ async function executeRebalance(env: Env, request: RebalanceRequest): Promise<Re
           trade.txHash = txHash;
           trade.status = 'executed';
           receipts.push(txHash);
+
+          // OIK-42: Track spending after successful trade
+          await trackSpending(env.TREASURY_KV, request.userAddress, estimatedUsdValue);
 
           console.log(`Trade executed successfully: ${txHash}`);
         } catch (error) {
