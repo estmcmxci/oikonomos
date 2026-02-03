@@ -15,6 +15,9 @@ COPY . .
 # Railway sets PORT dynamically, Ponder uses it automatically
 ENV PORT=42069
 
+# Database schema for production mode (required by ponder start)
+ENV DATABASE_SCHEMA=oikonomos_v2
+
 # Expose port
 EXPOSE 42069
 
