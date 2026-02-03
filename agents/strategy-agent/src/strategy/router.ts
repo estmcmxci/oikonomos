@@ -1,101 +1,147 @@
-import { createPublicClient, http } from 'viem';
-import { sepolia } from 'viem/chains';
-import type { Env } from '../index';
+/**
+ * OIK-22: Multi-Pool Route Finding
+ *
+ * Updated to support multi-hop routes using the routing module.
+ */
 
-interface RouteResult {
+import type { Address } from 'viem';
+import type { Env } from '../index';
+import {
+  findRoutes,
+  quoteMultiHop,
+  getDefaultPoolGraph,
+  hasDirectPool,
+  type Route,
+  type MultiHopQuote,
+} from '../routing';
+
+/**
+ * Route result returned to quote handler
+ */
+export interface RouteResult {
+  /** Expected output amount */
   expectedAmountOut: bigint;
+  /** Estimated slippage in basis points */
   estimatedSlippageBps: number;
+  /** Individual route steps */
   steps: RouteStep[];
+  /** Whether this is a multi-hop route */
+  isMultiHop: boolean;
+  /** Full multi-hop quote details (if applicable) */
+  multiHopQuote?: MultiHopQuote;
 }
 
-interface RouteStep {
+/**
+ * Single step in a route (for API response compatibility)
+ */
+export interface RouteStep {
   pool: string;
   tokenIn: string;
   tokenOut: string;
   fee: number;
 }
 
+/**
+ * Find the optimal route between two tokens.
+ *
+ * This function:
+ * 1. Searches the pool graph for all possible routes
+ * 2. Quotes each route using the Uniswap v4 Quoter
+ * 3. Returns the best route by expected output
+ *
+ * @param env - Worker environment with RPC_URL
+ * @param tokenIn - Source token address
+ * @param tokenOut - Destination token address
+ * @param amountIn - Amount to swap
+ * @returns Route result with expected output and steps
+ */
 export async function findOptimalRoute(
   env: Env,
   tokenIn: string,
   tokenOut: string,
   amountIn: bigint
 ): Promise<RouteResult> {
-  const client = createPublicClient({
-    chain: sepolia,
-    transport: http(env.RPC_URL),
+  const tokenInAddr = tokenIn.toLowerCase() as Address;
+  const tokenOutAddr = tokenOut.toLowerCase() as Address;
+
+  // Check if tokens are the same
+  if (tokenInAddr === tokenOutAddr) {
+    throw new Error('Cannot swap token to itself');
+  }
+
+  const graph = getDefaultPoolGraph();
+
+  // Find all possible routes
+  const routeResponse = findRoutes(
+    { tokenIn: tokenInAddr, tokenOut: tokenOutAddr, amountIn },
+    graph
+  );
+
+  // No route found
+  if (!routeResponse.bestRoute) {
+    throw new Error(`No route found from ${tokenIn} to ${tokenOut}`);
+  }
+
+  // Get all routes to quote (best + alternatives)
+  const routesToQuote = [
+    routeResponse.bestRoute,
+    ...routeResponse.alternatives.slice(0, 2), // Top 2 alternatives
+  ].filter(Boolean) as Route[];
+
+  // Quote all routes in parallel
+  const quotes = await Promise.all(
+    routesToQuote.map(route => quoteMultiHop(env.RPC_URL, route, amountIn))
+  );
+
+  // Find best quote by output amount
+  quotes.sort((a, b) => {
+    if (b.amountOut > a.amountOut) return 1;
+    if (b.amountOut < a.amountOut) return -1;
+    return 0;
   });
 
-  // For MVP: Direct swap route
-  // In production: Multi-hop optimization, liquidity analysis, MEV protection
+  const bestQuote = quotes[0];
+  const isMultiHop = bestQuote.route.hopCount > 1;
 
-  try {
-    // Check if tokens are the same
-    if (tokenIn.toLowerCase() === tokenOut.toLowerCase()) {
-      throw new Error('Cannot swap token to itself');
-    }
+  // Convert to RouteStep format for API compatibility
+  const steps: RouteStep[] = bestQuote.route.hops.map(hop => ({
+    pool: hop.pool.id,
+    tokenIn: hop.tokenIn,
+    tokenOut: hop.tokenOut,
+    fee: hop.fee,
+  }));
 
-    // Determine the fee tier (simplified - in production would query pools)
-    const feeTier = selectFeeTier(tokenIn, tokenOut);
-
-    // Direct pool route
-    const directRoute: RouteStep = {
-      pool: `${tokenIn.slice(0, 10)}-${tokenOut.slice(0, 10)}-${feeTier}`,
-      tokenIn,
-      tokenOut,
-      fee: feeTier,
-    };
-
-    // Estimate output using a simple model
-    // In production: Call Quoter contract for accurate quote
-    const estimatedSlippageBps = calculateEstimatedSlippage(amountIn, feeTier);
-    const slippageFactor = 10000n - BigInt(estimatedSlippageBps);
-    const expectedAmountOut = (amountIn * slippageFactor) / 10000n;
-
-    return {
-      expectedAmountOut,
-      estimatedSlippageBps,
-      steps: [directRoute],
-    };
-  } catch (error) {
-    console.error('Route finding error:', error);
-    throw new Error(`Failed to find route: ${String(error)}`);
-  }
+  return {
+    expectedAmountOut: bestQuote.amountOut,
+    estimatedSlippageBps: bestQuote.totalSlippageBps,
+    steps,
+    isMultiHop,
+    multiHopQuote: bestQuote,
+  };
 }
 
-function selectFeeTier(tokenIn: string, tokenOut: string): number {
-  // Simplified fee tier selection
-  // Stablecoin pairs: 0.01% (100)
-  // Standard pairs: 0.3% (3000)
-  // Exotic pairs: 1% (10000)
+/**
+ * Check if a route exists between two tokens.
+ */
+export function canRoute(tokenIn: string, tokenOut: string): boolean {
+  const graph = getDefaultPoolGraph();
+  const routeResponse = findRoutes({
+    tokenIn: tokenIn.toLowerCase() as Address,
+    tokenOut: tokenOut.toLowerCase() as Address,
+    amountIn: 0n,
+  }, graph);
 
-  const stablecoins = [
-    '0x1c7d4b196cb0c7b01d743fbc6116a902379c7238', // USDC
-    '0xaa8e23fb1079ea71e0a56f48a2aa51851d8433d0', // USDT (example)
-    '0x6b175474e89094c44da98b954eedeac495271d0f', // DAI (example)
-  ];
-
-  const isStablePair =
-    stablecoins.includes(tokenIn.toLowerCase()) &&
-    stablecoins.includes(tokenOut.toLowerCase());
-
-  if (isStablePair) {
-    return 100; // 0.01%
-  }
-
-  return 3000; // 0.3% default
+  return routeResponse.bestRoute !== null;
 }
 
-function calculateEstimatedSlippage(amountIn: bigint, feeTier: number): number {
-  // Simplified slippage estimation
-  // In production: Based on pool liquidity, trade size, etc.
-
-  const baseFee = feeTier / 100; // Fee in bps
-
-  // Add price impact estimation based on amount
-  // Larger amounts = more slippage
-  const amountInNumber = Number(amountIn / 10n ** 12n); // Normalize to avoid overflow
-  const priceImpact = Math.min(Math.log10(Math.max(amountInNumber, 1)) * 5, 50);
-
-  return Math.round(baseFee + priceImpact);
+/**
+ * Check if a direct (single-hop) route exists.
+ */
+export function hasDirectRoute(tokenIn: string, tokenOut: string): boolean {
+  const graph = getDefaultPoolGraph();
+  return hasDirectPool(
+    tokenIn.toLowerCase() as Address,
+    tokenOut.toLowerCase() as Address,
+    graph
+  );
 }

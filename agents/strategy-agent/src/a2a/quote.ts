@@ -1,3 +1,9 @@
+/**
+ * OIK-22: Multi-Hop Quote Handler
+ *
+ * Updated to return multi-hop route details in quote response.
+ */
+
 import type { Address, Hex } from 'viem';
 import type { Env } from '../index';
 import { findOptimalRoute } from '../strategy/router';
@@ -19,6 +25,9 @@ interface RouteStep {
   fee: number;
 }
 
+/**
+ * OIK-22: Extended quote response with multi-hop details
+ */
 interface QuoteResponse {
   quoteId: string;
   tokenIn: string;
@@ -29,6 +38,13 @@ interface QuoteResponse {
   route: RouteStep[];
   hookData: string;
   expiresAt: number;
+  // OIK-22: Multi-hop additions
+  isMultiHop: boolean;
+  hopCount: number;
+  path: string[];
+  slippageByHop: number[];
+  priceImpactBps: number;
+  gasEstimate: string;
 }
 
 /**
@@ -44,6 +60,10 @@ interface StoredQuote {
   hookData: Hex;
   expiresAt: number;
   route: RouteStep[];
+  // OIK-22: Multi-hop additions
+  isMultiHop: boolean;
+  hopCount: number;
+  path: string[];
 }
 
 export async function handleQuote(
@@ -73,8 +93,8 @@ export async function handleQuote(
   const maxSlippage = body.maxSlippageBps ?? 50; // Default 0.5%
 
   try {
-    // Find optimal route
-    const route = await findOptimalRoute(
+    // Find optimal route (now supports multi-hop)
+    const routeResult = await findOptimalRoute(
       env,
       body.tokenIn,
       body.tokenOut,
@@ -90,16 +110,43 @@ export async function handleQuote(
 
     const expiresAt = Date.now() + 60000; // 1 minute expiry
 
+    // Build path array from route steps
+    const path = routeResult.steps.length > 0
+      ? [routeResult.steps[0].tokenIn, ...routeResult.steps.map(s => s.tokenOut)]
+      : [body.tokenIn, body.tokenOut];
+
+    // Get slippage by hop from multi-hop quote
+    const slippageByHop = routeResult.multiHopQuote
+      ? routeResult.multiHopQuote.hopQuotes.map(h => h.slippageBps)
+      : [routeResult.estimatedSlippageBps];
+
+    // Get price impact from multi-hop quote
+    const priceImpactBps = routeResult.multiHopQuote
+      ? routeResult.multiHopQuote.totalPriceImpactBps
+      : 0;
+
+    // Get gas estimate from multi-hop quote
+    const gasEstimate = routeResult.multiHopQuote
+      ? routeResult.multiHopQuote.gasEstimate.toString()
+      : '150000';
+
     const response: QuoteResponse = {
       quoteId,
       tokenIn: body.tokenIn,
       tokenOut: body.tokenOut,
       amountIn: body.amountIn,
-      expectedAmountOut: route.expectedAmountOut.toString(),
-      estimatedSlippageBps: route.estimatedSlippageBps,
-      route: route.steps,
+      expectedAmountOut: routeResult.expectedAmountOut.toString(),
+      estimatedSlippageBps: routeResult.estimatedSlippageBps,
+      route: routeResult.steps,
       hookData,
       expiresAt,
+      // OIK-22: Multi-hop details
+      isMultiHop: routeResult.isMultiHop,
+      hopCount: routeResult.steps.length,
+      path,
+      slippageByHop,
+      priceImpactBps,
+      gasEstimate,
     };
 
     // OIK-37: Store quote in KV for execute endpoint validation
@@ -108,11 +155,15 @@ export async function handleQuote(
       tokenIn: body.tokenIn as Address,
       tokenOut: body.tokenOut as Address,
       amountIn: body.amountIn,
-      expectedAmountOut: route.expectedAmountOut.toString(),
-      estimatedSlippageBps: route.estimatedSlippageBps,
+      expectedAmountOut: routeResult.expectedAmountOut.toString(),
+      estimatedSlippageBps: routeResult.estimatedSlippageBps,
       hookData: hookData as Hex,
       expiresAt,
-      route: route.steps,
+      route: routeResult.steps,
+      // OIK-22: Multi-hop additions
+      isMultiHop: routeResult.isMultiHop,
+      hopCount: routeResult.steps.length,
+      path,
     };
 
     await env.STRATEGY_KV.put(`quote:${quoteId}`, JSON.stringify(storedQuote), {
