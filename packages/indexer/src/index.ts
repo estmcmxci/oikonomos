@@ -86,38 +86,82 @@ function computeStrategyId(ensName: string): `0x${string}` {
   return keccak256(toBytes(ensName));
 }
 
+// ERC-8004 Registration format
+interface ERC8004Service {
+  name: string;
+  endpoint: string;
+  version?: string;
+}
+
+interface ERC8004Registration {
+  type?: string;
+  name?: string;
+  description?: string;
+  services?: ERC8004Service[];
+  ens?: string; // Legacy field for backwards compatibility
+}
+
 /**
- * Fetch metadata from IPFS and extract ENS name (OIK-35)
- * Returns the ENS name if found, null otherwise
+ * Extract ENS name from ERC-8004 registration metadata (OIK-35, OIK-38)
+ * Handles: data URIs (base64), IPFS URIs, and HTTP URLs
+ * Extracts ENS from: services array (official) or top-level ens field (legacy)
  */
-async function fetchENSFromMetadata(agentURI: string): Promise<string | null> {
+async function extractENSFromAgentURI(agentURI: string): Promise<string | null> {
   if (!agentURI) return null;
 
   try {
-    // Convert IPFS URI to gateway URL
-    let url = agentURI;
-    if (agentURI.startsWith('ipfs://')) {
+    let metadata: ERC8004Registration;
+
+    // Handle data URI (base64 encoded JSON)
+    if (agentURI.startsWith('data:application/json;base64,')) {
+      const base64 = agentURI.replace('data:application/json;base64,', '');
+      const json = Buffer.from(base64, 'base64').toString('utf-8');
+      metadata = JSON.parse(json);
+    }
+    // Handle IPFS URI
+    else if (agentURI.startsWith('ipfs://')) {
       const cid = agentURI.replace('ipfs://', '');
-      url = `${IPFS_GATEWAY_URL}/${cid}`;
-    } else if (!agentURI.startsWith('http')) {
-      // Assume it's a raw CID
-      url = `${IPFS_GATEWAY_URL}/${agentURI}`;
+      const url = `${IPFS_GATEWAY_URL}/${cid}`;
+      const response = await fetch(url, { signal: AbortSignal.timeout(10000) });
+      if (!response.ok) {
+        console.warn(`[metadata] Failed to fetch from IPFS: ${response.status}`);
+        return null;
+      }
+      metadata = await response.json() as ERC8004Registration;
+    }
+    // Handle HTTP URL
+    else if (agentURI.startsWith('http')) {
+      const response = await fetch(agentURI, { signal: AbortSignal.timeout(10000) });
+      if (!response.ok) {
+        console.warn(`[metadata] Failed to fetch from URL: ${response.status}`);
+        return null;
+      }
+      metadata = await response.json() as ERC8004Registration;
+    }
+    // Assume raw CID
+    else {
+      const url = `${IPFS_GATEWAY_URL}/${agentURI}`;
+      const response = await fetch(url, { signal: AbortSignal.timeout(10000) });
+      if (!response.ok) return null;
+      metadata = await response.json() as ERC8004Registration;
     }
 
-    const response = await fetch(url, {
-      signal: AbortSignal.timeout(10000), // 10s timeout
-    });
-
-    if (!response.ok) {
-      console.warn(`[ipfs] Failed to fetch metadata from ${url}: ${response.status}`);
-      return null;
+    // Extract ENS from services array (official ERC-8004 format)
+    if (metadata.services) {
+      const ensService = metadata.services.find(s => s.name === 'ENS');
+      if (ensService?.endpoint) {
+        return ensService.endpoint;
+      }
     }
 
-    const metadata = await response.json() as { ens?: string };
-    return metadata.ens || null;
+    // Fall back to legacy top-level ens field
+    if (metadata.ens) {
+      return metadata.ens;
+    }
+
+    return null;
   } catch (error) {
-    // Don't let IPFS failures break indexing
-    console.warn(`[ipfs] Error fetching metadata from ${agentURI}:`, error);
+    console.warn(`[metadata] Error extracting ENS from ${agentURI.substring(0, 50)}...:`, error);
     return null;
   }
 }
@@ -210,10 +254,10 @@ ponder.on('ReceiptHook:ExecutionReceipt', async ({ event, context }) => {
 });
 
 // Canonical ERC-8004 IdentityRegistry handlers (howto8004.com)
-// Event: AgentRegistered(uint256 indexed agentId, address indexed owner, string agentURI)
-ponder.on('IdentityRegistry:AgentRegistered', async ({ event, context }) => {
-  // Fetch ENS name from IPFS metadata (OIK-35)
-  const ens = await fetchENSFromMetadata(event.args.agentURI);
+// Event: Registered(uint256 indexed agentId, string agentURI, address indexed owner)
+ponder.on('IdentityRegistry:Registered', async ({ event, context }) => {
+  // Extract ENS name from metadata (OIK-35, OIK-38)
+  const ens = await extractENSFromAgentURI(event.args.agentURI);
 
   // Compute strategyId from ENS name if available (OIK-38)
   const strategyId = ens ? computeStrategyId(ens) : null;
@@ -222,22 +266,44 @@ ponder.on('IdentityRegistry:AgentRegistered', async ({ event, context }) => {
     id: event.args.agentId.toString(),
     owner: event.args.owner,
     agentURI: event.args.agentURI,
-    agentWallet: event.args.owner, // Initially same as owner
+    agentWallet: event.args.owner, // Initially same as owner, updated via MetadataSet
     ens, // ENS name from metadata (may be null)
     strategyId, // keccak256(ens) for dynamic resolution (OIK-38)
     registeredAt: event.block.timestamp,
   });
 
-  if (ens) {
-    console.log(`[agent] Registered agent ${event.args.agentId} with ENS: ${ens}, strategyId: ${strategyId}`);
+  console.log(`[agent] Registered agent ${event.args.agentId}${ens ? ` with ENS: ${ens}, strategyId: ${strategyId}` : ''}`);
+});
+
+// Event: MetadataSet - handles agentWallet updates
+ponder.on('IdentityRegistry:MetadataSet', async ({ event, context }) => {
+  // Check if this is an agentWallet update
+  if (event.args.metadataKey === 'agentWallet') {
+    // metadataValue is the wallet address encoded as bytes
+    const walletAddress = ('0x' + event.args.metadataValue.slice(2).slice(0, 40)) as `0x${string}`;
+
+    await context.db
+      .update(agent, { id: event.args.agentId.toString() })
+      .set({
+        agentWallet: walletAddress,
+      });
+
+    console.log(`[agent] Updated agent ${event.args.agentId} wallet to ${walletAddress}`);
   }
 });
 
-// Event: AgentWalletUpdated(uint256 indexed agentId, address oldWallet, address newWallet)
-ponder.on('IdentityRegistry:AgentWalletUpdated', async ({ event, context }) => {
+// Event: URIUpdated - handles agent URI changes (may change ENS)
+ponder.on('IdentityRegistry:URIUpdated', async ({ event, context }) => {
+  const ens = await extractENSFromAgentURI(event.args.newURI);
+  const strategyId = ens ? computeStrategyId(ens) : null;
+
   await context.db
     .update(agent, { id: event.args.agentId.toString() })
     .set({
-      agentWallet: event.args.newWallet,
+      agentURI: event.args.newURI,
+      ens,
+      strategyId,
     });
+
+  console.log(`[agent] Updated agent ${event.args.agentId} URI${ens ? `, ENS: ${ens}` : ''}`);
 });
