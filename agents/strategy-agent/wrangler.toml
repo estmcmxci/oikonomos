@@ -11,8 +11,9 @@ INTENT_ROUTER = "0x89223f6157cDE457B37763A70ed4E6A302F23683"
 RECEIPT_HOOK = "0x41a75f07bA1958EcA78805D8419C87a393764040"
 
 # Secrets (set via wrangler secret put)
-# PRIVATE_KEY - Agent executor private key
+# PRIVATE_KEY - Strategy agent dedicated private key (OIK-32)
 # RPC_URL - Sepolia RPC URL
+# STRATEGY_AGENT_WALLET - Public address to receive x402 fees (future)
 
 # KV Namespace for quote storage
 [[kv_namespaces]]
