@@ -180,6 +180,27 @@ app.get('/agents', async (c) => {
   return c.json(serializeBigInts(agents));
 });
 
+// Resolve strategyId → agentId (OIK-38: Dynamic resolution for reputation worker)
+app.get('/agents/by-strategy/:strategyId', async (c) => {
+  const strategyId = c.req.param('strategyId') as `0x${string}`;
+
+  const [agentRecord] = await db
+    .select()
+    .from(agent)
+    .where(eq(agent.strategyId, strategyId))
+    .limit(1);
+
+  if (!agentRecord) {
+    return c.json({ error: 'No agent found for strategyId', strategyId }, 404);
+  }
+
+  return c.json({
+    agentId: agentRecord.id,
+    ens: agentRecord.ens,
+    strategyId: agentRecord.strategyId,
+  });
+});
+
 // Note: /health, /ready, /metrics are reserved by Ponder
 
 export default app;
