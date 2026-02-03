@@ -4,7 +4,7 @@ import type { Policy } from '../policy/templates';
 import { checkDrift } from '../triggers/drift';
 import { buildAndSignIntent, submitIntent, getNonce } from '../modes/intentMode';
 import { requirePoolForPair, type PoolConfig } from '../config/pools';
-import { validateAuthorization, trackSpending } from '../auth';
+import { validateAuthorization, trackSpending, hasValidAuthorization } from '../auth';
 
 interface RebalanceRequest {
   userAddress: Address;
@@ -82,6 +82,18 @@ async function executeRebalance(
   request: RebalanceRequest,
   _corsHeaders: Record<string, string>
 ): Promise<RebalanceResult> {
+  // OIK-42: Check basic authorization before any operations
+  const hasAuth = await hasValidAuthorization(env.TREASURY_KV, request.userAddress);
+  if (!hasAuth) {
+    return {
+      success: false,
+      needsRebalance: false,
+      trades: [],
+      receipts: [],
+      error: 'Authorization failed: No valid authorization found or authorization has expired',
+    };
+  }
+
   // 1. Check drift
   const driftResult = await checkDrift(env, request.userAddress, request.policy);
 
