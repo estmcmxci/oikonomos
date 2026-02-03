@@ -14,6 +14,7 @@ export interface Env {
   RPC_URL: string;
   STRATEGY_ID?: string; // Optional: Default strategy ID for this agent
   RECEIPT_HOOK?: string; // ReceiptHook address for verifying receipts
+  INDEXER_URL?: string; // OIK-34: Indexer URL for marketplace discovery
   TREASURY_KV: KVNamespace; // KV namespace for state and policy storage
 }
 
@@ -219,6 +220,22 @@ export default {
       // Policy Suggestion (OIK-33)
       if (url.pathname === '/suggest-policy' && request.method === 'POST') {
         return handleSuggestPolicy(request, env, CORS_HEADERS);
+      }
+
+      // Capabilities endpoint (OIK-34: Dynamic marketplace capabilities)
+      if (url.pathname === '/capabilities' && request.method === 'GET') {
+        return new Response(
+          JSON.stringify({
+            supportedTokens: ['USDC', 'DAI', 'WETH'],
+            policyTypes: ['stablecoin-rebalance', 'threshold-rebalance'],
+            pricing: '0.1%',
+            description: 'Treasury rebalancing for stablecoin portfolios',
+            version: '1.0.0',
+            chainId: env.CHAIN_ID || '11155111',
+            mode: 'intent-only',
+          }),
+          { headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+        );
       }
 
       // Health check

@@ -74,6 +74,45 @@ function absBigInt(n: bigint): bigint {
   return n >= 0n ? n : -n;
 }
 
+// IPFS Gateway URL (configurable via env, defaults to public gateway)
+const IPFS_GATEWAY_URL = process.env.IPFS_GATEWAY_URL || 'https://ipfs.io/ipfs';
+
+/**
+ * Fetch metadata from IPFS and extract ENS name (OIK-35)
+ * Returns the ENS name if found, null otherwise
+ */
+async function fetchENSFromMetadata(agentURI: string): Promise<string | null> {
+  if (!agentURI) return null;
+
+  try {
+    // Convert IPFS URI to gateway URL
+    let url = agentURI;
+    if (agentURI.startsWith('ipfs://')) {
+      const cid = agentURI.replace('ipfs://', '');
+      url = `${IPFS_GATEWAY_URL}/${cid}`;
+    } else if (!agentURI.startsWith('http')) {
+      // Assume it's a raw CID
+      url = `${IPFS_GATEWAY_URL}/${agentURI}`;
+    }
+
+    const response = await fetch(url, {
+      signal: AbortSignal.timeout(10000), // 10s timeout
+    });
+
+    if (!response.ok) {
+      console.warn(`[ipfs] Failed to fetch metadata from ${url}: ${response.status}`);
+      return null;
+    }
+
+    const metadata = await response.json() as { ens?: string };
+    return metadata.ens || null;
+  } catch (error) {
+    // Don't let IPFS failures break indexing
+    console.warn(`[ipfs] Error fetching metadata from ${agentURI}:`, error);
+    return null;
+  }
+}
+
 // ReceiptHook handlers
 ponder.on('ReceiptHook:ExecutionReceipt', async ({ event, context }) => {
   const receiptId = `${event.transaction.hash}-${event.log.logIndex}`;
@@ -164,13 +203,21 @@ ponder.on('ReceiptHook:ExecutionReceipt', async ({ event, context }) => {
 // Canonical ERC-8004 IdentityRegistry handlers (howto8004.com)
 // Event: AgentRegistered(uint256 indexed agentId, address indexed owner, string agentURI)
 ponder.on('IdentityRegistry:AgentRegistered', async ({ event, context }) => {
+  // Fetch ENS name from IPFS metadata (OIK-35)
+  const ens = await fetchENSFromMetadata(event.args.agentURI);
+
   await context.db.insert(agent).values({
     id: event.args.agentId.toString(),
     owner: event.args.owner,
     agentURI: event.args.agentURI,
     agentWallet: event.args.owner, // Initially same as owner
+    ens, // ENS name from metadata (may be null)
     registeredAt: event.block.timestamp,
   });
+
+  if (ens) {
+    console.log(`[agent] Registered agent ${event.args.agentId} with ENS: ${ens}`);
+  }
 });
 
 // Event: AgentWalletUpdated(uint256 indexed agentId, address oldWallet, address newWallet)

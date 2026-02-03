@@ -40,8 +40,10 @@ export const agent = onchainTable('agent', (t) => ({
   owner: t.hex().notNull(),
   agentURI: t.text().notNull(),
   agentWallet: t.hex().notNull(),
+  ens: t.text(), // ENS name resolved from agentURI metadata (e.g., "alice-treasury.oikonomos.eth")
   registeredAt: t.bigint().notNull(),
 }), (table) => ({
   ownerIdx: index().on(table.owner),
   agentWalletIdx: index().on(table.agentWallet),
+  ensIdx: index().on(table.ens),
 }));
