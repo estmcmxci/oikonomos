@@ -5,8 +5,8 @@ import { createPublicClient, http, namehash, type Address } from 'viem';
 import { sepolia } from 'viem/chains';
 import type { Env } from '../index';
 
-// ENS Public Resolver on Sepolia
-const ENS_PUBLIC_RESOLVER = '0x8FADE66B79cC9f707aB26799354482EB93a5B7dD';
+// ENS Public Resolver on Sepolia (from oikonomos.eth subnames)
+const ENS_PUBLIC_RESOLVER = '0xe99638b40e4fff0129d56f03b55b6bbc4bbe49b5';
 
 // Marketplace ENS record keys
 const MARKETPLACE_RECORDS = [
@@ -56,11 +56,41 @@ export interface MarketplaceFilter {
   policyType?: string; // Policy type to match (e.g., 'stablecoin-rebalance')
 }
 
+// Known agents for MVP fallback (when indexer is empty or unavailable)
+// These are agents registered on Sepolia with ENS records
+const KNOWN_AGENTS: IndexerAgent[] = [
+  {
+    id: '642',
+    owner: '0x1C2F3137E71dEC33c6111cFeB7F58B8389F9fF21',
+    agentURI: 'treasury.oikonomos.eth',
+    agentWallet: '0x1C2F3137E71dEC33c6111cFeB7F58B8389F9fF21',
+    ens: 'treasury.oikonomos.eth',
+    registeredAt: '1706745600',
+  },
+  {
+    id: '643',
+    owner: '0x1C2F3137E71dEC33c6111cFeB7F58B8389F9fF21',
+    agentURI: 'alice-treasury.oikonomos.eth',
+    agentWallet: '0x1C2F3137E71dEC33c6111cFeB7F58B8389F9fF21',
+    ens: 'alice-treasury.oikonomos.eth',
+    registeredAt: '1706745600',
+  },
+  {
+    id: '644',
+    owner: '0x1C2F3137E71dEC33c6111cFeB7F58B8389F9fF21',
+    agentURI: 'bob-strategy.oikonomos.eth',
+    agentWallet: '0x1C2F3137E71dEC33c6111cFeB7F58B8389F9fF21',
+    ens: 'bob-strategy.oikonomos.eth',
+    registeredAt: '1706745600',
+  },
+];
+
 /**
  * Fetch registered agents from the indexer
+ * Falls back to known agents if indexer is empty or unavailable
  */
 export async function fetchAgentsFromIndexer(env: Env): Promise<IndexerAgent[]> {
-  const indexerUrl = env.INDEXER_URL || 'https://oikonomos-indexer.ponder.sh';
+  const indexerUrl = env.INDEXER_URL || 'https://indexer-production-323e.up.railway.app';
 
   try {
     const response = await fetch(`${indexerUrl}/agents?limit=100`, {
@@ -69,14 +99,23 @@ export async function fetchAgentsFromIndexer(env: Env): Promise<IndexerAgent[]> 
 
     if (!response.ok) {
       console.error(`[marketplace] Failed to fetch agents: ${response.status}`);
-      return [];
+      console.log('[marketplace] Using known agents fallback');
+      return KNOWN_AGENTS;
     }
 
     const agents = await response.json() as IndexerAgent[];
+
+    // Fallback to known agents if indexer returns empty
+    if (agents.length === 0) {
+      console.log('[marketplace] Indexer returned empty, using known agents fallback');
+      return KNOWN_AGENTS;
+    }
+
     return agents;
   } catch (error) {
     console.error('[marketplace] Error fetching agents from indexer:', error);
-    return [];
+    console.log('[marketplace] Using known agents fallback');
+    return KNOWN_AGENTS;
   }
 }
 
