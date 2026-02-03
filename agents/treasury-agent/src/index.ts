@@ -16,6 +16,8 @@ export interface Env {
   STRATEGY_ID?: string; // Optional: Default strategy ID for this agent
   RECEIPT_HOOK?: string; // ReceiptHook address for verifying receipts
   INDEXER_URL?: string; // OIK-34: Indexer URL for marketplace discovery
+  QUOTER_V4?: string; // OIK-36: Uniswap V4 Quoter address
+  POOL_MANAGER?: string; // Uniswap V4 PoolManager address
   TREASURY_KV: KVNamespace; // KV namespace for state and policy storage
 }
 
