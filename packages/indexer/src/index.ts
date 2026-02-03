@@ -312,8 +312,13 @@ ponder.on('IdentityRegistry:MetadataSet', async ({ event, context }) => {
     // metadataValue is the wallet address encoded as bytes
     const walletAddress = ('0x' + event.args.metadataValue.slice(2).slice(0, 40)) as `0x${string}`;
 
-    // Only update if agent exists (was indexed as marketplace agent via Registered)
-    // This prevents creating entries for non-marketplace agents
+    // Check if agent exists (was indexed as marketplace agent via Registered)
+    const existing = await context.db.find(agent, { id: event.args.agentId.toString() });
+    if (!existing) {
+      // Agent not in marketplace - skip silently
+      return;
+    }
+
     await context.db
       .update(agent, { id: event.args.agentId.toString() })
       .set({ agentWallet: walletAddress });
