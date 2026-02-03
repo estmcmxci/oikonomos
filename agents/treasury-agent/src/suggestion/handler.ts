@@ -7,6 +7,7 @@ import type { Env } from '../index';
 import { classifyToken, analyzeComposition, type PortfolioComposition } from './classifier';
 import { findCompatiblePools, hasReceiptHookPool, type PoolMatch } from './pools';
 import { matchPolicy, type PolicyMatch, type RiskProfile } from './matcher';
+import { discoverMarketplaceAgents, formatMatchedAgents, type MarketplaceAgent } from './marketplace';
 import type { Policy, TokenAllocation } from '../policy/templates';
 
 interface TokenInfo {
@@ -35,6 +36,17 @@ interface SuggestPolicyRequest {
   walletAddress: string;
 }
 
+interface MatchedAgent {
+  ens: string;
+  agentId: string;
+  trustScore: number;
+  pricing: string | undefined;
+  supportedTokens: string[];
+  policyTypes: string[];
+  description: string | undefined;
+  entrypoint: string | undefined;
+}
+
 interface SuggestPolicyResponse {
   suggestedPolicy: {
     type: Policy['type'];
@@ -54,6 +66,7 @@ interface SuggestPolicyResponse {
     hasReceiptHook: boolean;
   }>;
   strategyAgent: StrategyAgentInfo;
+  matchedAgents: MatchedAgent[]; // OIK-34: Multi-agent marketplace results
   portfolio: {
     composition: string;
     stablecoinPercentage: number;
@@ -144,7 +157,31 @@ export async function handleSuggestPolicy(
       })),
     });
 
-    // 6. Build response
+    // 6. Discover compatible marketplace agents (OIK-34)
+    const tokenSymbols = activeTokens.map(t => t.symbol);
+    const marketplaceAgents = await discoverMarketplaceAgents(env, {
+      tokens: tokenSymbols,
+      policyType: policyMatch.policy.type,
+    });
+    const matchedAgents = formatMatchedAgents(marketplaceAgents);
+
+    // 7. Build response
+    // Use top matched agent if available, otherwise fall back to default
+    const topAgent = matchedAgents[0];
+    const selectedAgent: StrategyAgentInfo = topAgent
+      ? {
+          ens: topAgent.ens,
+          agentId: parseInt(topAgent.agentId, 10),
+          entrypoint: topAgent.entrypoint || DEFAULT_STRATEGY_AGENT.entrypoint,
+          compliance: hasHookPool ? '100%' : undefined,
+          avgSlippage: hasHookPool ? '< 50 bps' : undefined,
+        }
+      : {
+          ...DEFAULT_STRATEGY_AGENT,
+          compliance: hasHookPool ? '100%' : undefined,
+          avgSlippage: hasHookPool ? '< 50 bps' : undefined,
+        };
+
     const response: SuggestPolicyResponse = {
       suggestedPolicy: {
         type: policyMatch.policy.type,
@@ -163,12 +200,8 @@ export async function handleSuggestPolicy(
         hasLiquidity: p.hasLiquidity,
         hasReceiptHook: p.hooks.toLowerCase() === '0x41a75f07ba1958eca78805d8419c87a393764040',
       })),
-      strategyAgent: {
-        ...DEFAULT_STRATEGY_AGENT,
-        // TODO: Fetch actual metrics from indexer
-        compliance: hasHookPool ? '100%' : undefined,
-        avgSlippage: hasHookPool ? '< 50 bps' : undefined,
-      },
+      strategyAgent: selectedAgent,
+      matchedAgents, // OIK-34: All compatible agents ranked by trust score
       portfolio: {
         composition: formatComposition(composition),
         stablecoinPercentage: composition.stablecoinPercentage,

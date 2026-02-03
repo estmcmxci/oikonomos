@@ -10,6 +10,8 @@ STRATEGY_ID = "0x000000000000000000000000000000000000000000000000000000000000000
 # For local testing, use: http://localhost:8787
 # For production, use: https://oikonomos-strategy-agent.workers.dev
 STRATEGY_AGENT_URL = "http://localhost:8787"
+# OIK-34: Indexer URL for marketplace discovery
+INDEXER_URL = "https://indexer-production-323e.up.railway.app"
 
 # Secrets (set via wrangler secret put)
 # PRIVATE_KEY - Agent executor private key

@@ -159,14 +159,21 @@ app.get('/agents/owner/:owner', async (c) => {
   return c.json(serializeBigInts(agents));
 });
 
-// Get all agents (paginated)
+// Get all agents (paginated, with optional ENS filter) - OIK-35
 app.get('/agents', async (c) => {
   const limit = parseInt(c.req.query('limit') || '50');
   const offset = parseInt(c.req.query('offset') || '0');
+  const ensFilter = c.req.query('ens');
 
-  const agents = await db
-    .select()
-    .from(agent)
+  let query = db.select().from(agent);
+
+  // Filter by ENS name if provided
+  if (ensFilter) {
+    query = query.where(eq(agent.ens, ensFilter));
+  }
+
+  const agents = await query
+    .orderBy(desc(agent.registeredAt))
     .limit(Math.min(limit, 100))
     .offset(offset);
 
