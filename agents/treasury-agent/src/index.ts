@@ -4,6 +4,7 @@ import { handleTriggerCheck } from './triggers/drift';
 import { handleRebalance } from './rebalance/executor';
 import { handlePortfolio } from './portfolio/handler';
 import { handleSuggestPolicy } from './suggestion/handler';
+import { handleQuote } from './quote/handler';
 import { handleScheduledTrigger, handleEventsWebhook, savePolicy, saveAuthorization, deleteAuthorization, type UserAuthorization } from './observation';
 
 export interface Env {
@@ -220,6 +221,11 @@ export default {
       // Policy Suggestion (OIK-33)
       if (url.pathname === '/suggest-policy' && request.method === 'POST') {
         return handleSuggestPolicy(request, env, CORS_HEADERS);
+      }
+
+      // Quote endpoint (OIK-36)
+      if (url.pathname === '/quote' && request.method === 'POST') {
+        return handleQuote(request, env, CORS_HEADERS);
       }
 
       // Capabilities endpoint (OIK-34: Dynamic marketplace capabilities)
