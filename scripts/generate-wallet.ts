@@ -26,7 +26,7 @@ const SERVICES = [
   {
     name: 'reputation-worker',
     envVar: 'REPUTATION_WORKER_PRIVATE_KEY',
-    walletVar: null,
+    walletVar: 'REPUTATION_WORKER_WALLET',
     purpose: 'Submit feedback to ReputationRegistry',
   },
   {
