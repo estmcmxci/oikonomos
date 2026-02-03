@@ -143,23 +143,74 @@ export async function resolveMarketplaceRecords(
 
 /**
  * Calculate trust score for an agent from indexer metrics
+ * Score formula (from EED.md):
+ *   35% slippage (lower is better)
+ *   25% compliance rate
+ *   25% volume (log scale)
+ *   15% execution count (log scale)
  */
 export async function calculateTrustScore(
   env: Env,
-  agentId: string
+  agentId: string,
+  ensName?: string
 ): Promise<number> {
   const indexerUrl = env.INDEXER_URL || 'https://oikonomos-indexer.ponder.sh';
 
   try {
-    // For now, return a default score
-    // TODO: Fetch actual metrics from ReputationRegistry or indexer
-    // const response = await fetch(`${indexerUrl}/reputation/${agentId}`);
+    // strategyId is the keccak256 hash of the ENS name
+    // We need to compute this to lookup metrics
+    if (!ensName) {
+      return 50; // No ENS name, return default
+    }
 
-    // Return a base score of 50 + some variance based on agentId
-    const hash = agentId.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
-    return 50 + (hash % 50); // Score between 50-99
-  } catch {
-    return 50; // Default score
+    // Compute strategyId from ENS name (same as contracts do)
+    const encoder = new TextEncoder();
+    const data = encoder.encode(ensName);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const strategyId = '0x' + hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+    const response = await fetch(`${indexerUrl}/strategies/${strategyId}`, {
+      signal: AbortSignal.timeout(5000),
+    });
+
+    if (!response.ok) {
+      // No metrics yet - return base score for new agents
+      return 50;
+    }
+
+    const metrics = await response.json() as {
+      totalExecutions: string;
+      totalVolume: string;
+      avgSlippage: string;
+      complianceRate: string;
+    };
+
+    // Parse metrics (they come as strings from BigInt serialization)
+    const executions = parseInt(metrics.totalExecutions) || 0;
+    const volume = parseInt(metrics.totalVolume) || 0;
+    const avgSlippage = parseInt(metrics.avgSlippage) || 0; // basis points
+    const complianceRate = parseInt(metrics.complianceRate) || 0; // basis points (10000 = 100%)
+
+    // Calculate score components
+    // Slippage: 35 points max, lower is better (0 bps = 35, 100 bps = 0)
+    const slippageScore = Math.max(0, 35 - Math.floor(avgSlippage / 3));
+
+    // Compliance: 25 points max (10000 bps = 25 points)
+    const complianceScore = Math.floor((complianceRate / 10000) * 25);
+
+    // Volume: 25 points max (log scale, $1M = 25 points)
+    const volumeScore = volume > 0 ? Math.min(25, Math.floor(Math.log10(volume) * 4)) : 0;
+
+    // Executions: 15 points max (log scale, 1000 executions = 15 points)
+    const executionScore = executions > 0 ? Math.min(15, Math.floor(Math.log10(executions) * 5)) : 0;
+
+    const totalScore = slippageScore + complianceScore + volumeScore + executionScore;
+
+    return Math.min(100, Math.max(0, totalScore));
+  } catch (error) {
+    console.error('[marketplace] Error calculating trust score:', error);
+    return 50; // Default score on error
   }
 }
 
@@ -190,7 +241,7 @@ export async function discoverMarketplaceAgents(
   const agentsWithRecords = await Promise.all(
     agentsWithENS.map(async (agent) => {
       const records = await resolveMarketplaceRecords(env, agent.ens!);
-      const trustScore = await calculateTrustScore(env, agent.id);
+      const trustScore = await calculateTrustScore(env, agent.id, agent.ens!);
       return { ...agent, records, trustScore };
     })
   );

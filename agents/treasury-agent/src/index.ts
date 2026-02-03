@@ -222,6 +222,22 @@ export default {
         return handleSuggestPolicy(request, env, CORS_HEADERS);
       }
 
+      // Capabilities endpoint (OIK-34: Dynamic marketplace capabilities)
+      if (url.pathname === '/capabilities' && request.method === 'GET') {
+        return new Response(
+          JSON.stringify({
+            supportedTokens: ['USDC', 'DAI', 'WETH'],
+            policyTypes: ['stablecoin-rebalance', 'threshold-rebalance'],
+            pricing: '0.1%',
+            description: 'Treasury rebalancing for stablecoin portfolios',
+            version: '1.0.0',
+            chainId: env.CHAIN_ID || '11155111',
+            mode: 'intent-only',
+          }),
+          { headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+        );
+      }
+
       // Health check
       if (url.pathname === '/health') {
         return new Response(
