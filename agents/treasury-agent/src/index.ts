@@ -4,6 +4,7 @@ import { handleTriggerCheck } from './triggers/drift';
 import { handleRebalance } from './rebalance/executor';
 import { handlePortfolio } from './portfolio/handler';
 import { handleSuggestPolicy } from './suggestion/handler';
+import { handleQuote } from './quote/handler';
 import { handleScheduledTrigger, handleEventsWebhook, savePolicy, saveAuthorization, deleteAuthorization, type UserAuthorization } from './observation';
 
 export interface Env {
@@ -15,6 +16,8 @@ export interface Env {
   STRATEGY_ID?: string; // Optional: Default strategy ID for this agent
   RECEIPT_HOOK?: string; // ReceiptHook address for verifying receipts
   INDEXER_URL?: string; // OIK-34: Indexer URL for marketplace discovery
+  QUOTER_V4?: string; // OIK-36: Uniswap V4 Quoter address
+  POOL_MANAGER?: string; // Uniswap V4 PoolManager address
   TREASURY_KV: KVNamespace; // KV namespace for state and policy storage
 }
 
@@ -220,6 +223,11 @@ export default {
       // Policy Suggestion (OIK-33)
       if (url.pathname === '/suggest-policy' && request.method === 'POST') {
         return handleSuggestPolicy(request, env, CORS_HEADERS);
+      }
+
+      // Quote endpoint (OIK-36)
+      if (url.pathname === '/quote' && request.method === 'POST') {
+        return handleQuote(request, env, CORS_HEADERS);
       }
 
       // Capabilities endpoint (OIK-34: Dynamic marketplace capabilities)
