@@ -55,13 +55,59 @@ interface IndexerResponse {
   items: ExecutionReceipt[];
 }
 
-const STRATEGY_ID_TO_AGENT: Record<string, string> = {
+// Legacy static mapping for backwards compatibility (OIK-38)
+// New agents should be resolved dynamically via indexer
+const LEGACY_STRATEGY_ID_TO_AGENT: Record<string, string> = {
   // Default strategy IDs used by treasury-agent
   '0x0000000000000000000000000000000000000000000000000000000000000001': '731', // Treasury
   '0x0000000000000000000000000000000000000000000000000000000000000002': '732', // Strategy
   // keccak256("treasury.oikonomos.eth") - used in E2E testing
   '0x9fc9212705a775dc1267b361b43ccda833c07986473da79558651f874598b96c': '731', // Treasury
 };
+
+// Cache for strategyId → agentId resolution (OIK-38)
+// Avoids repeated indexer calls for the same strategyId
+const strategyIdCache = new Map<string, string | null>();
+
+/**
+ * Resolve strategyId → agentId dynamically (OIK-38)
+ * 1. Check in-memory cache
+ * 2. Query indexer for agent with matching strategyId
+ * 3. Fall back to legacy static mapping
+ */
+async function resolveAgentId(strategyId: string, env: Env): Promise<string | null> {
+  const normalizedId = strategyId.toLowerCase();
+
+  // Check cache first
+  if (strategyIdCache.has(normalizedId)) {
+    return strategyIdCache.get(normalizedId) ?? null;
+  }
+
+  // Try dynamic resolution via indexer
+  try {
+    const response = await fetch(`${env.INDEXER_URL}/agents/by-strategy/${normalizedId}`);
+    if (response.ok) {
+      const data = (await response.json()) as { agentId: string };
+      strategyIdCache.set(normalizedId, data.agentId);
+      console.log(`[resolve] Dynamic resolution: ${strategyId} → agent ${data.agentId}`);
+      return data.agentId;
+    }
+  } catch (error) {
+    console.warn(`[resolve] Indexer query failed for ${strategyId}:`, error);
+  }
+
+  // Fall back to legacy mapping
+  const legacyAgentId = LEGACY_STRATEGY_ID_TO_AGENT[normalizedId];
+  if (legacyAgentId) {
+    strategyIdCache.set(normalizedId, legacyAgentId);
+    console.log(`[resolve] Legacy mapping: ${strategyId} → agent ${legacyAgentId}`);
+    return legacyAgentId;
+  }
+
+  // Not found - cache the miss to avoid repeated lookups
+  strategyIdCache.set(normalizedId, null);
+  return null;
+}
 
 function calculateSlippageScore(actualSlippage: bigint, maxSlippage: bigint = 1000n): number {
   if (actualSlippage === 0n) return 100;
@@ -100,10 +146,10 @@ async function submitFeedback(
   env: Env,
   receipt: ExecutionReceipt
 ): Promise<{ slippageTx: Hex; complianceTx: Hex } | null> {
-  // Resolve strategyId to agentId
-  const agentIdStr = STRATEGY_ID_TO_AGENT[receipt.strategyId.toLowerCase()];
+  // Resolve strategyId to agentId dynamically (OIK-38)
+  const agentIdStr = await resolveAgentId(receipt.strategyId, env);
   if (!agentIdStr) {
-    console.warn(`Unknown strategyId: ${receipt.strategyId}`);
+    console.warn(`[feedback] Unknown strategyId: ${receipt.strategyId} - no matching agent found`);
     return null;
   }
 

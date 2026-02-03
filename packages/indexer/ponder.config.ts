@@ -14,6 +14,10 @@ const RECEIPT_HOOK_START_BLOCK = 10176818;
 const IDENTITY_REGISTRY_START_BLOCK = 10165000;
 
 export default createConfig({
+  database: {
+    // Versioned schema to avoid migration conflicts when schema changes
+    schema: 'oikonomos_v2',
+  },
   chains: {
     sepolia: {
       id: 11155111,
