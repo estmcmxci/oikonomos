@@ -12,6 +12,9 @@ STRATEGY_ID = "0x000000000000000000000000000000000000000000000000000000000000000
 STRATEGY_AGENT_URL = "http://localhost:8787"
 # OIK-34: Indexer URL for marketplace discovery
 INDEXER_URL = "https://indexer-production-323e.up.railway.app"
+# OIK-36: Uniswap V4 contracts (Sepolia)
+QUOTER_V4 = "0x61b3f2011a92d183c7dbadbda940a7555ccf9227"
+POOL_MANAGER = "0xE03A1074c86CFeDd5C142C4F04F1a1536e203543"
 
 # Secrets (set via wrangler secret put)
 # PRIVATE_KEY - Agent executor private key
