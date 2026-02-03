@@ -32,7 +32,7 @@ export function handleAgentCard(env: Env, corsHeaders: Record<string, string>): 
     description: 'Automated stablecoin treasury rebalancing with policy enforcement',
     image: '', // Optional: Add agent avatar URL
     active: true,
-    x402Support: false,
+    x402Support: true,
     services,
 
     // Oikonomos-specific extensions
@@ -55,6 +55,9 @@ export function handleAgentCard(env: Env, corsHeaders: Record<string, string>): 
       authorize: '/authorize',
       events: '/events',
       health: '/health',
+      quote: '/quote',
+      execute: '/execute',
+      analytics: '/analytics',
     },
 
     supportedTokens: [
