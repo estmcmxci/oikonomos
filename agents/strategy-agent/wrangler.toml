@@ -17,5 +17,4 @@ RECEIPT_HOOK = "0x41a75f07bA1958EcA78805D8419C87a393764040"
 # KV Namespace for quote storage
 [[kv_namespaces]]
 binding = "STRATEGY_KV"
-id = "strategy-agent-kv"
-preview_id = "strategy-agent-kv-preview"
+id = "6c529fd5143f408e80cfeae947b0cb05"
