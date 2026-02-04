@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { db } from 'ponder:api';
-import { executionReceipt, strategyMetrics, agent } from 'ponder:schema';
+import { executionReceipt, strategyMetrics, agent, subname } from 'ponder:schema';
 import { desc, eq } from 'ponder';
 
 const app = new Hono();
@@ -210,6 +210,68 @@ app.get('/agents/by-strategy/:strategyId', async (c) => {
     ens: agentRecord.ens,
     strategyId: agentRecord.strategyId,
   });
+});
+
+// ============================================================================
+// OIK-54: Subname endpoints for oikonomos.eth CCIP registrations
+// ============================================================================
+
+// Get all subnames (paginated)
+app.get('/subnames', async (c) => {
+  const limit = parseInt(c.req.query('limit') || '50');
+  const offset = parseInt(c.req.query('offset') || '0');
+
+  const subnames = await db
+    .select()
+    .from(subname)
+    .orderBy(desc(subname.registeredAt))
+    .limit(Math.min(limit, 100))
+    .offset(offset);
+
+  return c.json({ items: serializeBigInts(subnames) });
+});
+
+// Get subname by label
+app.get('/subnames/:label', async (c) => {
+  const label = c.req.param('label');
+
+  const [record] = await db
+    .select()
+    .from(subname)
+    .where(eq(subname.label, label))
+    .limit(1);
+
+  if (!record) {
+    return c.json({ error: 'Subname not found' }, 404);
+  }
+
+  return c.json(serializeBigInts(record));
+});
+
+// Get subnames by owner
+app.get('/subnames/owner/:owner', async (c) => {
+  const owner = c.req.param('owner') as `0x${string}`;
+
+  const subnames = await db
+    .select()
+    .from(subname)
+    .where(eq(subname.owner, owner))
+    .limit(50);
+
+  return c.json({ items: serializeBigInts(subnames) });
+});
+
+// Get subnames by agentId
+app.get('/subnames/agent/:agentId', async (c) => {
+  const agentId = c.req.param('agentId');
+
+  const subnames = await db
+    .select()
+    .from(subname)
+    .where(eq(subname.agentId, agentId))
+    .limit(50);
+
+  return c.json({ items: serializeBigInts(subnames) });
 });
 
 // Note: /health, /ready, /metrics are reserved by Ponder
