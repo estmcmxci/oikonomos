@@ -3,6 +3,8 @@ import type { Env } from '../index';
 import type { Policy } from '../policy/templates';
 import { checkDrift } from '../triggers/drift';
 import { buildAndSignIntent, submitIntent, getNonce } from '../modes/intentMode';
+import { executeWithSessionKey } from '../modes/sessionMode';
+import { getSessionKey } from '../session/storage';
 import { requirePoolForPair } from '../config/pools';
 
 // KV key prefixes
@@ -58,6 +60,8 @@ export interface EvaluationResult {
   executionResult?: {
     success: boolean;
     txHash?: string;
+    userOpHash?: string; // OIK-10: UserOperation hash for session key execution
+    executionMode?: 'intent' | 'session-key'; // OIK-10: Which execution mode was used
     error?: string;
   };
 }
@@ -311,8 +315,8 @@ export async function evaluate(
       return { ...baseResult, executed: false, executionResult: { success: false, error: 'Daily limit exceeded' } };
     }
 
-    // Execute the rebalance
-    const executionResult = await executeAutoRebalance(env, userAddress, policy, driftResult, auth);
+    // Execute the rebalance (OIK-10: Now passes kv for session key lookup)
+    const executionResult = await executeAutoRebalance(env, kv, userAddress, policy, driftResult, auth);
 
     // Update state with execution info
     if (executionResult.success) {
@@ -333,14 +337,16 @@ export async function evaluate(
 
 /**
  * Execute auto-rebalance when drift is detected and authorization is valid
+ * OIK-10: Now supports both Mode A (intent) and Mode B (session key) execution
  */
 async function executeAutoRebalance(
   env: Env,
+  kv: KVNamespace,
   userAddress: Address,
   policy: Policy,
   driftResult: Awaited<ReturnType<typeof checkDrift>>,
   auth: UserAuthorization
-): Promise<{ success: boolean; txHash?: string; error?: string }> {
+): Promise<{ success: boolean; txHash?: string; userOpHash?: string; executionMode?: 'intent' | 'session-key'; error?: string }> {
   console.log(`[executeAutoRebalance] Starting for ${userAddress}`);
 
   // Find the first sell/buy pair
@@ -365,6 +371,30 @@ async function executeAutoRebalance(
     }
   }
 
+  // OIK-10: Check for active session key
+  const sessionKey = await getSessionKey(kv, userAddress);
+
+  if (sessionKey) {
+    // Mode B: Execute via session key (autonomous)
+    console.log(`[executeAutoRebalance] Using session key for ${userAddress} (Mode B)`);
+    return await executeWithSessionKeyMode(env, userAddress, policy, sellDrift, buyDrift, sessionKey);
+  } else {
+    // Mode A: Execute via signed intent
+    console.log(`[executeAutoRebalance] Using signed intent for ${userAddress} (Mode A)`);
+    return await executeWithIntentMode(env, userAddress, policy, sellDrift, buyDrift);
+  }
+}
+
+/**
+ * Mode A: Execute via signed intent (user signs each trade)
+ */
+async function executeWithIntentMode(
+  env: Env,
+  userAddress: Address,
+  policy: Policy,
+  sellDrift: { token: Address; amount: string; symbol: string; drift: number; action: 'buy' | 'sell' },
+  buyDrift: { token: Address; amount: string; symbol: string; drift: number; action: 'buy' | 'sell' }
+): Promise<{ success: boolean; txHash?: string; executionMode?: 'intent' | 'session-key'; error?: string }> {
   try {
     // Get nonce for user
     const nonce = await getNonce(env, userAddress);
@@ -390,10 +420,77 @@ async function executeAutoRebalance(
     // Submit intent
     const txHash = await submitIntent(env, signedIntent, poolKey, quoteId);
 
-    console.log(`[executeAutoRebalance] Success for ${userAddress}: ${txHash}`);
-    return { success: true, txHash };
+    console.log(`[executeWithIntentMode] Success for ${userAddress}: ${txHash}`);
+    return { success: true, txHash, executionMode: 'intent' };
   } catch (error) {
-    console.error(`[executeAutoRebalance] Failed for ${userAddress}:`, error);
-    return { success: false, error: String(error) };
+    console.error(`[executeWithIntentMode] Failed for ${userAddress}:`, error);
+    return { success: false, error: String(error), executionMode: 'intent' };
+  }
+}
+
+/**
+ * Mode B: Execute via session key (autonomous execution)
+ * OIK-10: Uses ZeroDev session keys for ERC-4337 UserOperation submission
+ */
+async function executeWithSessionKeyMode(
+  env: Env,
+  userAddress: Address,
+  policy: Policy,
+  sellDrift: { token: Address; amount: string; symbol: string; drift: number; action: 'buy' | 'sell' },
+  buyDrift: { token: Address; amount: string; symbol: string; drift: number; action: 'buy' | 'sell' },
+  sessionKey: Awaited<ReturnType<typeof getSessionKey>>
+): Promise<{ success: boolean; txHash?: string; userOpHash?: string; executionMode?: 'intent' | 'session-key'; error?: string }> {
+  if (!sessionKey) {
+    return { success: false, error: 'No session key provided', executionMode: 'session-key' };
+  }
+
+  try {
+    // Get nonce for user's smart account (not EOA)
+    const nonce = await getNonce(env, sessionKey.smartAccountAddress as Address);
+
+    // Build intent struct
+    const deadline = BigInt(Math.floor(Date.now() / 1000) + 3600);
+    const intent = {
+      user: sessionKey.smartAccountAddress as Address,
+      tokenIn: sellDrift.token,
+      tokenOut: buyDrift.token,
+      amountIn: BigInt(sellDrift.amount),
+      maxSlippage: BigInt(policy.maxSlippageBps),
+      deadline,
+      strategyId: (env.STRATEGY_ID || '0x0000000000000000000000000000000000000000000000000000000000000001') as Hex,
+      nonce,
+    };
+
+    // Get pool key for the pair
+    const poolKey = getPoolKeyForPair(sellDrift.token, buyDrift.token);
+
+    // Note: For session key execution, we don't need user signature
+    // The session key validator authorizes the agent to execute
+    const signature = '0x' as Hex; // Empty signature - session key provides authorization
+
+    // Execute via session key
+    const result = await executeWithSessionKey(env, {
+      sessionKey,
+      intent,
+      signature,
+      poolKey,
+      strategyData: `0x${Date.now().toString(16).padStart(64, '0')}` as Hex,
+    });
+
+    if (result.success) {
+      console.log(`[executeWithSessionKeyMode] Success for ${userAddress}: userOp=${result.userOpHash}, tx=${result.txHash}`);
+      return {
+        success: true,
+        txHash: result.txHash,
+        userOpHash: result.userOpHash,
+        executionMode: 'session-key',
+      };
+    } else {
+      console.error(`[executeWithSessionKeyMode] Failed for ${userAddress}:`, result.error);
+      return { success: false, error: result.error, executionMode: 'session-key' };
+    }
+  } catch (error) {
+    console.error(`[executeWithSessionKeyMode] Failed for ${userAddress}:`, error);
+    return { success: false, error: String(error), executionMode: 'session-key' };
   }
 }

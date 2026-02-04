@@ -24,10 +24,15 @@ POOL_MANAGER = "0x05E73354cFDd6745C338b50BcFDfA3Aa6fA03408"
 # QUOTER_V4 = "0x61b3f2011a92d183c7dbadbda940a7555ccf9227"
 # POOL_MANAGER = "0xE03A1074c86CFeDd5C142C4F04F1a1536e203543"
 
+# OIK-10: ZeroDev session key config (Base Sepolia chain ID 84532)
+ZERODEV_BUNDLER_URL = "https://rpc.zerodev.app/api/v2/bundler/84532"
+ZERODEV_PAYMASTER_URL = "https://rpc.zerodev.app/api/v2/paymaster/84532"
+
 # Secrets (set via wrangler secret put)
 # PRIVATE_KEY - Treasury agent dedicated private key (OIK-32)
 # RPC_URL - Sepolia RPC URL
 # AGENT_WALLET - Public address to receive x402 fees
+# ZERODEV_PROJECT_ID - ZeroDev project ID for authentication
 
 # KV namespace for state and policy storage
 [[kv_namespaces]]
