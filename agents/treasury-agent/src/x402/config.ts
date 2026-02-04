@@ -5,8 +5,12 @@ import type { Address } from 'viem';
  * OIK-50: Updated for Base Sepolia (x402 native support)
  */
 
-// Base Sepolia MockUSDC (OIK-50)
-export const PAYMENT_TOKEN: Address = '0x524C057B1030B3D832f1688e4993159C7A124518';
+// Official Base Sepolia USDC with EIP-2612 permit support (OIK-52)
+export const PAYMENT_TOKEN: Address = '0x036CbD53842c5426634e7929541eC2318f3dCF7e';
+
+// EIP-712 domain params for official USDC (required by x402 SDK)
+export const PAYMENT_TOKEN_NAME = 'USDC';
+export const PAYMENT_TOKEN_VERSION = '2';
 
 // Network identifier - use human-readable format for x402 SDK compatibility
 // The x402 SDK uses 'base-sepolia' internally, not CAIP-2 'eip155:84532'
