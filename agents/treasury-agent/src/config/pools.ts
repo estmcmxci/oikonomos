@@ -18,18 +18,25 @@ export interface PoolConfig {
   hooks: Address;
 }
 
-// ReceiptHook deployment on Sepolia
-const RECEIPT_HOOK = '0x41a75f07bA1958EcA78805D8419C87a393764040' as Address;
+// OIK-50: ReceiptHook deployment on Base Sepolia
+const RECEIPT_HOOK = '0x906E3e24C04f6b6B5b6743BB77d0FCBE4d87C040' as Address;
 
-// Token addresses on Sepolia (Aave test tokens)
+// OIK-50: Token addresses on Base Sepolia
 export const TOKENS = {
-  USDC: '0x94a9D9AC8a22534E3FaCa9F4e7F2E2cf85d5E4C8' as Address,
-  DAI: '0xFF34B3d4Aee8ddCd6F9AFFFB6Fe49bD371b8a357' as Address,
-  WETH: '0xC558DBdd856501FCd9aaF1E62eae57A9F0629a3c' as Address,
+  USDC: '0x524C057B1030B3D832f1688e4993159C7A124518' as Address, // MockUSDC
+  DAI: '0x233Dc75Bda7dB90a33454e4333E3ac96eB7FB84E' as Address,  // MockDAI
+  WETH: '0x4200000000000000000000000000000000000006' as Address, // Canonical Base WETH
 } as const;
 
+// Legacy Sepolia tokens (for reference)
+// const SEPOLIA_TOKENS = {
+//   USDC: '0x94a9D9AC8a22534E3FaCa9F4e7F2E2cf85d5E4C8',
+//   DAI: '0xFF34B3d4Aee8ddCd6F9AFFFB6Fe49bD371b8a357',
+//   WETH: '0xC558DBdd856501FCd9aaF1E62eae57A9F0629a3c',
+// };
+
 /**
- * Registry of pools initialized with ReceiptHook on Sepolia.
+ * Registry of pools initialized with ReceiptHook on Base Sepolia (OIK-50).
  * Key format: sorted lowercase addresses joined by '-'
  *
  * To add a new pool:
@@ -37,10 +44,20 @@ export const TOKENS = {
  * 2. Add entry here with the pool parameters used during initialization
  */
 export const SUPPORTED_POOLS: Record<string, PoolConfig> = {
-  // USDC/DAI - 0.3% fee tier
-  '0x94a9d9ac8a22534e3faca9f4e7f2e2cf85d5e4c8-0xff34b3d4aee8ddcd6f9afffb6fe49bd371b8a357': {
-    currency0: TOKENS.USDC,
-    currency1: TOKENS.DAI,
+  // DAI/USDC - 0.05% fee tier (stablecoin pair)
+  // Note: DAI < USDC lexicographically, so DAI is currency0
+  '0x233dc75bda7db90a33454e4333e3ac96eb7fb84e-0x524c057b1030b3d832f1688e4993159c7a124518': {
+    currency0: TOKENS.DAI,
+    currency1: TOKENS.USDC,
+    fee: 500, // 0.05%
+    tickSpacing: 10,
+    hooks: RECEIPT_HOOK,
+  },
+  // WETH/USDC - 0.3% fee tier (volatile pair)
+  // Note: WETH (0x42...) < USDC (0x52...) lexicographically
+  '0x4200000000000000000000000000000000000006-0x524c057b1030b3d832f1688e4993159c7a124518': {
+    currency0: TOKENS.WETH,
+    currency1: TOKENS.USDC,
     fee: 3000, // 0.3%
     tickSpacing: 60,
     hooks: RECEIPT_HOOK,
