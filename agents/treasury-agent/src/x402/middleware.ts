@@ -1,6 +1,6 @@
 import type { Address } from 'viem';
 import type { X402PaymentPayload, X402PaymentRequirement, X402SettleResponse } from './types';
-import { FACILITATOR_URL, NETWORK, PAYMENT_TOKEN, PAYMENT_TIMEOUT_SECONDS } from './config';
+import { FACILITATOR_URL, NETWORK, PAYMENT_TOKEN, PAYMENT_TIMEOUT_SECONDS, PAYMENT_TOKEN_NAME, PAYMENT_TOKEN_VERSION } from './config';
 
 /**
  * x402 Payment Middleware for Cloudflare Workers
@@ -51,6 +51,7 @@ export function create402Response(
   corsHeaders: Record<string, string>
 ): Response {
   // Build x402 SDK compatible response body
+  // OIK-52: Include EIP-712 domain params (name, version) in extra field for permit support
   const x402Body = {
     x402Version: 1,
     accepts: [
@@ -64,6 +65,10 @@ export function create402Response(
         payTo: requirement.payTo,
         maxTimeoutSeconds: requirement.maxTimeoutSeconds,
         asset: requirement.asset, // Token address for x402 SDK
+        extra: {
+          name: PAYMENT_TOKEN_NAME,
+          version: PAYMENT_TOKEN_VERSION,
+        },
       },
     ],
     error: 'Payment Required',
