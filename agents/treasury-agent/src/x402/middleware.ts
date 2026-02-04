@@ -20,6 +20,7 @@ export interface PaymentValidationResult {
 
 /**
  * Build x402 payment requirement for 402 response
+ * Includes EIP-712 domain parameters for permit-enabled tokens (OIK-51)
  */
 export function buildPaymentRequirement(
   feeAmount: string,
@@ -37,6 +38,13 @@ export function buildPaymentRequirement(
     payTo,
     maxTimeoutSeconds: PAYMENT_TIMEOUT_SECONDS,
     asset: PAYMENT_TOKEN, // Full token address for x402 SDK
+    // EIP-712 domain parameters for official Base Sepolia USDC
+    // x402 SDK expects these inside `extra` object
+    // Values from x402 SDK: name: "USDC", version: "2"
+    extra: {
+      name: 'USDC',
+      version: '2',
+    },
   };
 }
 
@@ -45,6 +53,9 @@ export function buildPaymentRequirement(
  * Compatible with @x402/fetch SDK which expects either:
  * 1. PAYMENT-REQUIRED header with base64 encoded JSON
  * 2. Body with x402Version: 1 and accepts array
+ *
+ * OIK-51: Includes EIP-712 domain parameters (name, version) for permit tokens
+ * The x402 SDK expects these inside the `extra` object
  */
 export function create402Response(
   requirement: X402PaymentRequirement,
@@ -64,6 +75,9 @@ export function create402Response(
         payTo: requirement.payTo,
         maxTimeoutSeconds: requirement.maxTimeoutSeconds,
         asset: requirement.asset, // Token address for x402 SDK
+        // EIP-712 domain parameters for permit (OIK-51)
+        // x402 SDK expects these inside `extra` object
+        extra: requirement.extra,
       },
     ],
     error: 'Payment Required',
