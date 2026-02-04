@@ -62,3 +62,21 @@ export const ENS_RECORDS = {
   ROLES_MODIFIER: 'agent:rolesModifier',
   ERC8004: 'agent:erc8004',
 } as const;
+
+// OIK-54: CCIP Subname Configuration
+// NOTE: Update managerAddress after contract deployment
+export const CCIP_CONFIG = {
+  sepolia: {
+    managerAddress: '0x0000000000000000000000000000000000000000' as `0x${string}`, // UPDATE after deployment
+    gatewayUrl: 'https://oikonomos-ccip.workers.dev',
+    parentName: 'oikonomos.eth',
+    // namehash("oikonomos.eth") - compute with: cast namehash oikonomos.eth
+    parentNode: '0x0000000000000000000000000000000000000000000000000000000000000000' as `0x${string}`, // UPDATE after computing
+  },
+  mainnet: {
+    managerAddress: null as `0x${string}` | null, // TBD
+    gatewayUrl: null as string | null,
+    parentName: 'oikonomos.eth',
+    parentNode: null as `0x${string}` | null,
+  },
+} as const;

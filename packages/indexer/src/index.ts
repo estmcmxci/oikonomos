@@ -1,5 +1,5 @@
 import { ponder } from 'ponder:registry';
-import { executionReceipt, strategyMetrics, agent } from 'ponder:schema';
+import { executionReceipt, strategyMetrics, agent, subname } from 'ponder:schema';
 import { keccak256, toBytes } from 'viem';
 
 // Treasury agent webhook URL (configurable via env)
@@ -500,5 +500,34 @@ ponder.on('IdentityRegistryBaseSepolia:MetadataSet', async ({ event, context }) 
 
 ponder.on('IdentityRegistryBaseSepolia:URIUpdated', async ({ event, context }) => {
   await handleURIUpdated(event, context);
+});
+
+// ============================================================================
+// OIK-54: CCIP Subname Registration (oikonomos.eth)
+// ============================================================================
+
+/**
+ * Handle SubnameRegistered events from OffchainSubnameManager
+ * These events are emitted when a subname is registered via CCIP-Read
+ */
+ponder.on('OffchainSubnameManager:SubnameRegistered', async ({ event, context }) => {
+  const subnameId = `${event.args.parentNode}-${event.args.labelHash}`;
+  const fullName = `${event.args.label}.oikonomos.eth`;
+
+  await context.db.insert(subname).values({
+    id: subnameId,
+    parentNode: event.args.parentNode,
+    labelHash: event.args.labelHash,
+    label: event.args.label,
+    fullName,
+    owner: event.args.owner,
+    agentId: event.args.agentId.toString(),
+    expiry: event.args.expiry,
+    registeredAt: event.block.timestamp,
+    transactionHash: event.transaction.hash,
+    chainId: 11155111, // Sepolia
+  });
+
+  console.log(`[subname] Registered ${fullName} -> owner: ${event.args.owner}, agentId: ${event.args.agentId}`);
 });
 

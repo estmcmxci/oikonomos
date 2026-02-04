@@ -1,0 +1,22 @@
+name = "oikonomos-ccip-gateway"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+# Secrets (set via wrangler secret put):
+# - PRIVATE_KEY: Trusted signer private key (hex with 0x prefix)
+
+[vars]
+# Contract address - UPDATE after deployment
+CONTRACT_ADDRESS = "0x0000000000000000000000000000000000000000"
+# Sepolia chain ID
+CHAIN_ID = "11155111"
+# namehash("oikonomos.eth") - computed for Sepolia
+# To compute: cast keccak $(cast abi-encode "f(bytes32,bytes32)" $(cast keccak $(cast abi-encode "f(bytes32,bytes32)" 0x0000000000000000000000000000000000000000000000000000000000000000 $(cast keccak "eth"))) $(cast keccak "oikonomos"))
+PARENT_NODE = "0x0000000000000000000000000000000000000000000000000000000000000000"
+# Trusted signer address - must match PRIVATE_KEY
+TRUSTED_SIGNER = "0x0000000000000000000000000000000000000000"
+# ERC-8004 Identity Registry on Sepolia
+IDENTITY_REGISTRY = "0x8004A818BFB912233c491871b3d84c89A494BD9e"
+
+# Optional: allowlist for early access (comma-separated addresses)
+# ALLOWLIST = "0xaddr1,0xaddr2"
