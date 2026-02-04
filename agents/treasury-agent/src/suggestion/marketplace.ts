@@ -56,6 +56,16 @@ export interface MarketplaceFilter {
   policyType?: string; // Policy type to match (e.g., 'stablecoin-rebalance')
 }
 
+// A2A /capabilities response structure
+export interface AgentCapabilities {
+  supportedTokens?: string[];
+  policyTypes?: string[];
+  pricing?: string;
+  version?: string;
+  chainIds?: number[];
+  description?: string;
+}
+
 // Known agents for MVP fallback (when indexer is empty or unavailable)
 // These are agents registered on Sepolia with ENS records
 const KNOWN_AGENTS: IndexerAgent[] = [
@@ -116,6 +126,57 @@ export async function fetchAgentsFromIndexer(env: Env): Promise<IndexerAgent[]> 
     console.error('[marketplace] Error fetching agents from indexer:', error);
     console.log('[marketplace] Using known agents fallback');
     return KNOWN_AGENTS;
+  }
+}
+
+/**
+ * Fetch live capabilities from an agent's A2A endpoint
+ * Returns null on error/timeout for graceful degradation
+ */
+export async function fetchAgentCapabilities(
+  a2aEndpoint: string
+): Promise<AgentCapabilities | null> {
+  try {
+    // Normalize endpoint URL
+    const baseUrl = a2aEndpoint.endsWith('/') ? a2aEndpoint.slice(0, -1) : a2aEndpoint;
+    const capabilitiesUrl = `${baseUrl}/capabilities`;
+
+    const response = await fetch(capabilitiesUrl, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+      },
+      signal: AbortSignal.timeout(5000), // 5 second timeout
+    });
+
+    if (!response.ok) {
+      console.log(`[marketplace] Failed to fetch capabilities from ${capabilitiesUrl}: ${response.status}`);
+      return null;
+    }
+
+    const capabilities = await response.json() as AgentCapabilities;
+
+    // Validate response has expected structure
+    if (!capabilities || typeof capabilities !== 'object') {
+      console.log(`[marketplace] Invalid capabilities response from ${capabilitiesUrl}`);
+      return null;
+    }
+
+    console.log(`[marketplace] Fetched live capabilities from ${a2aEndpoint}:`, {
+      supportedTokens: capabilities.supportedTokens?.length ?? 0,
+      policyTypes: capabilities.policyTypes?.length ?? 0,
+      pricing: capabilities.pricing,
+    });
+
+    return capabilities;
+  } catch (error) {
+    // Log but don't throw - graceful degradation
+    if (error instanceof Error && error.name === 'TimeoutError') {
+      console.log(`[marketplace] Timeout fetching capabilities from ${a2aEndpoint}`);
+    } else {
+      console.log(`[marketplace] Error fetching capabilities from ${a2aEndpoint}:`, error);
+    }
+    return null;
   }
 }
 
@@ -277,9 +338,35 @@ export async function discoverMarketplaceAgents(
   }
 
   // 3. Resolve ENS marketplace records for each agent
+  // 3a. Then fetch live capabilities from A2A endpoints and merge
   const agentsWithRecords = await Promise.all(
     agentsWithENS.map(async (agent) => {
       const records = await resolveMarketplaceRecords(env, agent.ens!);
+
+      // If agent has A2A endpoint, fetch live capabilities and merge
+      const a2aEndpoint = records.a2a || records.entrypoint;
+      if (a2aEndpoint) {
+        const liveCapabilities = await fetchAgentCapabilities(a2aEndpoint);
+        if (liveCapabilities) {
+          // Merge live capabilities into records (live takes precedence)
+          if (liveCapabilities.supportedTokens?.length) {
+            records.supportedTokens = liveCapabilities.supportedTokens;
+          }
+          if (liveCapabilities.policyTypes?.length) {
+            records.policyTypes = liveCapabilities.policyTypes;
+          }
+          if (liveCapabilities.pricing) {
+            records.pricing = liveCapabilities.pricing;
+          }
+          if (liveCapabilities.description) {
+            records.description = liveCapabilities.description;
+          }
+          if (liveCapabilities.version) {
+            records.version = liveCapabilities.version;
+          }
+        }
+      }
+
       const trustScore = await calculateTrustScore(env, agent.id, agent.ens!);
       return { ...agent, records, trustScore };
     })

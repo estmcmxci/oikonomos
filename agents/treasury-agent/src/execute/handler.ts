@@ -30,6 +30,28 @@ export async function handleExecute(
   env: Env,
   corsHeaders: Record<string, string>
 ): Promise<Response> {
+  // Global error handler to catch unhandled exceptions
+  try {
+    return await handleExecuteInternal(request, env, corsHeaders);
+  } catch (error) {
+    console.error('[execute] Unhandled error:', error);
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: 'Internal server error',
+        details: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+}
+
+async function handleExecuteInternal(
+  request: Request,
+  env: Env,
+  corsHeaders: Record<string, string>
+): Promise<Response> {
   let body: ExecuteRequest;
 
   try {
@@ -81,11 +103,25 @@ export async function handleExecute(
     return create402Response(requirement, corsHeaders);
   }
 
-  // 5. Execute the trade
+  // 5. Log payment verification for audit trail (OIK-49)
+  const paymentAuditLog = {
+    event: 'x402_payment_verified',
+    timestamp: new Date().toISOString(),
+    quoteId: body.quoteId,
+    payer: body.userAddress,
+    recipient: paymentAddress,
+    amount: quote.pricing.feeAmount,
+    currency: PAYMENT_TOKEN,
+    network: NETWORK,
+    txHash: paymentResult.txHash || null,
+  };
+  console.log('[payment-audit]', JSON.stringify(paymentAuditLog));
+
+  // 6. Execute the trade
   try {
     const result = await executeQuotedTrade(env, body, quote);
 
-    // 6. Record fee earnings
+    // 7. Record fee earnings
     if (result.success && paymentResult.txHash) {
       await recordFeeEarning(env.TREASURY_KV, {
         quoteId: body.quoteId,
@@ -95,6 +131,16 @@ export async function handleExecute(
         txHash: paymentResult.txHash,
         timestamp: Date.now(),
       });
+
+      // Log successful execution for audit trail
+      console.log('[execution-audit]', JSON.stringify({
+        event: 'trade_executed',
+        timestamp: new Date().toISOString(),
+        quoteId: body.quoteId,
+        userAddress: body.userAddress,
+        txHash: result.txHash,
+        paymentTxHash: paymentResult.txHash,
+      }));
     }
 
     return new Response(JSON.stringify(result), {
