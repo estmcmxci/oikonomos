@@ -2,6 +2,7 @@ import { createConfig } from 'ponder';
 
 import { ReceiptHookABI } from './abis/ReceiptHook';
 import { IdentityRegistryABI } from './abis/IdentityRegistry';
+import { OffchainSubnameManagerABI } from './abis/OffchainSubnameManager';
 
 // Canonical ERC-8004 IdentityRegistry (same address via CREATE2 on all chains)
 const CANONICAL_IDENTITY_REGISTRY = '0x8004A818BFB912233c491871b3d84c89A494BD9e';
@@ -15,6 +16,11 @@ const SEPOLIA_IDENTITY_REGISTRY_START_BLOCK = 10165000;
 const BASE_SEPOLIA_RECEIPT_HOOK = '0x906E3e24C04f6b6B5b6743BB77d0FCBE4d87C040';
 const BASE_SEPOLIA_RECEIPT_HOOK_START_BLOCK = 37200452; // OIK-50 deployment block
 const BASE_SEPOLIA_IDENTITY_REGISTRY_START_BLOCK = 37200000; // Approximate
+
+// ======== OIK-54: CCIP Subname Manager (Sepolia) ========
+// NOTE: Update after contract deployment
+const SEPOLIA_SUBNAME_MANAGER = process.env.SUBNAME_MANAGER_ADDRESS || '0x0000000000000000000000000000000000000000';
+const SEPOLIA_SUBNAME_MANAGER_START_BLOCK = Number(process.env.SUBNAME_MANAGER_START_BLOCK || 0);
 
 export default createConfig({
   // Note: Schema is passed via CLI --schema flag in package.json scripts
@@ -58,5 +64,15 @@ export default createConfig({
       address: CANONICAL_IDENTITY_REGISTRY as `0x${string}`,
       startBlock: BASE_SEPOLIA_IDENTITY_REGISTRY_START_BLOCK,
     },
+    // OIK-54: CCIP Subname Manager (Sepolia)
+    // Indexes SubnameRegistered events for oikonomos.eth subnames
+    ...(SEPOLIA_SUBNAME_MANAGER !== '0x0000000000000000000000000000000000000000' ? {
+      OffchainSubnameManager: {
+        chain: 'sepolia',
+        abi: OffchainSubnameManagerABI,
+        address: SEPOLIA_SUBNAME_MANAGER as `0x${string}`,
+        startBlock: SEPOLIA_SUBNAME_MANAGER_START_BLOCK,
+      },
+    } : {}),
   },
 });
