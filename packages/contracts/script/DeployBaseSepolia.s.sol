@@ -79,8 +79,9 @@ contract CreateBaseSepoliaPools is Script {
     address constant POOL_MANAGER = 0x05E73354cFDd6745C338b50BcFDfA3Aa6fA03408;
     address constant RECEIPT_HOOK = 0x906E3e24C04f6b6B5b6743BB77d0FCBE4d87C040;
     address constant WETH = 0x4200000000000000000000000000000000000006;
-    address constant MOCK_USDC = 0x524C057B1030B3D832f1688e4993159C7A124518;
-    address constant MOCK_DAI = 0x233Dc75Bda7dB90a33454e4333E3ac96eB7FB84E;
+    // Permit-enabled tokens (OIK-51)
+    address constant MOCK_USDC = 0x944a6D90b3111884CcCbfcc45B381b7C864D7943;
+    address constant MOCK_DAI = 0xCE728786975c72711e810aDCD9BC233A2a55d7C1;
 
     function run() external {
         console.log("=== Base Sepolia Pool Creation ===");
@@ -238,8 +239,9 @@ contract BaseSepoliaLiquidityHelper is IUnlockCallback {
 contract AddBaseSepoliaLiquidity is Script {
     address constant POOL_MANAGER = 0x05E73354cFDd6745C338b50BcFDfA3Aa6fA03408;
     address constant RECEIPT_HOOK = 0x906E3e24C04f6b6B5b6743BB77d0FCBE4d87C040;
-    address constant MOCK_USDC = 0x524C057B1030B3D832f1688e4993159C7A124518;
-    address constant MOCK_DAI = 0x233Dc75Bda7dB90a33454e4333E3ac96eB7FB84E;
+    // Permit-enabled tokens (OIK-51)
+    address constant MOCK_USDC = 0x944a6D90b3111884CcCbfcc45B381b7C864D7943;
+    address constant MOCK_DAI = 0xCE728786975c72711e810aDCD9BC233A2a55d7C1;
 
     function run() external {
         console.log("=== Add Liquidity to Base Sepolia Pools ===");

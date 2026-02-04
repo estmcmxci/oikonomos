@@ -14,8 +14,14 @@ export interface X402PaymentRequirement {
   mimeType: string;
   payTo: Address;
   maxTimeoutSeconds: number;
-  asset: string; // e.g., "USDC"
-  extra?: Record<string, unknown>;
+  asset: string; // Token address, e.g., "0x944a6D90b3111884CcCbfcc45B381b7C864D7943"
+  // EIP-712 domain parameters for permit tokens (OIK-51)
+  // x402 SDK expects name/version inside `extra` object
+  extra?: {
+    name: string; // Token name for EIP-712 domain, e.g., "Mock USDC"
+    version: string; // EIP-712 domain version, typically "1"
+    [key: string]: unknown;
+  };
 }
 
 export interface X402PaymentPayload {
