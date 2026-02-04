@@ -7,8 +7,8 @@ import {
   type Hex,
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
-import { sepolia } from 'viem/chains';
 import type { Env } from '../index';
+import { getChain } from '../config/chain';
 import { IntentRouterABI } from '../../../shared/src/abis/IntentRouterABI';
 
 interface IntentParams {
@@ -39,28 +39,12 @@ interface PoolKey {
   hooks: Address;
 }
 
-export async function buildAndSignIntent(
-  env: Env,
-  params: IntentParams
-): Promise<SignedIntent> {
-  const account = privateKeyToAccount(env.PRIVATE_KEY as Hex);
-
-  const walletClient = createWalletClient({
-    account,
-    chain: sepolia,
-    transport: http(env.RPC_URL),
-  });
-
-  const deadline = BigInt(Math.floor(Date.now() / 1000) + params.ttlSeconds);
-
-  const intent = {
-    ...params,
-    deadline,
-  };
-
-  // Sign the intent using EIP-712
-  const signature = await walletClient.signTypedData({
-    account,
+/**
+ * Build the EIP-712 typed data for an intent (without signing)
+ * Used for clients to sign the intent themselves
+ */
+export function buildIntentTypedData(env: Env, params: IntentParams & { deadline: bigint }) {
+  return {
     domain: {
       name: 'OikonomosIntentRouter',
       version: '1',
@@ -79,17 +63,61 @@ export async function buildAndSignIntent(
         { name: 'nonce', type: 'uint256' },
       ],
     },
-    primaryType: 'Intent',
+    primaryType: 'Intent' as const,
     message: {
-      user: intent.user,
-      tokenIn: intent.tokenIn,
-      tokenOut: intent.tokenOut,
-      amountIn: intent.amountIn,
-      maxSlippage: BigInt(intent.maxSlippageBps),
-      deadline: intent.deadline,
-      strategyId: intent.strategyId,
-      nonce: intent.nonce,
+      user: params.user,
+      tokenIn: params.tokenIn,
+      tokenOut: params.tokenOut,
+      amountIn: params.amountIn,
+      maxSlippage: BigInt(params.maxSlippageBps),
+      deadline: params.deadline,
+      strategyId: params.strategyId,
+      nonce: params.nonce,
     },
+  };
+}
+
+/**
+ * Build the intent message without signing - returns data needed for client-side signing
+ */
+export function buildIntentMessage(
+  env: Env,
+  params: IntentParams
+): { intent: SignedIntentData; typedData: ReturnType<typeof buildIntentTypedData> } {
+  const deadline = BigInt(Math.floor(Date.now() / 1000) + params.ttlSeconds);
+  const intentWithDeadline = { ...params, deadline };
+
+  return {
+    intent: intentWithDeadline,
+    typedData: buildIntentTypedData(env, intentWithDeadline),
+  };
+}
+
+export async function buildAndSignIntent(
+  env: Env,
+  params: IntentParams
+): Promise<SignedIntent> {
+  const account = privateKeyToAccount(env.PRIVATE_KEY as Hex);
+
+  const walletClient = createWalletClient({
+    account,
+    chain: getChain(env),
+    transport: http(env.RPC_URL),
+  });
+
+  const deadline = BigInt(Math.floor(Date.now() / 1000) + params.ttlSeconds);
+
+  const intent = {
+    ...params,
+    deadline,
+  };
+
+  const typedData = buildIntentTypedData(env, intent);
+
+  // Sign the intent using EIP-712
+  const signature = await walletClient.signTypedData({
+    account,
+    ...typedData,
   });
 
   return {
@@ -114,14 +142,16 @@ export async function submitIntent(
 ): Promise<Hex> {
   const account = privateKeyToAccount(env.PRIVATE_KEY as Hex);
 
+  const chain = getChain(env);
+
   const walletClient = createWalletClient({
     account,
-    chain: sepolia,
+    chain,
     transport: http(env.RPC_URL),
   });
 
   const publicClient = createPublicClient({
-    chain: sepolia,
+    chain,
     transport: http(env.RPC_URL),
   });
 
@@ -203,7 +233,7 @@ export async function submitIntent(
  */
 export async function getNonce(env: Env, user: Address): Promise<bigint> {
   const publicClient = createPublicClient({
-    chain: sepolia,
+    chain: getChain(env),
     transport: http(env.RPC_URL),
   });
 

@@ -1,6 +1,6 @@
 import { createPublicClient, http, erc20Abi, type Address } from 'viem';
-import { sepolia } from 'viem/chains';
 import type { Env } from '../index';
+import { getChain } from '../config/chain';
 import type { Policy, TokenAllocation } from '../policy/templates';
 
 interface Allocation {
@@ -80,7 +80,7 @@ export async function checkDrift(
   policy: Policy
 ): Promise<DriftResult> {
   const client = createPublicClient({
-    chain: sepolia,
+    chain: getChain(env),
     transport: http(env.RPC_URL),
   });
 

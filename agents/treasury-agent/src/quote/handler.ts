@@ -1,6 +1,6 @@
 import { createPublicClient, http, encodeFunctionData, decodeFunctionResult, type Address, type Hex } from 'viem';
-import { sepolia } from 'viem/chains';
 import type { Env } from '../index';
+import { getChain } from '../config/chain';
 import { QuoterV4ABI } from '../../../shared/src/abis/QuoterV4ABI';
 import { getPaymentAddress, NETWORK, PAYMENT_TOKEN, DEFAULT_FEE_BPS } from '../x402/config';
 
@@ -193,7 +193,7 @@ async function getOnchainQuote(
   amountIn: bigint
 ): Promise<bigint | null> {
   const client = createPublicClient({
-    chain: sepolia,
+    chain: getChain(env),
     transport: http(env.RPC_URL),
   });
 

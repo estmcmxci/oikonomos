@@ -9,7 +9,7 @@ import {
 } from '../x402/middleware';
 import { recordFeeEarning } from '../x402/analytics';
 import { getPaymentAddress, NETWORK, PAYMENT_TOKEN } from '../x402/config';
-import { buildAndSignIntent, submitIntent, getNonce } from '../modes/intentMode';
+import { submitIntent, getNonce, buildIntentMessage } from '../modes/intentMode';
 import { requirePoolForPair } from '../config/pools';
 
 /**
@@ -63,9 +63,9 @@ async function handleExecuteInternal(
     );
   }
 
-  if (!body.quoteId || !body.userAddress) {
+  if (!body.quoteId || !body.userAddress || !body.signature) {
     return new Response(
-      JSON.stringify({ success: false, error: 'Missing required fields: quoteId, userAddress' }),
+      JSON.stringify({ success: false, error: 'Missing required fields: quoteId, userAddress, signature' }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
@@ -157,6 +157,7 @@ async function handleExecuteInternal(
 
 /**
  * Execute a quoted trade via IntentRouter
+ * Uses the user's pre-signed intent signature
  */
 async function executeQuotedTrade(
   env: Env,
@@ -167,22 +168,48 @@ async function executeQuotedTrade(
     return { success: false, error: 'Invalid quote' };
   }
 
-  try {
-    // Get current nonce for user
-    const nonce = await getNonce(env, request.userAddress);
+  if (!request.signature) {
+    return { success: false, error: 'User signature is required' };
+  }
 
-    // Build and sign intent
-    const signedIntent = await buildAndSignIntent(env, {
-      user: request.userAddress,
-      tokenIn: quote.tokenIn,
-      tokenOut: quote.tokenOut,
-      amountIn: BigInt(quote.amountIn),
-      maxSlippageBps: quote.slippage,
-      strategyId: (env.STRATEGY_ID ||
-        '0x0000000000000000000000000000000000000000000000000000000000000001') as Hex,
-      nonce,
-      ttlSeconds: 3600,
-    });
+  try {
+    // Retrieve the stored intent (created during /prepare-execute)
+    // This ensures we use the exact same values (including deadline) that the user signed
+    const storedIntentJson = await env.TREASURY_KV.get(`intent:${quote.quoteId}`);
+
+    if (!storedIntentJson) {
+      return { success: false, error: 'Intent not found - call /prepare-execute first' };
+    }
+
+    const storedIntent = JSON.parse(storedIntentJson) as {
+      user: Address;
+      tokenIn: Address;
+      tokenOut: Address;
+      amountIn: string;
+      maxSlippage: string;
+      deadline: string;
+      strategyId: Hex;
+      nonce: string;
+    };
+
+    // Build the intent struct with the exact values the user signed
+    const intent = {
+      user: storedIntent.user,
+      tokenIn: storedIntent.tokenIn,
+      tokenOut: storedIntent.tokenOut,
+      amountIn: BigInt(storedIntent.amountIn),
+      maxSlippageBps: parseInt(storedIntent.maxSlippage),
+      deadline: BigInt(storedIntent.deadline),
+      strategyId: storedIntent.strategyId,
+      nonce: BigInt(storedIntent.nonce),
+      ttlSeconds: 0, // Not used since deadline is already set
+    };
+
+    // Use the user's signature (they signed the intent client-side)
+    const signedIntent = {
+      intent,
+      signature: request.signature as Hex,
+    };
 
     // Get pool configuration
     const poolKey = requirePoolForPair(quote.tokenIn, quote.tokenOut);
@@ -221,4 +248,113 @@ export function buildPricingInfo(
     paymentAddress,
     network: NETWORK,
   };
+}
+
+interface PrepareExecuteRequest {
+  quoteId: string;
+  userAddress: Address;
+}
+
+/**
+ * Handle POST /prepare-execute requests
+ *
+ * Returns the EIP-712 typed data that the user must sign before calling /execute.
+ * This allows clients to sign the intent locally before submitting.
+ */
+export async function handlePrepareExecute(
+  request: Request,
+  env: Env,
+  corsHeaders: Record<string, string>
+): Promise<Response> {
+  let body: PrepareExecuteRequest;
+
+  try {
+    body = await request.json();
+  } catch {
+    return new Response(
+      JSON.stringify({ success: false, error: 'Invalid JSON body' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  if (!body.quoteId || !body.userAddress) {
+    return new Response(
+      JSON.stringify({ success: false, error: 'Missing required fields: quoteId, userAddress' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  // Validate quote exists and is not expired
+  const quote = await validateQuote(env, body.quoteId);
+
+  if (!quote) {
+    return new Response(
+      JSON.stringify({ success: false, error: 'Quote not found or expired' }),
+      { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  try {
+    // Get current nonce for user
+    const nonce = await getNonce(env, body.userAddress);
+
+    // Build intent message (returns EIP-712 typed data for signing)
+    const { intent, typedData } = buildIntentMessage(env, {
+      user: body.userAddress,
+      tokenIn: quote.tokenIn,
+      tokenOut: quote.tokenOut,
+      amountIn: BigInt(quote.amountIn),
+      maxSlippageBps: quote.slippage,
+      strategyId: (env.STRATEGY_ID ||
+        '0x0000000000000000000000000000000000000000000000000000000000000001') as Hex,
+      nonce,
+      ttlSeconds: 3600,
+    });
+
+    // Store the intent data keyed by quoteId for retrieval during execute
+    // This ensures the same deadline is used when verifying the signature
+    const intentData = {
+      user: intent.user,
+      tokenIn: intent.tokenIn,
+      tokenOut: intent.tokenOut,
+      amountIn: intent.amountIn.toString(),
+      maxSlippage: intent.maxSlippageBps.toString(),
+      deadline: intent.deadline.toString(),
+      strategyId: intent.strategyId,
+      nonce: intent.nonce.toString(),
+    };
+
+    await env.TREASURY_KV.put(`intent:${body.quoteId}`, JSON.stringify(intentData), {
+      expirationTtl: 300, // 5 minutes - same as quote
+    });
+
+    // Return the EIP-712 typed data for client-side signing
+    return new Response(
+      JSON.stringify({
+        success: true,
+        quoteId: body.quoteId,
+        intent: intentData,
+        typedData: {
+          domain: typedData.domain,
+          types: typedData.types,
+          primaryType: typedData.primaryType,
+          message: {
+            ...typedData.message,
+            amountIn: typedData.message.amountIn.toString(),
+            maxSlippage: typedData.message.maxSlippage.toString(),
+            deadline: typedData.message.deadline.toString(),
+            nonce: typedData.message.nonce.toString(),
+          },
+        },
+        pricing: quote.pricing,
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  } catch (error) {
+    console.error('Prepare execute error:', error);
+    return new Response(
+      JSON.stringify({ success: false, error: 'Failed to prepare execute data', details: String(error) }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
 }
