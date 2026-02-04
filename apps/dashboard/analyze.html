@@ -1,0 +1,1203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portfolio Analysis | Oikonomos</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Space+Grotesk:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-base: #0a0a0b;
+            --bg-elevated: #111114;
+            --bg-card: rgba(17, 17, 20, 0.7);
+            --border-subtle: rgba(82, 152, 255, 0.15);
+            --border-accent: rgba(82, 152, 255, 0.4);
+            --text-primary: #ffffff;
+            --text-secondary: rgba(255, 255, 255, 0.6);
+            --text-tertiary: rgba(255, 255, 255, 0.4);
+            --accent-blue: #5298FF;
+            --accent-cyan: #00D4AA;
+            --accent-blue-glow: rgba(82, 152, 255, 0.3);
+            --font-display: 'Space Grotesk', sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+
+            /* Token colors */
+            --color-usdc: #2775CA;
+            --color-dai: #F5AC37;
+            --color-weth: #627EEA;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html {
+            font-size: 16px;
+        }
+
+        body {
+            font-family: var(--font-display);
+            background: var(--bg-base);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        /* Background layers */
+        .bg-grid {
+            position: fixed;
+            inset: 0;
+            background-image:
+                linear-gradient(rgba(82, 152, 255, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(82, 152, 255, 0.03) 1px, transparent 1px);
+            background-size: 60px 60px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .bg-gradient {
+            position: fixed;
+            inset: 0;
+            background:
+                radial-gradient(ellipse 80% 50% at 50% -20%, rgba(82, 152, 255, 0.15), transparent),
+                radial-gradient(ellipse 60% 40% at 80% 60%, rgba(0, 212, 170, 0.05), transparent);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .bg-noise {
+            position: fixed;
+            inset: 0;
+            opacity: 0.4;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+            pointer-events: none;
+            z-index: 0;
+            mix-blend-mode: overlay;
+        }
+
+        /* Main content */
+        .container {
+            position: relative;
+            z-index: 1;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        /* Header */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 24px 0;
+            border-bottom: 1px solid var(--border-subtle);
+            opacity: 0;
+            animation: fadeSlideDown 0.6s ease-out 0.1s forwards;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+            color: var(--text-primary);
+        }
+
+        .logo-mark {
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .logo-mark svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        .logo-text {
+            font-family: var(--font-mono);
+            font-size: 1.125rem;
+            font-weight: 500;
+            letter-spacing: -0.02em;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 24px;
+        }
+
+        .wallet-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 14px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            backdrop-filter: blur(10px);
+        }
+
+        .wallet-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--accent-cyan);
+            border-radius: 50%;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        .wallet-address {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        /* Progress indicator */
+        .progress-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            opacity: 0;
+            animation: fadeSlideDown 0.6s ease-out 0.2s forwards;
+        }
+
+        .progress-step {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .progress-number {
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: var(--font-mono);
+            font-size: 0.625rem;
+            font-weight: 700;
+            border: 1px solid var(--border-subtle);
+            color: var(--text-tertiary);
+        }
+
+        .progress-number.completed {
+            background: var(--accent-cyan);
+            border-color: var(--accent-cyan);
+            color: var(--bg-base);
+        }
+
+        .progress-number.active {
+            background: var(--accent-blue);
+            border-color: var(--accent-blue);
+            color: var(--bg-base);
+        }
+
+        .progress-label {
+            font-family: var(--font-mono);
+            font-size: 0.625rem;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+
+        .progress-label.active {
+            color: var(--text-secondary);
+        }
+
+        .progress-line {
+            width: 32px;
+            height: 1px;
+            background: var(--border-subtle);
+        }
+
+        .progress-line.completed {
+            background: var(--accent-cyan);
+        }
+
+        /* Page header */
+        .page-header {
+            padding: 48px 0 32px;
+            opacity: 0;
+            animation: fadeSlideUp 0.6s ease-out 0.3s forwards;
+        }
+
+        .page-label {
+            font-family: var(--font-mono);
+            font-size: 0.6875rem;
+            font-weight: 500;
+            color: var(--accent-blue);
+            text-transform: uppercase;
+            letter-spacing: 0.2em;
+            margin-bottom: 8px;
+        }
+
+        .page-title {
+            font-family: var(--font-display);
+            font-size: 2.5rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+        }
+
+        /* Main grid */
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            gap: 24px;
+            padding-bottom: 48px;
+        }
+
+        /* Portfolio overview card */
+        .portfolio-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            backdrop-filter: blur(20px);
+            opacity: 0;
+            animation: fadeSlideUp 0.6s ease-out 0.4s forwards;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .card-title {
+            font-family: var(--font-mono);
+            font-size: 0.6875rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            color: var(--text-secondary);
+        }
+
+        .total-value {
+            text-align: right;
+        }
+
+        .total-label {
+            font-family: var(--font-mono);
+            font-size: 0.625rem;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+
+        .total-amount {
+            font-family: var(--font-mono);
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .total-amount span {
+            color: var(--accent-blue);
+        }
+
+        /* Token table */
+        .token-table {
+            width: 100%;
+        }
+
+        .token-row {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 120px;
+            gap: 16px;
+            align-items: center;
+            padding: 16px 24px;
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+            transition: background 0.2s ease;
+        }
+
+        .token-row:hover {
+            background: rgba(82, 152, 255, 0.05);
+        }
+
+        .token-row.header {
+            padding: 12px 24px;
+            background: rgba(0,0,0,0.2);
+        }
+
+        .token-row.header span {
+            font-family: var(--font-mono);
+            font-size: 0.625rem;
+            font-weight: 500;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+
+        .token-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .token-icon {
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            font-weight: 700;
+            border: 1px solid;
+        }
+
+        .token-icon.usdc {
+            background: rgba(39, 117, 202, 0.1);
+            border-color: rgba(39, 117, 202, 0.3);
+            color: var(--color-usdc);
+        }
+
+        .token-icon.dai {
+            background: rgba(245, 172, 55, 0.1);
+            border-color: rgba(245, 172, 55, 0.3);
+            color: var(--color-dai);
+        }
+
+        .token-icon.weth {
+            background: rgba(98, 126, 234, 0.1);
+            border-color: rgba(98, 126, 234, 0.3);
+            color: var(--color-weth);
+        }
+
+        .token-name {
+            font-family: var(--font-mono);
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+
+        .token-fullname {
+            font-family: var(--font-mono);
+            font-size: 0.6875rem;
+            color: var(--text-tertiary);
+            margin-top: 2px;
+        }
+
+        .token-amount {
+            font-family: var(--font-mono);
+            font-size: 0.875rem;
+            color: var(--text-primary);
+        }
+
+        .token-value {
+            font-family: var(--font-mono);
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+
+        .token-percent {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .percent-bar {
+            flex: 1;
+            height: 4px;
+            background: rgba(255,255,255,0.1);
+            overflow: hidden;
+        }
+
+        .percent-fill {
+            height: 100%;
+            transition: width 1s ease-out;
+        }
+
+        .percent-fill.usdc { background: var(--color-usdc); }
+        .percent-fill.dai { background: var(--color-dai); }
+        .percent-fill.weth { background: var(--color-weth); }
+
+        .percent-text {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            min-width: 40px;
+            text-align: right;
+        }
+
+        /* Classification section */
+        .classification-section {
+            padding: 24px;
+            border-top: 1px solid var(--border-subtle);
+        }
+
+        .classification-header {
+            font-family: var(--font-mono);
+            font-size: 0.625rem;
+            font-weight: 500;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            margin-bottom: 16px;
+        }
+
+        .classification-bars {
+            display: flex;
+            gap: 16px;
+        }
+
+        .class-item {
+            flex: 1;
+        }
+
+        .class-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+
+        .class-name {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        .class-percent {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .class-bar {
+            height: 8px;
+            background: rgba(255,255,255,0.1);
+            overflow: hidden;
+        }
+
+        .class-fill {
+            height: 100%;
+            transition: width 1.2s ease-out;
+        }
+
+        .class-fill.stable {
+            background: linear-gradient(90deg, var(--color-usdc), var(--color-dai));
+        }
+
+        .class-fill.volatile {
+            background: var(--color-weth);
+        }
+
+        /* Sidebar */
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        /* Summary card (replaces donut chart) */
+        .summary-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            backdrop-filter: blur(20px);
+            padding: 24px;
+            opacity: 0;
+            animation: fadeSlideUp 0.6s ease-out 0.5s forwards;
+        }
+
+        .summary-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 24px;
+        }
+
+        .summary-value {
+            font-family: var(--font-mono);
+            font-size: 2rem;
+            font-weight: 700;
+            line-height: 1;
+        }
+
+        .summary-value span {
+            color: var(--accent-blue);
+        }
+
+        .summary-label {
+            font-family: var(--font-mono);
+            font-size: 0.625rem;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-top: 4px;
+        }
+
+        .summary-badge {
+            font-family: var(--font-mono);
+            font-size: 0.5625rem;
+            color: var(--accent-cyan);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            padding: 4px 8px;
+            background: rgba(0, 212, 170, 0.1);
+            border: 1px solid rgba(0, 212, 170, 0.2);
+        }
+
+        /* Horizontal stacked bar */
+        .stacked-bar-container {
+            margin-bottom: 16px;
+        }
+
+        .stacked-bar-label {
+            font-family: var(--font-mono);
+            font-size: 0.625rem;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 8px;
+        }
+
+        .stacked-bar {
+            display: flex;
+            height: 12px;
+            background: rgba(255,255,255,0.05);
+            overflow: hidden;
+        }
+
+        .stacked-segment {
+            height: 100%;
+            transition: width 1s ease-out;
+        }
+
+        .stacked-segment.usdc { background: var(--color-usdc); }
+        .stacked-segment.dai { background: var(--color-dai); }
+        .stacked-segment.weth { background: var(--color-weth); }
+
+        /* Asset breakdown list */
+        .asset-breakdown {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border-subtle);
+        }
+
+        .asset-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .asset-color {
+            width: 8px;
+            height: 8px;
+        }
+
+        .asset-color.usdc { background: var(--color-usdc); }
+        .asset-color.dai { background: var(--color-dai); }
+        .asset-color.weth { background: var(--color-weth); }
+
+        .asset-name {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        .asset-data {
+            margin-left: auto;
+            display: flex;
+            gap: 16px;
+        }
+
+        .asset-amount {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-tertiary);
+            min-width: 70px;
+            text-align: right;
+        }
+
+        .asset-percent {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            font-weight: 500;
+            color: var(--text-primary);
+            min-width: 36px;
+            text-align: right;
+        }
+
+        /* Policy card */
+        .policy-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-accent);
+            backdrop-filter: blur(20px);
+            opacity: 0;
+            animation: fadeSlideUp 0.6s ease-out 0.6s forwards;
+        }
+
+        .policy-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--border-subtle);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .policy-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 10px;
+            background: rgba(0, 212, 170, 0.1);
+            border: 1px solid rgba(0, 212, 170, 0.3);
+            font-family: var(--font-mono);
+            font-size: 0.625rem;
+            font-weight: 500;
+            color: var(--accent-cyan);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+
+        .policy-badge::before {
+            content: '✓';
+        }
+
+        .ai-label {
+            font-family: var(--font-mono);
+            font-size: 0.5625rem;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+        }
+
+        .policy-content {
+            padding: 24px;
+        }
+
+        .policy-title {
+            font-family: var(--font-display);
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .policy-description {
+            font-family: var(--font-display);
+            font-size: 0.875rem;
+            font-weight: 300;
+            color: var(--text-secondary);
+            margin-bottom: 24px;
+        }
+
+        /* Rebalance visualization */
+        .rebalance-visual {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 24px;
+            padding: 16px;
+            background: rgba(0,0,0,0.2);
+            border: 1px solid var(--border-subtle);
+        }
+
+        .alloc-block {
+            flex: 1;
+            text-align: center;
+        }
+
+        .alloc-label {
+            font-family: var(--font-mono);
+            font-size: 0.5625rem;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 8px;
+        }
+
+        .alloc-bars {
+            display: flex;
+            gap: 4px;
+            height: 32px;
+            margin-bottom: 8px;
+        }
+
+        .alloc-bar {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+        }
+
+        .alloc-fill {
+            transition: height 1s ease-out;
+        }
+
+        .alloc-fill.usdc { background: var(--color-usdc); }
+        .alloc-fill.dai { background: var(--color-dai); }
+
+        .alloc-text {
+            font-family: var(--font-mono);
+            font-size: 0.6875rem;
+            color: var(--text-secondary);
+        }
+
+        .rebalance-arrow {
+            color: var(--accent-cyan);
+            font-size: 1.25rem;
+        }
+
+        /* Policy params */
+        .policy-params {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .param-item {
+            padding: 12px;
+            background: rgba(0,0,0,0.2);
+            border: 1px solid var(--border-subtle);
+        }
+
+        .param-label {
+            font-family: var(--font-mono);
+            font-size: 0.5625rem;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 4px;
+        }
+
+        .param-value {
+            font-family: var(--font-mono);
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .param-value span {
+            font-weight: 400;
+            color: var(--text-tertiary);
+            font-size: 0.75rem;
+        }
+
+        /* CTA Button */
+        .btn-primary {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            width: 100%;
+            padding: 16px 28px;
+            background: var(--accent-blue);
+            color: var(--bg-base);
+            font-family: var(--font-mono);
+            font-size: 0.8125rem;
+            font-weight: 500;
+            text-decoration: none;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn-primary::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transform: translateX(-100%);
+            transition: transform 0.5s ease;
+        }
+
+        .btn-primary:hover {
+            background: #6aa5ff;
+            box-shadow: 0 0 40px var(--accent-blue-glow);
+        }
+
+        .btn-primary:hover::before {
+            transform: translateX(100%);
+        }
+
+        /* Animations */
+        @keyframes fadeSlideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeSlideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .sidebar {
+                flex-direction: row;
+            }
+
+            .summary-card, .policy-card {
+                flex: 1;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .sidebar {
+                flex-direction: column;
+            }
+
+            .token-row {
+                grid-template-columns: 1fr 1fr;
+                gap: 12px;
+            }
+
+            .token-row.header {
+                display: none;
+            }
+
+            .progress-label {
+                display: none;
+            }
+
+            .page-title {
+                font-size: 1.75rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-grid"></div>
+    <div class="bg-gradient"></div>
+    <div class="bg-noise"></div>
+
+    <div class="container">
+        <header>
+            <a href="index.html" class="logo">
+                <div class="logo-mark">
+                    <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <linearGradient id="owlGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stop-color="#5298FF"/>
+                                <stop offset="100%" stop-color="#00D4AA"/>
+                            </linearGradient>
+                        </defs>
+                        <path d="M8 28C8 28 6 26 6 22C6 18 8 16 8 16C8 16 7 14 8 11C9 8 12 6 15 6C15 6 16 4 19 4C22 4 24 6 25 8C26 10 26 12 25 14C25 14 28 15 29 18C30 21 29 24 28 26L26 28" stroke="url(#owlGradient)" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+                        <circle cx="20" cy="11" r="5" stroke="url(#owlGradient)" stroke-width="1.5" fill="none"/>
+                        <circle cx="20" cy="11" r="2.5" fill="url(#owlGradient)"/>
+                        <path d="M26 13L30 15L26 17" stroke="url(#owlGradient)" stroke-width="1.5" fill="none" stroke-linejoin="round"/>
+                        <path d="M10 18C12 17 14 18 16 20C18 22 18 25 17 27" stroke="url(#owlGradient)" stroke-width="1" opacity="0.6"/>
+                        <path d="M8 20C10 19 12 20 14 22" stroke="url(#owlGradient)" stroke-width="1" opacity="0.4"/>
+                        <path d="M6 26L4 30" stroke="url(#owlGradient)" stroke-width="1.5" stroke-linecap="round"/>
+                        <path d="M8 27L7 31" stroke="url(#owlGradient)" stroke-width="1.5" stroke-linecap="round"/>
+                        <path d="M18 28L18 32M16 32H20" stroke="url(#owlGradient)" stroke-width="1.5" stroke-linecap="round"/>
+                        <path d="M24 27L24 32M22 32H26" stroke="url(#owlGradient)" stroke-width="1.5" stroke-linecap="round"/>
+                    </svg>
+                </div>
+                <span class="logo-text">oikonomos</span>
+            </a>
+
+            <div class="header-right">
+                <div class="wallet-badge">
+                    <div class="wallet-dot"></div>
+                    <span class="wallet-address">0x7a25...3f8d</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Progress indicator -->
+        <div class="progress-indicator">
+            <div class="progress-step">
+                <div class="progress-number completed">1</div>
+                <span class="progress-label">Connect</span>
+            </div>
+            <div class="progress-line completed"></div>
+            <div class="progress-step">
+                <div class="progress-number active">2</div>
+                <span class="progress-label active">Analyze</span>
+            </div>
+            <div class="progress-line"></div>
+            <div class="progress-step">
+                <div class="progress-number">3</div>
+                <span class="progress-label">Discover</span>
+            </div>
+            <div class="progress-line"></div>
+            <div class="progress-step">
+                <div class="progress-number">4</div>
+                <span class="progress-label">Configure</span>
+            </div>
+            <div class="progress-line"></div>
+            <div class="progress-step">
+                <div class="progress-number">5</div>
+                <span class="progress-label">Authorize</span>
+            </div>
+        </div>
+
+        <div class="page-header">
+            <div class="page-label">Step 2</div>
+            <h1 class="page-title">Portfolio Analysis</h1>
+        </div>
+
+        <div class="main-grid">
+            <!-- Portfolio overview -->
+            <div class="portfolio-card">
+                <div class="card-header">
+                    <span class="card-title">Token Holdings</span>
+                    <div class="total-value">
+                        <div class="total-label">Total Value</div>
+                        <div class="total-amount"><span>$</span>10,000<span>.00</span></div>
+                    </div>
+                </div>
+
+                <div class="token-table">
+                    <div class="token-row header">
+                        <span>Asset</span>
+                        <span>Balance</span>
+                        <span>Value</span>
+                        <span>Allocation</span>
+                    </div>
+
+                    <div class="token-row">
+                        <div class="token-info">
+                            <div class="token-icon usdc">U</div>
+                            <div>
+                                <div class="token-name">USDC</div>
+                                <div class="token-fullname">USD Coin</div>
+                            </div>
+                        </div>
+                        <div class="token-amount">5,000.00</div>
+                        <div class="token-value">$5,000.00</div>
+                        <div class="token-percent">
+                            <div class="percent-bar">
+                                <div class="percent-fill usdc" style="width: 0%" data-width="50%"></div>
+                            </div>
+                            <span class="percent-text">50%</span>
+                        </div>
+                    </div>
+
+                    <div class="token-row">
+                        <div class="token-info">
+                            <div class="token-icon dai">D</div>
+                            <div>
+                                <div class="token-name">DAI</div>
+                                <div class="token-fullname">Dai Stablecoin</div>
+                            </div>
+                        </div>
+                        <div class="token-amount">4,800.00</div>
+                        <div class="token-value">$4,800.00</div>
+                        <div class="token-percent">
+                            <div class="percent-bar">
+                                <div class="percent-fill dai" style="width: 0%" data-width="48%"></div>
+                            </div>
+                            <span class="percent-text">48%</span>
+                        </div>
+                    </div>
+
+                    <div class="token-row">
+                        <div class="token-info">
+                            <div class="token-icon weth">W</div>
+                            <div>
+                                <div class="token-name">WETH</div>
+                                <div class="token-fullname">Wrapped Ether</div>
+                            </div>
+                        </div>
+                        <div class="token-amount">0.0625</div>
+                        <div class="token-value">$200.00</div>
+                        <div class="token-percent">
+                            <div class="percent-bar">
+                                <div class="percent-fill weth" style="width: 0%" data-width="2%"></div>
+                            </div>
+                            <span class="percent-text">2%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="classification-section">
+                    <div class="classification-header">Portfolio Classification</div>
+                    <div class="classification-bars">
+                        <div class="class-item">
+                            <div class="class-label">
+                                <span class="class-name">Stablecoins</span>
+                                <span class="class-percent">98%</span>
+                            </div>
+                            <div class="class-bar">
+                                <div class="class-fill stable" style="width: 0%" data-width="98%"></div>
+                            </div>
+                        </div>
+                        <div class="class-item">
+                            <div class="class-label">
+                                <span class="class-name">Volatile</span>
+                                <span class="class-percent">2%</span>
+                            </div>
+                            <div class="class-bar">
+                                <div class="class-fill volatile" style="width: 0%" data-width="2%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sidebar -->
+            <div class="sidebar">
+                <!-- Portfolio summary with stacked bar -->
+                <div class="summary-card">
+                    <div class="summary-header">
+                        <div>
+                            <div class="summary-value"><span>$</span>10,000</div>
+                            <div class="summary-label">Portfolio Value</div>
+                        </div>
+                        <div class="summary-badge">3 Assets</div>
+                    </div>
+
+                    <div class="stacked-bar-container">
+                        <div class="stacked-bar-label">Allocation</div>
+                        <div class="stacked-bar">
+                            <div class="stacked-segment usdc" style="width: 0%" data-width="50%"></div>
+                            <div class="stacked-segment dai" style="width: 0%" data-width="48%"></div>
+                            <div class="stacked-segment weth" style="width: 0%" data-width="2%"></div>
+                        </div>
+                    </div>
+
+                    <div class="asset-breakdown">
+                        <div class="asset-row">
+                            <div class="asset-color usdc"></div>
+                            <span class="asset-name">USDC</span>
+                            <div class="asset-data">
+                                <span class="asset-amount">$5,000</span>
+                                <span class="asset-percent">50%</span>
+                            </div>
+                        </div>
+                        <div class="asset-row">
+                            <div class="asset-color dai"></div>
+                            <span class="asset-name">DAI</span>
+                            <div class="asset-data">
+                                <span class="asset-amount">$4,800</span>
+                                <span class="asset-percent">48%</span>
+                            </div>
+                        </div>
+                        <div class="asset-row">
+                            <div class="asset-color weth"></div>
+                            <span class="asset-name">WETH</span>
+                            <div class="asset-data">
+                                <span class="asset-amount">$200</span>
+                                <span class="asset-percent">2%</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Suggested policy -->
+                <div class="policy-card">
+                    <div class="policy-header">
+                        <div class="policy-badge">Recommended</div>
+                        <span class="ai-label">AI Suggested</span>
+                    </div>
+                    <div class="policy-content">
+                        <h3 class="policy-title">Stablecoin Rebalance</h3>
+                        <p class="policy-description">Maintain equal allocation between USDC and DAI with automatic rebalancing when drift exceeds threshold.</p>
+
+                        <div class="rebalance-visual">
+                            <div class="alloc-block">
+                                <div class="alloc-label">Current</div>
+                                <div class="alloc-bars">
+                                    <div class="alloc-bar">
+                                        <div class="alloc-fill usdc" style="height: 0%" data-height="100%"></div>
+                                    </div>
+                                    <div class="alloc-bar">
+                                        <div class="alloc-fill dai" style="height: 0%" data-height="96%"></div>
+                                    </div>
+                                </div>
+                                <div class="alloc-text">50% / 48%</div>
+                            </div>
+                            <div class="rebalance-arrow">→</div>
+                            <div class="alloc-block">
+                                <div class="alloc-label">Target</div>
+                                <div class="alloc-bars">
+                                    <div class="alloc-bar">
+                                        <div class="alloc-fill usdc" style="height: 0%" data-height="100%"></div>
+                                    </div>
+                                    <div class="alloc-bar">
+                                        <div class="alloc-fill dai" style="height: 0%" data-height="100%"></div>
+                                    </div>
+                                </div>
+                                <div class="alloc-text">50% / 50%</div>
+                            </div>
+                        </div>
+
+                        <div class="policy-params">
+                            <div class="param-item">
+                                <div class="param-label">Drift Threshold</div>
+                                <div class="param-value">5<span>%</span></div>
+                            </div>
+                            <div class="param-item">
+                                <div class="param-label">Max Slippage</div>
+                                <div class="param-value">50<span>bps</span></div>
+                            </div>
+                        </div>
+
+                        <a href="discover.html" class="btn-primary">
+                            Find Matching Agents
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M5 12h14M12 5l7 7-7 7"/>
+                            </svg>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Animate bars on load
+        document.addEventListener('DOMContentLoaded', () => {
+            setTimeout(() => {
+                // Animate percent bars in token table
+                document.querySelectorAll('.percent-fill').forEach(el => {
+                    el.style.width = el.dataset.width;
+                });
+
+                // Animate classification bars
+                document.querySelectorAll('.class-fill').forEach(el => {
+                    el.style.width = el.dataset.width;
+                });
+
+                // Animate allocation bars in policy card
+                document.querySelectorAll('.alloc-fill').forEach(el => {
+                    el.style.height = el.dataset.height;
+                });
+
+                // Animate stacked bar segments
+                document.querySelectorAll('.stacked-segment').forEach(el => {
+                    el.style.width = el.dataset.width;
+                });
+            }, 500);
+        });
+    </script>
+</body>
+</html>

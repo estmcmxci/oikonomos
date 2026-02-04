@@ -1,0 +1,1013 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Build a Strategy | Oikonomos</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Space+Grotesk:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-base: #0a0a0b;
+            --bg-elevated: #111114;
+            --bg-card: rgba(17, 17, 20, 0.7);
+            --bg-code: rgba(0, 0, 0, 0.4);
+            --border-subtle: rgba(82, 152, 255, 0.15);
+            --border-accent: rgba(82, 152, 255, 0.4);
+            --text-primary: #ffffff;
+            --text-secondary: rgba(255, 255, 255, 0.6);
+            --text-tertiary: rgba(255, 255, 255, 0.4);
+            --accent-blue: #5298FF;
+            --accent-cyan: #00D4AA;
+            --accent-yellow: #F5AC37;
+            --accent-pink: #FF6B9D;
+            --accent-blue-glow: rgba(82, 152, 255, 0.3);
+            --font-display: 'Space Grotesk', sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html {
+            font-size: 16px;
+        }
+
+        body {
+            font-family: var(--font-display);
+            background: var(--bg-base);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        /* Background layers */
+        .bg-grid {
+            position: fixed;
+            inset: 0;
+            background-image:
+                linear-gradient(rgba(82, 152, 255, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(82, 152, 255, 0.03) 1px, transparent 1px);
+            background-size: 60px 60px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .bg-gradient {
+            position: fixed;
+            inset: 0;
+            background:
+                radial-gradient(ellipse 80% 50% at 50% -20%, rgba(82, 152, 255, 0.15), transparent),
+                radial-gradient(ellipse 60% 40% at 80% 60%, rgba(82, 152, 255, 0.08), transparent);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .bg-noise {
+            position: fixed;
+            inset: 0;
+            opacity: 0.4;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+            pointer-events: none;
+            z-index: 0;
+            mix-blend-mode: overlay;
+        }
+
+        .container {
+            position: relative;
+            z-index: 1;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        /* Header */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 24px 0;
+            border-bottom: 1px solid var(--border-subtle);
+            opacity: 0;
+            animation: fadeSlideDown 0.6s ease-out 0.1s forwards;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+            color: var(--text-primary);
+        }
+
+        .logo-mark {
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .logo-mark svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        .logo-text {
+            font-family: var(--font-mono);
+            font-size: 1.125rem;
+            font-weight: 500;
+            letter-spacing: -0.02em;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 24px;
+            list-style: none;
+        }
+
+        .nav-links a {
+            font-family: var(--font-mono);
+            font-size: 0.6875rem;
+            font-weight: 400;
+            color: var(--text-secondary);
+            text-decoration: none;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            transition: color 0.2s ease;
+        }
+
+        .nav-links a:hover,
+        .nav-links a.active {
+            color: var(--accent-blue);
+        }
+
+        /* Hero */
+        .hero {
+            padding: 80px 0 60px;
+            text-align: center;
+            opacity: 0;
+            animation: fadeSlideUp 0.6s ease-out 0.2s forwards;
+        }
+
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 14px;
+            background: rgba(82, 152, 255, 0.1);
+            border: 1px solid rgba(82, 152, 255, 0.2);
+            font-family: var(--font-mono);
+            font-size: 0.6875rem;
+            font-weight: 500;
+            color: var(--accent-blue);
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            margin-bottom: 24px;
+        }
+
+        .hero-title {
+            font-family: var(--font-display);
+            font-size: 3rem;
+            font-weight: 700;
+            line-height: 1.1;
+            letter-spacing: -0.03em;
+            margin-bottom: 20px;
+        }
+
+        .hero-title span {
+            color: var(--accent-blue);
+        }
+
+        .hero-description {
+            font-family: var(--font-display);
+            font-size: 1.125rem;
+            font-weight: 300;
+            line-height: 1.6;
+            color: var(--text-secondary);
+            max-width: 600px;
+            margin: 0 auto 40px;
+        }
+
+        .hero-stats {
+            display: flex;
+            justify-content: center;
+            gap: 48px;
+            padding: 24px 0;
+            border-top: 1px solid var(--border-subtle);
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .hero-stat {
+            text-align: center;
+        }
+
+        .hero-stat-value {
+            font-family: var(--font-mono);
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--accent-blue);
+        }
+
+        .hero-stat-label {
+            font-family: var(--font-mono);
+            font-size: 0.625rem;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-top: 4px;
+        }
+
+        /* Architecture Section */
+        .section {
+            padding: 60px 0;
+            opacity: 0;
+            animation: fadeSlideUp 0.6s ease-out forwards;
+        }
+
+        .section:nth-child(3) { animation-delay: 0.3s; }
+        .section:nth-child(4) { animation-delay: 0.4s; }
+        .section:nth-child(5) { animation-delay: 0.5s; }
+        .section:nth-child(6) { animation-delay: 0.6s; }
+
+        .section-header {
+            margin-bottom: 32px;
+        }
+
+        .section-number {
+            font-family: var(--font-mono);
+            font-size: 0.625rem;
+            font-weight: 700;
+            color: var(--accent-blue);
+            text-transform: uppercase;
+            letter-spacing: 0.2em;
+            margin-bottom: 8px;
+        }
+
+        .section-title {
+            font-family: var(--font-display);
+            font-size: 1.75rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+        }
+
+        .section-description {
+            font-family: var(--font-display);
+            font-size: 1rem;
+            font-weight: 300;
+            color: var(--text-secondary);
+            line-height: 1.6;
+            margin-top: 12px;
+            max-width: 700px;
+        }
+
+        /* Architecture Diagram */
+        .architecture-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            backdrop-filter: blur(20px);
+            padding: 32px;
+        }
+
+        .architecture-title {
+            font-family: var(--font-mono);
+            font-size: 0.6875rem;
+            font-weight: 500;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .architecture-title::before {
+            content: '';
+            width: 8px;
+            height: 8px;
+            background: var(--accent-blue);
+        }
+
+        .architecture-diagram {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            font-family: var(--font-mono);
+            font-size: 0.8125rem;
+        }
+
+        .arch-row {
+            display: flex;
+            align-items: stretch;
+        }
+
+        .arch-path {
+            width: 280px;
+            padding: 12px 16px;
+            background: var(--bg-code);
+            border: 1px solid var(--border-subtle);
+            color: var(--accent-cyan);
+            display: flex;
+            align-items: center;
+        }
+
+        .arch-arrow {
+            width: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-tertiary);
+        }
+
+        .arch-desc {
+            flex: 1;
+            padding: 12px 16px;
+            background: rgba(82, 152, 255, 0.05);
+            border: 1px solid var(--border-subtle);
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+        }
+
+        /* Endpoints Grid */
+        .endpoints-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+        }
+
+        .endpoint-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            backdrop-filter: blur(20px);
+            padding: 24px;
+            transition: all 0.3s ease;
+        }
+
+        .endpoint-card:hover {
+            border-color: var(--border-accent);
+        }
+
+        .endpoint-method {
+            display: inline-block;
+            padding: 4px 8px;
+            font-family: var(--font-mono);
+            font-size: 0.625rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 12px;
+        }
+
+        .endpoint-method.get {
+            background: rgba(0, 212, 170, 0.1);
+            border: 1px solid rgba(0, 212, 170, 0.3);
+            color: var(--accent-cyan);
+        }
+
+        .endpoint-method.post {
+            background: rgba(82, 152, 255, 0.1);
+            border: 1px solid rgba(82, 152, 255, 0.3);
+            color: var(--accent-blue);
+        }
+
+        .endpoint-path {
+            font-family: var(--font-mono);
+            font-size: 0.9375rem;
+            font-weight: 500;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+        }
+
+        .endpoint-desc {
+            font-family: var(--font-display);
+            font-size: 0.8125rem;
+            font-weight: 300;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        /* Code Block */
+        .code-block {
+            background: var(--bg-code);
+            border: 1px solid var(--border-subtle);
+            overflow: hidden;
+        }
+
+        .code-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            background: rgba(0, 0, 0, 0.3);
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .code-filename {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        .code-copy {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background: transparent;
+            border: 1px solid var(--border-subtle);
+            font-family: var(--font-mono);
+            font-size: 0.625rem;
+            color: var(--text-tertiary);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .code-copy:hover {
+            border-color: var(--border-accent);
+            color: var(--text-primary);
+        }
+
+        .code-content {
+            padding: 20px;
+            overflow-x: auto;
+        }
+
+        .code-content pre {
+            font-family: var(--font-mono);
+            font-size: 0.8125rem;
+            line-height: 1.7;
+            color: var(--text-secondary);
+        }
+
+        .code-content .keyword {
+            color: var(--accent-pink);
+        }
+
+        .code-content .string {
+            color: var(--accent-cyan);
+        }
+
+        .code-content .number {
+            color: var(--accent-yellow);
+        }
+
+        .code-content .comment {
+            color: var(--text-tertiary);
+            font-style: italic;
+        }
+
+        .code-content .function {
+            color: var(--accent-blue);
+        }
+
+        .code-content .property {
+            color: var(--text-primary);
+        }
+
+        /* Steps Section */
+        .steps-list {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .step-item {
+            display: flex;
+            gap: 20px;
+            padding: 24px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            backdrop-filter: blur(20px);
+            transition: all 0.3s ease;
+        }
+
+        .step-item:hover {
+            border-color: var(--border-accent);
+        }
+
+        .step-number-badge {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(82, 152, 255, 0.1);
+            border: 1px solid rgba(82, 152, 255, 0.3);
+            font-family: var(--font-mono);
+            font-size: 0.875rem;
+            font-weight: 700;
+            color: var(--accent-blue);
+            flex-shrink: 0;
+        }
+
+        .step-content {
+            flex: 1;
+        }
+
+        .step-title {
+            font-family: var(--font-display);
+            font-size: 1.125rem;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .step-description {
+            font-family: var(--font-display);
+            font-size: 0.875rem;
+            font-weight: 300;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        /* CTA Section */
+        .cta-section {
+            padding: 80px 0;
+            text-align: center;
+            border-top: 1px solid var(--border-subtle);
+            opacity: 0;
+            animation: fadeSlideUp 0.6s ease-out 0.7s forwards;
+        }
+
+        .cta-title {
+            font-family: var(--font-display);
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 16px;
+        }
+
+        .cta-description {
+            font-family: var(--font-display);
+            font-size: 1rem;
+            font-weight: 300;
+            color: var(--text-secondary);
+            margin-bottom: 32px;
+        }
+
+        .btn-primary {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 18px 32px;
+            background: var(--accent-blue);
+            color: var(--bg-base);
+            font-family: var(--font-mono);
+            font-size: 0.875rem;
+            font-weight: 600;
+            text-decoration: none;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn-primary::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transform: translateX(-100%);
+            transition: transform 0.5s ease;
+        }
+
+        .btn-primary:hover {
+            background: #6aa5ff;
+            box-shadow: 0 0 40px var(--accent-blue-glow);
+        }
+
+        .btn-primary:hover::before {
+            transform: translateX(100%);
+        }
+
+        .btn-secondary {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 18px 32px;
+            background: transparent;
+            color: var(--text-secondary);
+            font-family: var(--font-mono);
+            font-size: 0.875rem;
+            font-weight: 400;
+            text-decoration: none;
+            border: 1px solid var(--border-subtle);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-left: 16px;
+        }
+
+        .btn-secondary:hover {
+            color: var(--text-primary);
+            border-color: var(--border-accent);
+        }
+
+        /* Footer */
+        footer {
+            padding: 40px 0;
+            border-top: 1px solid var(--border-subtle);
+        }
+
+        .footer-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .footer-text {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-tertiary);
+        }
+
+        .footer-links {
+            display: flex;
+            gap: 24px;
+        }
+
+        .footer-links a {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-tertiary);
+            text-decoration: none;
+            transition: color 0.2s ease;
+        }
+
+        .footer-links a:hover {
+            color: var(--accent-blue);
+        }
+
+        /* Animations */
+        @keyframes fadeSlideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeSlideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .hero-title {
+                font-size: 2rem;
+            }
+
+            .hero-stats {
+                flex-direction: column;
+                gap: 24px;
+            }
+
+            .endpoints-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .architecture-diagram {
+                font-size: 0.6875rem;
+            }
+
+            .arch-path {
+                width: 180px;
+            }
+
+            .arch-row {
+                flex-direction: column;
+            }
+
+            .arch-path,
+            .arch-desc {
+                width: 100%;
+            }
+
+            .arch-arrow {
+                width: 100%;
+                padding: 8px;
+                transform: rotate(90deg);
+            }
+
+            .step-item {
+                flex-direction: column;
+            }
+
+            .nav-links {
+                display: none;
+            }
+
+            .cta-section .btn-secondary {
+                margin-left: 0;
+                margin-top: 16px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-grid"></div>
+    <div class="bg-gradient"></div>
+    <div class="bg-noise"></div>
+
+    <div class="container">
+        <header>
+            <a href="index.html" class="logo">
+                <div class="logo-mark">
+                    <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <linearGradient id="owlGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stop-color="#5298FF"/>
+                                <stop offset="100%" stop-color="#00D4AA"/>
+                            </linearGradient>
+                        </defs>
+                        <path d="M8 28C8 28 6 26 6 22C6 18 8 16 8 16C8 16 7 14 8 11C9 8 12 6 15 6C15 6 16 4 19 4C22 4 24 6 25 8C26 10 26 12 25 14C25 14 28 15 29 18C30 21 29 24 28 26L26 28" stroke="url(#owlGradient)" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+                        <circle cx="20" cy="11" r="5" stroke="url(#owlGradient)" stroke-width="1.5" fill="none"/>
+                        <circle cx="20" cy="11" r="2.5" fill="url(#owlGradient)"/>
+                        <path d="M26 13L30 15L26 17" stroke="url(#owlGradient)" stroke-width="1.5" fill="none" stroke-linejoin="round"/>
+                        <path d="M10 18C12 17 14 18 16 20C18 22 18 25 17 27" stroke="url(#owlGradient)" stroke-width="1" opacity="0.6"/>
+                        <path d="M8 20C10 19 12 20 14 22" stroke="url(#owlGradient)" stroke-width="1" opacity="0.4"/>
+                        <path d="M6 26L4 30" stroke="url(#owlGradient)" stroke-width="1.5" stroke-linecap="round"/>
+                        <path d="M8 27L7 31" stroke="url(#owlGradient)" stroke-width="1.5" stroke-linecap="round"/>
+                        <path d="M18 28L18 32M16 32H20" stroke="url(#owlGradient)" stroke-width="1.5" stroke-linecap="round"/>
+                        <path d="M24 27L24 32M22 32H26" stroke="url(#owlGradient)" stroke-width="1.5" stroke-linecap="round"/>
+                    </svg>
+                </div>
+                <span class="logo-text">oikonomos</span>
+            </a>
+
+            <div class="header-right">
+                <nav>
+                    <ul class="nav-links">
+                        <li><a href="discover.html">Discover</a></li>
+                        <li><a href="provider.html" class="active">Build</a></li>
+                        <li><a href="#">Docs</a></li>
+                    </ul>
+                </nav>
+            </div>
+        </header>
+
+        <!-- Hero -->
+        <section class="hero">
+            <div class="hero-badge">For Strategy Providers</div>
+            <h1 class="hero-title">Build & Monetize<br><span>Trading Strategies</span></h1>
+            <p class="hero-description">
+                Deploy your routing strategy as a Cloudflare Worker, register on-chain, and earn fees via x402 micropayments for every trade routed through your agent.
+            </p>
+            <div class="hero-stats">
+                <div class="hero-stat">
+                    <div class="hero-stat-value">0.05%</div>
+                    <div class="hero-stat-label">Avg Fee Rate</div>
+                </div>
+                <div class="hero-stat">
+                    <div class="hero-stat-value">$8.2M</div>
+                    <div class="hero-stat-label">Total Volume</div>
+                </div>
+                <div class="hero-stat">
+                    <div class="hero-stat-value">47</div>
+                    <div class="hero-stat-label">Active Agents</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Architecture Section -->
+        <section class="section">
+            <div class="section-header">
+                <div class="section-number">01 — Architecture</div>
+                <h2 class="section-title">A2A Protocol Structure</h2>
+                <p class="section-description">
+                    Your strategy is a Cloudflare Worker implementing the Agent-to-Agent (A2A) protocol.
+                    Users discover you via ENS, request quotes, and pay via x402.
+                </p>
+            </div>
+
+            <div class="architecture-card">
+                <div class="architecture-title">Cloudflare Worker Endpoints</div>
+                <div class="architecture-diagram">
+                    <div class="arch-row">
+                        <div class="arch-path">/.well-known/agent-card.json</div>
+                        <div class="arch-arrow">→</div>
+                        <div class="arch-desc">Agent metadata & discovery info</div>
+                    </div>
+                    <div class="arch-row">
+                        <div class="arch-path">/capabilities</div>
+                        <div class="arch-arrow">→</div>
+                        <div class="arch-desc">Supported tokens, policy types, fees</div>
+                    </div>
+                    <div class="arch-row">
+                        <div class="arch-path">/quote</div>
+                        <div class="arch-arrow">→</div>
+                        <div class="arch-desc">Return price quote for a trade</div>
+                    </div>
+                    <div class="arch-row">
+                        <div class="arch-path">/execute</div>
+                        <div class="arch-arrow">→</div>
+                        <div class="arch-desc">Execute the trade on-chain</div>
+                    </div>
+                    <div class="arch-row">
+                        <div class="arch-path">/pricing</div>
+                        <div class="arch-arrow">→</div>
+                        <div class="arch-desc">x402 fee structure & payment info</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Endpoints Section -->
+        <section class="section">
+            <div class="section-header">
+                <div class="section-number">02 — Endpoints</div>
+                <h2 class="section-title">Required API Endpoints</h2>
+                <p class="section-description">
+                    Implement these endpoints to be A2A-compliant. Users and other agents will call these to discover and use your strategy.
+                </p>
+            </div>
+
+            <div class="endpoints-grid">
+                <div class="endpoint-card">
+                    <span class="endpoint-method get">GET</span>
+                    <div class="endpoint-path">/capabilities</div>
+                    <p class="endpoint-desc">Return your supported tokens, policy types (e.g., stablecoin-rebalance), and fee structure.</p>
+                </div>
+                <div class="endpoint-card">
+                    <span class="endpoint-method post">POST</span>
+                    <div class="endpoint-path">/quote</div>
+                    <p class="endpoint-desc">Given tokenIn, tokenOut, and amount, return expected output and slippage estimate.</p>
+                </div>
+                <div class="endpoint-card">
+                    <span class="endpoint-method post">POST</span>
+                    <div class="endpoint-path">/execute</div>
+                    <p class="endpoint-desc">Execute the trade using the user's signed intent. Emit receipt via ReceiptHook.</p>
+                </div>
+                <div class="endpoint-card">
+                    <span class="endpoint-method get">GET</span>
+                    <div class="endpoint-path">/pricing</div>
+                    <p class="endpoint-desc">Return x402 payment requirements. Users pay before execution.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Example Code Section -->
+        <section class="section">
+            <div class="section-header">
+                <div class="section-number">03 — Example</div>
+                <h2 class="section-title">Sample /capabilities Response</h2>
+                <p class="section-description">
+                    Here's what your /capabilities endpoint should return. This is how consumers discover what your strategy can do.
+                </p>
+            </div>
+
+            <div class="code-block">
+                <div class="code-header">
+                    <span class="code-filename">GET /capabilities → Response</span>
+                    <button class="code-copy" onclick="copyCode(this)">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                        </svg>
+                        Copy
+                    </button>
+                </div>
+                <div class="code-content">
+                    <pre>{
+  <span class="property">"supportedTokens"</span>: [<span class="string">"USDC"</span>, <span class="string">"DAI"</span>, <span class="string">"WETH"</span>],
+  <span class="property">"policyTypes"</span>: [
+    <span class="string">"stablecoin-rebalance"</span>,
+    <span class="string">"threshold-rebalance"</span>
+  ],
+  <span class="property">"pricing"</span>: {
+    <span class="property">"type"</span>: <span class="string">"percentage"</span>,
+    <span class="property">"value"</span>: <span class="string">"0.05%"</span>
+  },
+  <span class="property">"description"</span>: <span class="string">"Low-slippage routing for stablecoin swaps"</span>,
+  <span class="property">"minTradeSize"</span>: <span class="number">100</span>,
+  <span class="property">"maxSlippage"</span>: <span class="number">50</span> <span class="comment">// basis points</span>
+}</pre>
+                </div>
+            </div>
+        </section>
+
+        <!-- Registration Steps -->
+        <section class="section">
+            <div class="section-header">
+                <div class="section-number">04 — Registration</div>
+                <h2 class="section-title">Get Listed on Oikonomos</h2>
+                <p class="section-description">
+                    Once your strategy is deployed, complete these steps to become discoverable and start earning.
+                </p>
+            </div>
+
+            <div class="steps-list">
+                <div class="step-item">
+                    <div class="step-number-badge">1</div>
+                    <div class="step-content">
+                        <h3 class="step-title">Deploy Your Worker</h3>
+                        <p class="step-description">
+                            Deploy your Cloudflare Worker with all required A2A endpoints. Test locally with wrangler before deploying to production.
+                        </p>
+                    </div>
+                </div>
+                <div class="step-item">
+                    <div class="step-number-badge">2</div>
+                    <div class="step-content">
+                        <h3 class="step-title">Register On-Chain Identity</h3>
+                        <p class="step-description">
+                            Call IdentityRegistry.register() to mint your agentId (ERC-721). This makes you discoverable by the indexer and consumers.
+                        </p>
+                    </div>
+                </div>
+                <div class="step-item">
+                    <div class="step-number-badge">3</div>
+                    <div class="step-content">
+                        <h3 class="step-title">Configure ENS Records</h3>
+                        <p class="step-description">
+                            Set two TXT records on your ENS name: <code>agent:erc8004</code> pointing to your identity, and <code>agent:a2a</code> pointing to your Worker URL.
+                        </p>
+                    </div>
+                </div>
+                <div class="step-item">
+                    <div class="step-number-badge">4</div>
+                    <div class="step-content">
+                        <h3 class="step-title">Build Reputation</h3>
+                        <p class="step-description">
+                            Start with self-trades or subsidized fees to build execution history. Every successful trade improves your on-chain reputation score.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- CTA Section -->
+        <section class="cta-section">
+            <h2 class="cta-title">Ready to Build?</h2>
+            <p class="cta-description">Deploy your strategy and start earning fees from every trade routed through your agent.</p>
+            <a href="provider-register.html" class="btn-primary">
+                Register Your Agent
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M5 12h14M12 5l7 7-7 7"/>
+                </svg>
+            </a>
+            <a href="https://github.com/oikonomos/strategy-template" target="_blank" class="btn-secondary">
+                View Template
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                    <polyline points="15 3 21 3 21 9"/>
+                    <line x1="10" y1="14" x2="21" y2="3"/>
+                </svg>
+            </a>
+        </section>
+
+        <footer>
+            <div class="footer-content">
+                <span class="footer-text">© 2025 Oikonomos. Built for ETHGlobal.</span>
+                <div class="footer-links">
+                    <a href="#">Documentation</a>
+                    <a href="#">GitHub</a>
+                    <a href="#">Discord</a>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <script>
+        function copyCode(button) {
+            const codeBlock = button.closest('.code-block');
+            const code = codeBlock.querySelector('pre').textContent;
+            navigator.clipboard.writeText(code).then(() => {
+                const originalText = button.innerHTML;
+                button.innerHTML = `
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                    Copied!
+                `;
+                setTimeout(() => {
+                    button.innerHTML = originalText;
+                }, 2000);
+            });
+        }
+    </script>
+</body>
+</html>

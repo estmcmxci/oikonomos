@@ -1,0 +1,1135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Provider Dashboard | Oikonomos</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Space+Grotesk:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-base: #0a0a0b;
+            --bg-elevated: #111114;
+            --bg-card: rgba(17, 17, 20, 0.7);
+            --bg-code: rgba(0, 0, 0, 0.4);
+            --border-subtle: rgba(82, 152, 255, 0.15);
+            --border-accent: rgba(82, 152, 255, 0.4);
+            --text-primary: #ffffff;
+            --text-secondary: rgba(255, 255, 255, 0.6);
+            --text-tertiary: rgba(255, 255, 255, 0.4);
+            --accent-blue: #5298FF;
+            --accent-cyan: #00D4AA;
+            --accent-red: #FF5252;
+            --accent-yellow: #F5AC37;
+            --accent-blue-glow: rgba(82, 152, 255, 0.3);
+            --accent-cyan-glow: rgba(0, 212, 170, 0.3);
+            --font-display: 'Space Grotesk', sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html {
+            font-size: 16px;
+        }
+
+        body {
+            font-family: var(--font-display);
+            background: var(--bg-base);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        /* Background layers */
+        .bg-grid {
+            position: fixed;
+            inset: 0;
+            background-image:
+                linear-gradient(rgba(82, 152, 255, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(82, 152, 255, 0.03) 1px, transparent 1px);
+            background-size: 60px 60px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .bg-gradient {
+            position: fixed;
+            inset: 0;
+            background:
+                radial-gradient(ellipse 80% 50% at 50% -20%, rgba(82, 152, 255, 0.15), transparent),
+                radial-gradient(ellipse 60% 40% at 80% 60%, rgba(82, 152, 255, 0.08), transparent);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .bg-noise {
+            position: fixed;
+            inset: 0;
+            opacity: 0.4;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+            pointer-events: none;
+            z-index: 0;
+            mix-blend-mode: overlay;
+        }
+
+        .container {
+            position: relative;
+            z-index: 1;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        /* Header */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 24px 0;
+            border-bottom: 1px solid var(--border-subtle);
+            opacity: 0;
+            animation: fadeSlideDown 0.6s ease-out 0.1s forwards;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+            color: var(--text-primary);
+        }
+
+        .logo-mark {
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .logo-mark svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        .logo-text {
+            font-family: var(--font-mono);
+            font-size: 1.125rem;
+            font-weight: 500;
+            letter-spacing: -0.02em;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 24px;
+            list-style: none;
+        }
+
+        .nav-links a {
+            font-family: var(--font-mono);
+            font-size: 0.6875rem;
+            font-weight: 400;
+            color: var(--text-secondary);
+            text-decoration: none;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            transition: color 0.2s ease;
+        }
+
+        .nav-links a:hover,
+        .nav-links a.active {
+            color: var(--accent-blue);
+        }
+
+        .wallet-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 14px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            backdrop-filter: blur(10px);
+        }
+
+        .wallet-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--accent-cyan);
+            border-radius: 50%;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        .wallet-address {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        /* Page header */
+        .page-header {
+            padding: 32px 0 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            opacity: 0;
+            animation: fadeSlideUp 0.6s ease-out 0.2s forwards;
+        }
+
+        .page-title-area {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .agent-badge {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 16px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            backdrop-filter: blur(10px);
+        }
+
+        .agent-badge-avatar {
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(82, 152, 255, 0.1);
+            border: 1px solid rgba(82, 152, 255, 0.3);
+            font-family: var(--font-mono);
+            font-size: 0.6875rem;
+            font-weight: 700;
+            color: var(--accent-blue);
+        }
+
+        .agent-badge-info {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .agent-badge-name {
+            font-family: var(--font-mono);
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: var(--accent-blue);
+        }
+
+        .agent-badge-id {
+            font-family: var(--font-mono);
+            font-size: 0.625rem;
+            color: var(--text-tertiary);
+        }
+
+        .page-actions {
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn-outline {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 20px;
+            background: transparent;
+            color: var(--text-secondary);
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            font-weight: 400;
+            text-decoration: none;
+            border: 1px solid var(--border-subtle);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-outline:hover {
+            color: var(--text-primary);
+            border-color: var(--border-accent);
+        }
+
+        /* Stats row */
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1px;
+            background: var(--border-subtle);
+            margin-bottom: 24px;
+            opacity: 0;
+            animation: fadeSlideUp 0.6s ease-out 0.3s forwards;
+        }
+
+        .stat-card {
+            background: var(--bg-base);
+            padding: 24px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-family: var(--font-mono);
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            line-height: 1;
+            margin-bottom: 8px;
+        }
+
+        .stat-value span {
+            color: var(--accent-blue);
+        }
+
+        .stat-value.cyan span {
+            color: var(--accent-cyan);
+        }
+
+        .stat-label {
+            font-family: var(--font-mono);
+            font-size: 0.625rem;
+            font-weight: 400;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+        }
+
+        /* Main grid */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 1fr 380px;
+            gap: 24px;
+            padding-bottom: 48px;
+        }
+
+        .main-column {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .side-column {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        /* Cards */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            backdrop-filter: blur(20px);
+            opacity: 0;
+            animation: fadeSlideUp 0.6s ease-out forwards;
+        }
+
+        .card:nth-child(1) { animation-delay: 0.4s; }
+        .card:nth-child(2) { animation-delay: 0.5s; }
+        .card:nth-child(3) { animation-delay: 0.6s; }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .card-title {
+            font-family: var(--font-mono);
+            font-size: 0.6875rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            color: var(--text-secondary);
+        }
+
+        .card-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            font-family: var(--font-mono);
+            font-size: 0.5625rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+
+        .card-badge.warning {
+            background: rgba(245, 172, 55, 0.1);
+            border: 1px solid rgba(245, 172, 55, 0.3);
+            color: var(--accent-yellow);
+        }
+
+        .card-body {
+            padding: 24px;
+        }
+
+        /* Reputation gauge */
+        .reputation-section {
+            display: flex;
+            align-items: center;
+            gap: 32px;
+        }
+
+        .gauge-container {
+            position: relative;
+            width: 140px;
+            height: 140px;
+            flex-shrink: 0;
+        }
+
+        .gauge-bg {
+            fill: none;
+            stroke: rgba(82, 152, 255, 0.1);
+            stroke-width: 12;
+        }
+
+        .gauge-fill {
+            fill: none;
+            stroke: url(#gaugeGradient);
+            stroke-width: 12;
+            stroke-linecap: round;
+            stroke-dasharray: 339.292;
+            stroke-dashoffset: 169.646;
+            transform: rotate(-90deg);
+            transform-origin: center;
+            transition: stroke-dashoffset 1s ease-out;
+        }
+
+        .gauge-text {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .gauge-value {
+            font-family: var(--font-mono);
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            line-height: 1;
+        }
+
+        .gauge-label {
+            font-family: var(--font-mono);
+            font-size: 0.5625rem;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-top: 4px;
+        }
+
+        .reputation-breakdown {
+            flex: 1;
+        }
+
+        .breakdown-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+        }
+
+        .breakdown-item:last-child {
+            border-bottom: none;
+        }
+
+        .breakdown-label {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        .breakdown-value {
+            font-family: var(--font-mono);
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .breakdown-value.good {
+            color: var(--accent-cyan);
+        }
+
+        .breakdown-value.warning {
+            color: var(--accent-yellow);
+        }
+
+        /* Cold start notice */
+        .cold-start-notice {
+            margin-top: 20px;
+            padding: 16px;
+            background: rgba(245, 172, 55, 0.05);
+            border: 1px solid rgba(245, 172, 55, 0.15);
+        }
+
+        .cold-start-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        .cold-start-icon {
+            color: var(--accent-yellow);
+        }
+
+        .cold-start-title {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            font-weight: 500;
+            color: var(--accent-yellow);
+        }
+
+        .cold-start-text {
+            font-family: var(--font-display);
+            font-size: 0.8125rem;
+            color: var(--text-secondary);
+            line-height: 1.5;
+            margin-bottom: 12px;
+        }
+
+        .cold-start-options {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .cold-start-option {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        .cold-start-option .bullet {
+            width: 4px;
+            height: 4px;
+            background: var(--accent-yellow);
+        }
+
+        /* Earnings card */
+        .earnings-hero {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 20px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .earnings-total {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .earnings-label {
+            font-family: var(--font-mono);
+            font-size: 0.5625rem;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+
+        .earnings-amount {
+            font-family: var(--font-mono);
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--accent-cyan);
+        }
+
+        .earnings-amount span {
+            font-size: 1rem;
+            color: var(--text-tertiary);
+        }
+
+        .earnings-rate {
+            text-align: right;
+        }
+
+        .earnings-rate-value {
+            font-family: var(--font-mono);
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .earnings-rate-label {
+            font-family: var(--font-mono);
+            font-size: 0.5625rem;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+
+        .earnings-breakdown {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        .earnings-item {
+            padding: 16px;
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid var(--border-subtle);
+        }
+
+        .earnings-item-label {
+            font-family: var(--font-mono);
+            font-size: 0.5625rem;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 6px;
+        }
+
+        .earnings-item-value {
+            font-family: var(--font-mono);
+            font-size: 1rem;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .earnings-item-value.up {
+            color: var(--accent-cyan);
+        }
+
+        /* Executions table */
+        .executions-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .executions-table thead {
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .executions-table th {
+            padding: 12px 16px;
+            font-family: var(--font-mono);
+            font-size: 0.5625rem;
+            font-weight: 500;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            text-align: left;
+        }
+
+        .executions-table th:last-child {
+            text-align: right;
+        }
+
+        .executions-table td {
+            padding: 14px 16px;
+            font-family: var(--font-mono);
+            font-size: 0.8125rem;
+            color: var(--text-secondary);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+        }
+
+        .executions-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .executions-table td:last-child {
+            text-align: right;
+        }
+
+        .user-address {
+            color: var(--text-primary);
+        }
+
+        .trade-pair {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .trade-arrow {
+            color: var(--text-tertiary);
+        }
+
+        .fee-earned {
+            color: var(--accent-cyan);
+            font-weight: 500;
+        }
+
+        .receipt-link {
+            color: var(--accent-blue);
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .receipt-link:hover {
+            text-decoration: underline;
+        }
+
+        /* Volume chart placeholder */
+        .volume-chart {
+            height: 120px;
+            display: flex;
+            align-items: flex-end;
+            gap: 8px;
+            padding: 20px 0;
+        }
+
+        .chart-bar {
+            flex: 1;
+            background: linear-gradient(to top, rgba(82, 152, 255, 0.3), rgba(82, 152, 255, 0.1));
+            border-top: 2px solid var(--accent-blue);
+            transition: height 0.5s ease;
+        }
+
+        .chart-bar:nth-child(1) { height: 40%; }
+        .chart-bar:nth-child(2) { height: 65%; }
+        .chart-bar:nth-child(3) { height: 45%; }
+        .chart-bar:nth-child(4) { height: 80%; }
+        .chart-bar:nth-child(5) { height: 55%; }
+        .chart-bar:nth-child(6) { height: 90%; }
+        .chart-bar:nth-child(7) { height: 70%; }
+
+        .chart-labels {
+            display: flex;
+            justify-content: space-between;
+            padding-top: 8px;
+            border-top: 1px solid var(--border-subtle);
+        }
+
+        .chart-label {
+            font-family: var(--font-mono);
+            font-size: 0.5625rem;
+            color: var(--text-tertiary);
+        }
+
+        /* Animations */
+        @keyframes fadeSlideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeSlideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .side-column {
+                order: -1;
+            }
+
+            .stats-row {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .page-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 16px;
+            }
+
+            .reputation-section {
+                flex-direction: column;
+                text-align: center;
+            }
+
+            .nav-links {
+                display: none;
+            }
+
+            .stats-row {
+                grid-template-columns: 1fr;
+            }
+
+            .earnings-breakdown {
+                grid-template-columns: 1fr;
+            }
+
+            .executions-table th:nth-child(3),
+            .executions-table td:nth-child(3) {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-grid"></div>
+    <div class="bg-gradient"></div>
+    <div class="bg-noise"></div>
+
+    <div class="container">
+        <header>
+            <a href="index.html" class="logo">
+                <div class="logo-mark">
+                    <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <linearGradient id="owlGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stop-color="#5298FF"/>
+                                <stop offset="100%" stop-color="#00D4AA"/>
+                            </linearGradient>
+                        </defs>
+                        <path d="M8 28C8 28 6 26 6 22C6 18 8 16 8 16C8 16 7 14 8 11C9 8 12 6 15 6C15 6 16 4 19 4C22 4 24 6 25 8C26 10 26 12 25 14C25 14 28 15 29 18C30 21 29 24 28 26L26 28" stroke="url(#owlGradient)" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+                        <circle cx="20" cy="11" r="5" stroke="url(#owlGradient)" stroke-width="1.5" fill="none"/>
+                        <circle cx="20" cy="11" r="2.5" fill="url(#owlGradient)"/>
+                        <path d="M26 13L30 15L26 17" stroke="url(#owlGradient)" stroke-width="1.5" fill="none" stroke-linejoin="round"/>
+                        <path d="M10 18C12 17 14 18 16 20C18 22 18 25 17 27" stroke="url(#owlGradient)" stroke-width="1" opacity="0.6"/>
+                        <path d="M8 20C10 19 12 20 14 22" stroke="url(#owlGradient)" stroke-width="1" opacity="0.4"/>
+                        <path d="M6 26L4 30" stroke="url(#owlGradient)" stroke-width="1.5" stroke-linecap="round"/>
+                        <path d="M8 27L7 31" stroke="url(#owlGradient)" stroke-width="1.5" stroke-linecap="round"/>
+                        <path d="M18 28L18 32M16 32H20" stroke="url(#owlGradient)" stroke-width="1.5" stroke-linecap="round"/>
+                        <path d="M24 27L24 32M22 32H26" stroke="url(#owlGradient)" stroke-width="1.5" stroke-linecap="round"/>
+                    </svg>
+                </div>
+                <span class="logo-text">oikonomos</span>
+            </a>
+
+            <div class="header-right">
+                <nav>
+                    <ul class="nav-links">
+                        <li><a href="provider.html">Build</a></li>
+                        <li><a href="provider-dashboard.html" class="active">Dashboard</a></li>
+                        <li><a href="#">Docs</a></li>
+                    </ul>
+                </nav>
+                <div class="wallet-badge">
+                    <div class="wallet-dot"></div>
+                    <span class="wallet-address">0x7a25...3f8d</span>
+                </div>
+            </div>
+        </header>
+
+        <div class="page-header">
+            <div class="page-title-area">
+                <div class="agent-badge">
+                    <div class="agent-badge-avatar">SA</div>
+                    <div class="agent-badge-info">
+                        <span class="agent-badge-name">strategy.alice.eth</span>
+                        <span class="agent-badge-id">Agent #642</span>
+                    </div>
+                </div>
+            </div>
+            <div class="page-actions">
+                <a href="provider-ens.html" class="btn-outline">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="3"/>
+                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                    </svg>
+                    Settings
+                </a>
+                <a href="#" class="btn-outline">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                        <polyline points="15 3 21 3 21 9"/>
+                        <line x1="10" y1="14" x2="21" y2="3"/>
+                    </svg>
+                    View on Explorer
+                </a>
+            </div>
+        </div>
+
+        <!-- Stats row -->
+        <div class="stats-row">
+            <div class="stat-card">
+                <div class="stat-value"><span>47</span></div>
+                <div class="stat-label">Executions</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value cyan"><span>98.5%</span></div>
+                <div class="stat-label">Compliance Rate</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">4.2<span>bps</span></div>
+                <div class="stat-label">Avg Slippage</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value"><span>$</span>127K</div>
+                <div class="stat-label">Volume Routed</div>
+            </div>
+        </div>
+
+        <div class="dashboard-grid">
+            <div class="main-column">
+                <!-- Execution History -->
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title">Execution History</span>
+                    </div>
+                    <table class="executions-table">
+                        <thead>
+                            <tr>
+                                <th>User</th>
+                                <th>Trade</th>
+                                <th>Slippage</th>
+                                <th>Fee Earned</th>
+                                <th>Receipt</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><span class="user-address">0x8f3a...c2d1</span></td>
+                                <td>
+                                    <div class="trade-pair">
+                                        <span>$2,450 USDC</span>
+                                        <span class="trade-arrow">→</span>
+                                        <span>DAI</span>
+                                    </div>
+                                </td>
+                                <td>3 bps</td>
+                                <td><span class="fee-earned">$1.23</span></td>
+                                <td><a class="receipt-link" href="#">View</a></td>
+                            </tr>
+                            <tr>
+                                <td><span class="user-address">0x4b2e...9f1a</span></td>
+                                <td>
+                                    <div class="trade-pair">
+                                        <span>$890 DAI</span>
+                                        <span class="trade-arrow">→</span>
+                                        <span>USDC</span>
+                                    </div>
+                                </td>
+                                <td>5 bps</td>
+                                <td><span class="fee-earned">$0.45</span></td>
+                                <td><a class="receipt-link" href="#">View</a></td>
+                            </tr>
+                            <tr>
+                                <td><span class="user-address">0x7a25...3f8d</span></td>
+                                <td>
+                                    <div class="trade-pair">
+                                        <span>$5,200 USDC</span>
+                                        <span class="trade-arrow">→</span>
+                                        <span>DAI</span>
+                                    </div>
+                                </td>
+                                <td>4 bps</td>
+                                <td><span class="fee-earned">$2.60</span></td>
+                                <td><a class="receipt-link" href="#">View</a></td>
+                            </tr>
+                            <tr>
+                                <td><span class="user-address">0x1c9d...7e2b</span></td>
+                                <td>
+                                    <div class="trade-pair">
+                                        <span>$1,780 DAI</span>
+                                        <span class="trade-arrow">→</span>
+                                        <span>USDC</span>
+                                    </div>
+                                </td>
+                                <td>3 bps</td>
+                                <td><span class="fee-earned">$0.89</span></td>
+                                <td><a class="receipt-link" href="#">View</a></td>
+                            </tr>
+                            <tr>
+                                <td><span class="user-address">0x6e5f...a4c3</span></td>
+                                <td>
+                                    <div class="trade-pair">
+                                        <span>$3,100 USDC</span>
+                                        <span class="trade-arrow">→</span>
+                                        <span>DAI</span>
+                                    </div>
+                                </td>
+                                <td>6 bps</td>
+                                <td><span class="fee-earned">$1.55</span></td>
+                                <td><a class="receipt-link" href="#">View</a></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Volume Chart -->
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title">Weekly Volume</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="volume-chart">
+                            <div class="chart-bar"></div>
+                            <div class="chart-bar"></div>
+                            <div class="chart-bar"></div>
+                            <div class="chart-bar"></div>
+                            <div class="chart-bar"></div>
+                            <div class="chart-bar"></div>
+                            <div class="chart-bar"></div>
+                        </div>
+                        <div class="chart-labels">
+                            <span class="chart-label">Mon</span>
+                            <span class="chart-label">Tue</span>
+                            <span class="chart-label">Wed</span>
+                            <span class="chart-label">Thu</span>
+                            <span class="chart-label">Fri</span>
+                            <span class="chart-label">Sat</span>
+                            <span class="chart-label">Sun</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="side-column">
+                <!-- Reputation -->
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title">Reputation Score</span>
+                        <span class="card-badge warning">Cold Start</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="reputation-section">
+                            <div class="gauge-container">
+                                <svg viewBox="0 0 120 120" width="140" height="140">
+                                    <defs>
+                                        <linearGradient id="gaugeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                                            <stop offset="0%" stop-color="#5298FF"/>
+                                            <stop offset="100%" stop-color="#00D4AA"/>
+                                        </linearGradient>
+                                    </defs>
+                                    <circle class="gauge-bg" cx="60" cy="60" r="54"/>
+                                    <circle class="gauge-fill" cx="60" cy="60" r="54"/>
+                                </svg>
+                                <div class="gauge-text">
+                                    <span class="gauge-value">52</span>
+                                    <span class="gauge-label">of 100</span>
+                                </div>
+                            </div>
+                            <div class="reputation-breakdown">
+                                <div class="breakdown-item">
+                                    <span class="breakdown-label">Executions</span>
+                                    <span class="breakdown-value warning">47 / 100</span>
+                                </div>
+                                <div class="breakdown-item">
+                                    <span class="breakdown-label">Compliance</span>
+                                    <span class="breakdown-value good">98.5%</span>
+                                </div>
+                                <div class="breakdown-item">
+                                    <span class="breakdown-label">Avg Slippage</span>
+                                    <span class="breakdown-value good">4.2 bps</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="cold-start-notice">
+                            <div class="cold-start-header">
+                                <div class="cold-start-icon">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <circle cx="12" cy="12" r="10"/>
+                                        <line x1="12" y1="8" x2="12" y2="12"/>
+                                        <line x1="12" y1="16" x2="12.01" y2="16"/>
+                                    </svg>
+                                </div>
+                                <span class="cold-start-title">Building Reputation</span>
+                            </div>
+                            <p class="cold-start-text">Complete 100 executions to exit cold start. Consider these strategies:</p>
+                            <div class="cold-start-options">
+                                <div class="cold-start-option">
+                                    <div class="bullet"></div>
+                                    <span>Self-trade to build history</span>
+                                </div>
+                                <div class="cold-start-option">
+                                    <div class="bullet"></div>
+                                    <span>Subsidize fees temporarily</span>
+                                </div>
+                                <div class="cold-start-option">
+                                    <div class="bullet"></div>
+                                    <span>Stake collateral (coming soon)</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Earnings -->
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title">x402 Earnings</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="earnings-hero">
+                            <div class="earnings-total">
+                                <div class="earnings-label">Total Earned</div>
+                                <div class="earnings-amount">$63.50 <span>USDC</span></div>
+                            </div>
+                            <div class="earnings-rate">
+                                <div class="earnings-rate-value">0.05%</div>
+                                <div class="earnings-rate-label">Fee Rate</div>
+                            </div>
+                        </div>
+                        <div class="earnings-breakdown">
+                            <div class="earnings-item">
+                                <div class="earnings-item-label">This Month</div>
+                                <div class="earnings-item-value up">$48.20</div>
+                            </div>
+                            <div class="earnings-item">
+                                <div class="earnings-item-label">Last Month</div>
+                                <div class="earnings-item-value">$15.30</div>
+                            </div>
+                            <div class="earnings-item">
+                                <div class="earnings-item-label">Volume Routed</div>
+                                <div class="earnings-item-value">$127,000</div>
+                            </div>
+                            <div class="earnings-item">
+                                <div class="earnings-item-label">Unique Users</div>
+                                <div class="earnings-item-value">12</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Animate gauge on load
+        document.addEventListener('DOMContentLoaded', () => {
+            setTimeout(() => {
+                const gauge = document.querySelector('.gauge-fill');
+                // 52% of the semicircle (half of full circle)
+                // Full dasharray is 339.292, we want 52% filled (from bottom)
+                // stroke-dashoffset = dasharray - (dasharray * percentage / 100)
+                const percentage = 52;
+                const dasharray = 339.292;
+                const offset = dasharray - (dasharray * percentage / 100);
+                gauge.style.strokeDashoffset = offset;
+            }, 500);
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,1230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Configure Policy | Oikonomos</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Space+Grotesk:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-base: #0a0a0b;
+            --bg-elevated: #111114;
+            --bg-card: rgba(17, 17, 20, 0.7);
+            --border-subtle: rgba(82, 152, 255, 0.15);
+            --border-accent: rgba(82, 152, 255, 0.4);
+            --text-primary: #ffffff;
+            --text-secondary: rgba(255, 255, 255, 0.6);
+            --text-tertiary: rgba(255, 255, 255, 0.4);
+            --accent-blue: #5298FF;
+            --accent-cyan: #00D4AA;
+            --accent-blue-glow: rgba(82, 152, 255, 0.3);
+            --font-display: 'Space Grotesk', sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+
+            --color-usdc: #2775CA;
+            --color-dai: #F5AC37;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html {
+            font-size: 16px;
+        }
+
+        body {
+            font-family: var(--font-display);
+            background: var(--bg-base);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        /* Background layers */
+        .bg-grid {
+            position: fixed;
+            inset: 0;
+            background-image:
+                linear-gradient(rgba(82, 152, 255, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(82, 152, 255, 0.03) 1px, transparent 1px);
+            background-size: 60px 60px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .bg-gradient {
+            position: fixed;
+            inset: 0;
+            background:
+                radial-gradient(ellipse 80% 50% at 50% -20%, rgba(82, 152, 255, 0.15), transparent),
+                radial-gradient(ellipse 60% 40% at 80% 60%, rgba(0, 212, 170, 0.05), transparent);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .bg-noise {
+            position: fixed;
+            inset: 0;
+            opacity: 0.4;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+            pointer-events: none;
+            z-index: 0;
+            mix-blend-mode: overlay;
+        }
+
+        .container {
+            position: relative;
+            z-index: 1;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        /* Header */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 24px 0;
+            border-bottom: 1px solid var(--border-subtle);
+            opacity: 0;
+            animation: fadeSlideDown 0.6s ease-out 0.1s forwards;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+            color: var(--text-primary);
+        }
+
+        .logo-mark {
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .logo-mark svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        .logo-text {
+            font-family: var(--font-mono);
+            font-size: 1.125rem;
+            font-weight: 500;
+            letter-spacing: -0.02em;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 24px;
+        }
+
+        .wallet-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 14px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            backdrop-filter: blur(10px);
+        }
+
+        .wallet-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--accent-cyan);
+            border-radius: 50%;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        .wallet-address {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        /* Progress indicator */
+        .progress-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 20px 0;
+            opacity: 0;
+            animation: fadeSlideDown 0.6s ease-out 0.2s forwards;
+        }
+
+        .progress-step {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .progress-number {
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: var(--font-mono);
+            font-size: 0.625rem;
+            font-weight: 700;
+            border: 1px solid var(--border-subtle);
+            color: var(--text-tertiary);
+        }
+
+        .progress-number.completed {
+            background: var(--accent-cyan);
+            border-color: var(--accent-cyan);
+            color: var(--bg-base);
+        }
+
+        .progress-number.active {
+            background: var(--accent-blue);
+            border-color: var(--accent-blue);
+            color: var(--bg-base);
+        }
+
+        .progress-label {
+            font-family: var(--font-mono);
+            font-size: 0.625rem;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+
+        .progress-label.active {
+            color: var(--text-secondary);
+        }
+
+        .progress-line {
+            width: 32px;
+            height: 1px;
+            background: var(--border-subtle);
+        }
+
+        .progress-line.completed {
+            background: var(--accent-cyan);
+        }
+
+        /* Page header */
+        .page-header {
+            padding: 32px 0 24px;
+            opacity: 0;
+            animation: fadeSlideUp 0.6s ease-out 0.3s forwards;
+        }
+
+        .page-label {
+            font-family: var(--font-mono);
+            font-size: 0.6875rem;
+            font-weight: 500;
+            color: var(--accent-blue);
+            text-transform: uppercase;
+            letter-spacing: 0.2em;
+            margin-bottom: 8px;
+        }
+
+        .page-title {
+            font-family: var(--font-display);
+            font-size: 2.5rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+        }
+
+        /* Main grid */
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            gap: 24px;
+            padding-bottom: 48px;
+        }
+
+        /* Agent summary card */
+        .agent-summary {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            backdrop-filter: blur(20px);
+            padding: 20px;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            opacity: 0;
+            animation: fadeSlideUp 0.6s ease-out 0.4s forwards;
+        }
+
+        .agent-info {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .agent-avatar {
+            width: 48px;
+            height: 48px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(82, 152, 255, 0.1);
+            border: 1px solid rgba(82, 152, 255, 0.2);
+            font-family: var(--font-mono);
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--accent-blue);
+        }
+
+        .agent-details h3 {
+            font-family: var(--font-mono);
+            font-size: 1rem;
+            font-weight: 500;
+            margin-bottom: 4px;
+        }
+
+        .agent-meta {
+            display: flex;
+            gap: 16px;
+        }
+
+        .agent-meta span {
+            font-family: var(--font-mono);
+            font-size: 0.6875rem;
+            color: var(--text-tertiary);
+        }
+
+        .agent-meta span strong {
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .change-agent {
+            font-family: var(--font-mono);
+            font-size: 0.6875rem;
+            color: var(--accent-blue);
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            transition: color 0.2s ease;
+        }
+
+        .change-agent:hover {
+            color: #6aa5ff;
+        }
+
+        /* Config card */
+        .config-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            backdrop-filter: blur(20px);
+            opacity: 0;
+            animation: fadeSlideUp 0.6s ease-out 0.5s forwards;
+        }
+
+        .config-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--border-subtle);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .config-title {
+            font-family: var(--font-mono);
+            font-size: 0.6875rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            color: var(--text-secondary);
+        }
+
+        .policy-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 10px;
+            background: rgba(0, 212, 170, 0.1);
+            border: 1px solid rgba(0, 212, 170, 0.3);
+            font-family: var(--font-mono);
+            font-size: 0.625rem;
+            font-weight: 500;
+            color: var(--accent-cyan);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+
+        .config-body {
+            padding: 24px;
+        }
+
+        /* Target allocation */
+        .config-section {
+            margin-bottom: 32px;
+        }
+
+        .config-section:last-child {
+            margin-bottom: 0;
+        }
+
+        .config-label {
+            font-family: var(--font-mono);
+            font-size: 0.625rem;
+            font-weight: 500;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 12px;
+        }
+
+        .allocation-display {
+            display: flex;
+            gap: 12px;
+        }
+
+        .alloc-item {
+            flex: 1;
+            padding: 16px;
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid var(--border-subtle);
+            text-align: center;
+        }
+
+        .alloc-token {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .alloc-icon {
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: var(--font-mono);
+            font-size: 0.625rem;
+            font-weight: 700;
+            border: 1px solid;
+        }
+
+        .alloc-icon.usdc {
+            background: rgba(39, 117, 202, 0.1);
+            border-color: rgba(39, 117, 202, 0.3);
+            color: var(--color-usdc);
+        }
+
+        .alloc-icon.dai {
+            background: rgba(245, 172, 55, 0.1);
+            border-color: rgba(245, 172, 55, 0.3);
+            color: var(--color-dai);
+        }
+
+        .alloc-name {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        .alloc-percent {
+            font-family: var(--font-mono);
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .alloc-percent span {
+            font-size: 1rem;
+            color: var(--text-tertiary);
+        }
+
+        /* Slider controls */
+        .slider-control {
+            margin-bottom: 24px;
+        }
+
+        .slider-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .slider-value {
+            font-family: var(--font-mono);
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--accent-blue);
+        }
+
+        .slider-value span {
+            font-size: 0.75rem;
+            font-weight: 400;
+            color: var(--text-tertiary);
+        }
+
+        .slider-track {
+            position: relative;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            cursor: pointer;
+        }
+
+        .slider-fill {
+            position: absolute;
+            left: 0;
+            top: 0;
+            height: 100%;
+            background: var(--accent-blue);
+            transition: width 0.1s ease;
+        }
+
+        .slider-thumb {
+            position: absolute;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            width: 16px;
+            height: 16px;
+            background: var(--accent-blue);
+            border: 2px solid var(--bg-base);
+            cursor: grab;
+            transition: box-shadow 0.2s ease;
+        }
+
+        .slider-thumb:hover {
+            box-shadow: 0 0 12px var(--accent-blue-glow);
+        }
+
+        .slider-range {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 8px;
+        }
+
+        .slider-range span {
+            font-family: var(--font-mono);
+            font-size: 0.5625rem;
+            color: var(--text-tertiary);
+        }
+
+        /* Dropdown */
+        .dropdown-control {
+            margin-bottom: 0;
+        }
+
+        .dropdown-select {
+            width: 100%;
+            padding: 12px 16px;
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid var(--border-subtle);
+            font-family: var(--font-mono);
+            font-size: 0.875rem;
+            color: var(--text-primary);
+            cursor: pointer;
+            outline: none;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235298FF' stroke-width='2' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+        }
+
+        .dropdown-select:focus {
+            border-color: var(--border-accent);
+        }
+
+        /* Sidebar */
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        /* Bounds visualization */
+        .bounds-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            backdrop-filter: blur(20px);
+            padding: 24px;
+            opacity: 0;
+            animation: fadeSlideUp 0.6s ease-out 0.6s forwards;
+        }
+
+        .bounds-title {
+            font-family: var(--font-mono);
+            font-size: 0.6875rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            color: var(--text-secondary);
+            margin-bottom: 20px;
+        }
+
+        .bounds-visual {
+            position: relative;
+            height: 120px;
+            margin-bottom: 16px;
+        }
+
+        .bounds-bar {
+            position: absolute;
+            bottom: 0;
+            height: 80px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .bounds-bar.usdc {
+            left: 15%;
+            width: 30%;
+        }
+
+        .bounds-bar.dai {
+            right: 15%;
+            width: 30%;
+        }
+
+        .bar-fill {
+            width: 100%;
+            flex: 1;
+            position: relative;
+        }
+
+        .bar-fill.usdc {
+            background: linear-gradient(to top, var(--color-usdc), rgba(39, 117, 202, 0.5));
+        }
+
+        .bar-fill.dai {
+            background: linear-gradient(to top, var(--color-dai), rgba(245, 172, 55, 0.5));
+        }
+
+        .threshold-line {
+            position: absolute;
+            left: -10px;
+            right: -10px;
+            height: 2px;
+            background: var(--accent-cyan);
+        }
+
+        .threshold-line.upper {
+            top: 0;
+        }
+
+        .threshold-line.lower {
+            bottom: 0;
+        }
+
+        .threshold-label {
+            position: absolute;
+            right: -40px;
+            font-family: var(--font-mono);
+            font-size: 0.5rem;
+            color: var(--accent-cyan);
+            white-space: nowrap;
+        }
+
+        .threshold-label.upper {
+            top: -6px;
+        }
+
+        .threshold-label.lower {
+            bottom: -6px;
+        }
+
+        .bar-label {
+            margin-top: 8px;
+            font-family: var(--font-mono);
+            font-size: 0.625rem;
+            color: var(--text-tertiary);
+        }
+
+        .bar-value {
+            font-family: var(--font-mono);
+            font-size: 0.875rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .target-line {
+            position: absolute;
+            top: 20px;
+            left: 0;
+            right: 0;
+            border-top: 1px dashed var(--text-tertiary);
+        }
+
+        .target-label {
+            position: absolute;
+            top: 12px;
+            left: 0;
+            font-family: var(--font-mono);
+            font-size: 0.5rem;
+            color: var(--text-tertiary);
+        }
+
+        .bounds-legend {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            padding-top: 16px;
+            border-top: 1px solid var(--border-subtle);
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-family: var(--font-mono);
+            font-size: 0.625rem;
+            color: var(--text-tertiary);
+        }
+
+        .legend-dot {
+            width: 8px;
+            height: 8px;
+        }
+
+        .legend-dot.threshold {
+            background: var(--accent-cyan);
+        }
+
+        .legend-dot.target {
+            border: 1px dashed var(--text-tertiary);
+        }
+
+        /* Summary card */
+        .summary-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-accent);
+            backdrop-filter: blur(20px);
+            opacity: 0;
+            animation: fadeSlideUp 0.6s ease-out 0.7s forwards;
+        }
+
+        .summary-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .summary-title {
+            font-family: var(--font-mono);
+            font-size: 0.6875rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            color: var(--text-secondary);
+        }
+
+        .summary-body {
+            padding: 20px;
+        }
+
+        .summary-text {
+            font-family: var(--font-display);
+            font-size: 0.9375rem;
+            font-weight: 300;
+            color: var(--text-secondary);
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+
+        .summary-text strong {
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+
+        .summary-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .summary-stat {
+            padding: 12px;
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid var(--border-subtle);
+        }
+
+        .summary-stat-label {
+            font-family: var(--font-mono);
+            font-size: 0.5625rem;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 4px;
+        }
+
+        .summary-stat-value {
+            font-family: var(--font-mono);
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .summary-stat-value span {
+            font-size: 0.75rem;
+            font-weight: 400;
+            color: var(--text-tertiary);
+        }
+
+        .btn-primary {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            width: 100%;
+            padding: 16px 28px;
+            background: var(--accent-blue);
+            color: var(--bg-base);
+            font-family: var(--font-mono);
+            font-size: 0.8125rem;
+            font-weight: 500;
+            text-decoration: none;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn-primary::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transform: translateX(-100%);
+            transition: transform 0.5s ease;
+        }
+
+        .btn-primary:hover {
+            background: #6aa5ff;
+            box-shadow: 0 0 40px var(--accent-blue-glow);
+        }
+
+        .btn-primary:hover::before {
+            transform: translateX(100%);
+        }
+
+        /* Animations */
+        @keyframes fadeSlideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeSlideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .sidebar {
+                flex-direction: row;
+            }
+
+            .bounds-card, .summary-card {
+                flex: 1;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .sidebar {
+                flex-direction: column;
+            }
+
+            .agent-summary {
+                flex-direction: column;
+                gap: 16px;
+                text-align: center;
+            }
+
+            .agent-info {
+                flex-direction: column;
+            }
+
+            .progress-label {
+                display: none;
+            }
+
+            .page-title {
+                font-size: 1.75rem;
+            }
+
+            .allocation-display {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-grid"></div>
+    <div class="bg-gradient"></div>
+    <div class="bg-noise"></div>
+
+    <div class="container">
+        <header>
+            <a href="index.html" class="logo">
+                <div class="logo-mark">
+                    <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <linearGradient id="owlGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stop-color="#5298FF"/>
+                                <stop offset="100%" stop-color="#00D4AA"/>
+                            </linearGradient>
+                        </defs>
+                        <path d="M8 28C8 28 6 26 6 22C6 18 8 16 8 16C8 16 7 14 8 11C9 8 12 6 15 6C15 6 16 4 19 4C22 4 24 6 25 8C26 10 26 12 25 14C25 14 28 15 29 18C30 21 29 24 28 26L26 28" stroke="url(#owlGradient)" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+                        <circle cx="20" cy="11" r="5" stroke="url(#owlGradient)" stroke-width="1.5" fill="none"/>
+                        <circle cx="20" cy="11" r="2.5" fill="url(#owlGradient)"/>
+                        <path d="M26 13L30 15L26 17" stroke="url(#owlGradient)" stroke-width="1.5" fill="none" stroke-linejoin="round"/>
+                        <path d="M10 18C12 17 14 18 16 20C18 22 18 25 17 27" stroke="url(#owlGradient)" stroke-width="1" opacity="0.6"/>
+                        <path d="M8 20C10 19 12 20 14 22" stroke="url(#owlGradient)" stroke-width="1" opacity="0.4"/>
+                        <path d="M6 26L4 30" stroke="url(#owlGradient)" stroke-width="1.5" stroke-linecap="round"/>
+                        <path d="M8 27L7 31" stroke="url(#owlGradient)" stroke-width="1.5" stroke-linecap="round"/>
+                        <path d="M18 28L18 32M16 32H20" stroke="url(#owlGradient)" stroke-width="1.5" stroke-linecap="round"/>
+                        <path d="M24 27L24 32M22 32H26" stroke="url(#owlGradient)" stroke-width="1.5" stroke-linecap="round"/>
+                    </svg>
+                </div>
+                <span class="logo-text">oikonomos</span>
+            </a>
+
+            <div class="header-right">
+                <div class="wallet-badge">
+                    <div class="wallet-dot"></div>
+                    <span class="wallet-address">0x7a25...3f8d</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Progress indicator -->
+        <div class="progress-indicator">
+            <div class="progress-step">
+                <div class="progress-number completed">1</div>
+                <span class="progress-label">Connect</span>
+            </div>
+            <div class="progress-line completed"></div>
+            <div class="progress-step">
+                <div class="progress-number completed">2</div>
+                <span class="progress-label">Analyze</span>
+            </div>
+            <div class="progress-line completed"></div>
+            <div class="progress-step">
+                <div class="progress-number completed">3</div>
+                <span class="progress-label">Discover</span>
+            </div>
+            <div class="progress-line completed"></div>
+            <div class="progress-step">
+                <div class="progress-number active">4</div>
+                <span class="progress-label active">Configure</span>
+            </div>
+            <div class="progress-line"></div>
+            <div class="progress-step">
+                <div class="progress-number">5</div>
+                <span class="progress-label">Authorize</span>
+            </div>
+        </div>
+
+        <div class="page-header">
+            <div class="page-label">Step 4</div>
+            <h1 class="page-title">Configure Policy</h1>
+        </div>
+
+        <!-- Agent summary -->
+        <div class="agent-summary">
+            <div class="agent-info">
+                <div class="agent-avatar">TO</div>
+                <div class="agent-details">
+                    <h3>treasury.oikonomos.eth</h3>
+                    <div class="agent-meta">
+                        <span>Reputation: <strong>85/100</strong></span>
+                        <span>Fee: <strong>0.1%</strong></span>
+                        <span>Agent #643</span>
+                    </div>
+                </div>
+            </div>
+            <a href="discover.html" class="change-agent">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M19 12H5M12 19l-7-7 7-7"/>
+                </svg>
+                Change Agent
+            </a>
+        </div>
+
+        <div class="main-grid">
+            <!-- Configuration panel -->
+            <div class="config-card">
+                <div class="config-header">
+                    <span class="config-title">Policy Parameters</span>
+                    <span class="policy-badge">Stablecoin Rebalance</span>
+                </div>
+                <div class="config-body">
+                    <!-- Target Allocation -->
+                    <div class="config-section">
+                        <div class="config-label">Target Allocation</div>
+                        <div class="allocation-display">
+                            <div class="alloc-item">
+                                <div class="alloc-token">
+                                    <div class="alloc-icon usdc">U</div>
+                                    <span class="alloc-name">USDC</span>
+                                </div>
+                                <div class="alloc-percent">50<span>%</span></div>
+                            </div>
+                            <div class="alloc-item">
+                                <div class="alloc-token">
+                                    <div class="alloc-icon dai">D</div>
+                                    <span class="alloc-name">DAI</span>
+                                </div>
+                                <div class="alloc-percent">50<span>%</span></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Drift Threshold -->
+                    <div class="config-section">
+                        <div class="slider-control">
+                            <div class="slider-header">
+                                <span class="config-label">Drift Threshold</span>
+                                <span class="slider-value" id="driftValue">5<span>%</span></span>
+                            </div>
+                            <div class="slider-track" id="driftSlider">
+                                <div class="slider-fill" style="width: 44.4%"></div>
+                                <div class="slider-thumb" style="left: 44.4%"></div>
+                            </div>
+                            <div class="slider-range">
+                                <span>1%</span>
+                                <span>10%</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Max Slippage -->
+                    <div class="config-section">
+                        <div class="slider-control">
+                            <div class="slider-header">
+                                <span class="config-label">Max Slippage</span>
+                                <span class="slider-value" id="slippageValue">50<span>bps</span></span>
+                            </div>
+                            <div class="slider-track" id="slippageSlider">
+                                <div class="slider-fill" style="width: 44.4%"></div>
+                                <div class="slider-thumb" style="left: 44.4%"></div>
+                            </div>
+                            <div class="slider-range">
+                                <span>10 bps</span>
+                                <span>100 bps</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Check Frequency -->
+                    <div class="config-section">
+                        <div class="dropdown-control">
+                            <div class="config-label">Check Frequency</div>
+                            <select class="dropdown-select" id="frequencySelect">
+                                <option value="1">Every 1 hour</option>
+                                <option value="4" selected>Every 4 hours</option>
+                                <option value="12">Every 12 hours</option>
+                                <option value="24">Every 24 hours</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sidebar -->
+            <div class="sidebar">
+                <!-- Bounds visualization -->
+                <div class="bounds-card">
+                    <div class="bounds-title">Rebalancing Bounds</div>
+                    <div class="bounds-visual">
+                        <div class="target-line"></div>
+                        <div class="target-label">50% target</div>
+
+                        <div class="bounds-bar usdc">
+                            <div class="bar-fill usdc">
+                                <div class="threshold-line upper">
+                                    <span class="threshold-label upper" id="upperBound">55%</span>
+                                </div>
+                                <div class="threshold-line lower">
+                                    <span class="threshold-label lower" id="lowerBound">45%</span>
+                                </div>
+                            </div>
+                            <span class="bar-label">USDC</span>
+                            <span class="bar-value">50%</span>
+                        </div>
+
+                        <div class="bounds-bar dai">
+                            <div class="bar-fill dai">
+                                <div class="threshold-line upper"></div>
+                                <div class="threshold-line lower"></div>
+                            </div>
+                            <span class="bar-label">DAI</span>
+                            <span class="bar-value">50%</span>
+                        </div>
+                    </div>
+
+                    <div class="bounds-legend">
+                        <div class="legend-item">
+                            <div class="legend-dot threshold"></div>
+                            <span>Rebalance trigger</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-dot target"></div>
+                            <span>Target allocation</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Summary -->
+                <div class="summary-card">
+                    <div class="summary-header">
+                        <span class="summary-title">Policy Summary</span>
+                    </div>
+                    <div class="summary-body">
+                        <p class="summary-text" id="summaryText">
+                            When USDC or DAI allocation drifts more than <strong>5%</strong> from the 50/50 target,
+                            <strong>treasury.oikonomos.eth</strong> will automatically rebalance your portfolio.
+                            Maximum slippage allowed: <strong>50 bps</strong>.
+                        </p>
+
+                        <div class="summary-stats">
+                            <div class="summary-stat">
+                                <div class="summary-stat-label">Est. Annual Fee</div>
+                                <div class="summary-stat-value">~$12<span>/yr</span></div>
+                            </div>
+                            <div class="summary-stat">
+                                <div class="summary-stat-label">Est. Rebalances</div>
+                                <div class="summary-stat-value">~12<span>/yr</span></div>
+                            </div>
+                        </div>
+
+                        <a href="authorize.html" class="btn-primary">
+                            Review & Authorize
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M5 12h14M12 5l7 7-7 7"/>
+                            </svg>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Slider functionality
+        function initSlider(trackId, valueId, min, max, defaultVal, unit, onChange) {
+            const track = document.getElementById(trackId);
+            const valueDisplay = document.getElementById(valueId);
+            const fill = track.querySelector('.slider-fill');
+            const thumb = track.querySelector('.slider-thumb');
+
+            let isDragging = false;
+            let currentValue = defaultVal;
+
+            function updateSlider(percent) {
+                percent = Math.max(0, Math.min(100, percent));
+                const value = Math.round(min + (percent / 100) * (max - min));
+                currentValue = value;
+
+                fill.style.width = percent + '%';
+                thumb.style.left = percent + '%';
+                valueDisplay.innerHTML = value + '<span>' + unit + '</span>';
+
+                if (onChange) onChange(value);
+            }
+
+            function handleMove(e) {
+                if (!isDragging) return;
+                const rect = track.getBoundingClientRect();
+                const x = (e.clientX || e.touches[0].clientX) - rect.left;
+                const percent = (x / rect.width) * 100;
+                updateSlider(percent);
+            }
+
+            track.addEventListener('mousedown', (e) => {
+                isDragging = true;
+                handleMove(e);
+            });
+
+            document.addEventListener('mousemove', handleMove);
+            document.addEventListener('mouseup', () => isDragging = false);
+
+            track.addEventListener('touchstart', (e) => {
+                isDragging = true;
+                handleMove(e);
+            });
+
+            document.addEventListener('touchmove', handleMove);
+            document.addEventListener('touchend', () => isDragging = false);
+
+            // Initialize
+            const initialPercent = ((defaultVal - min) / (max - min)) * 100;
+            updateSlider(initialPercent);
+
+            return () => currentValue;
+        }
+
+        // Update bounds visualization
+        function updateBounds(drift) {
+            document.getElementById('upperBound').textContent = (50 + drift) + '%';
+            document.getElementById('lowerBound').textContent = (50 - drift) + '%';
+        }
+
+        // Update summary text
+        function updateSummary(drift, slippage) {
+            const text = `When USDC or DAI allocation drifts more than <strong>${drift}%</strong> from the 50/50 target,
+                <strong>treasury.oikonomos.eth</strong> will automatically rebalance your portfolio.
+                Maximum slippage allowed: <strong>${slippage} bps</strong>.`;
+            document.getElementById('summaryText').innerHTML = text;
+        }
+
+        let currentDrift = 5;
+        let currentSlippage = 50;
+
+        // Initialize sliders
+        initSlider('driftSlider', 'driftValue', 1, 10, 5, '%', (val) => {
+            currentDrift = val;
+            updateBounds(val);
+            updateSummary(currentDrift, currentSlippage);
+        });
+
+        initSlider('slippageSlider', 'slippageValue', 10, 100, 50, 'bps', (val) => {
+            currentSlippage = val;
+            updateSummary(currentDrift, currentSlippage);
+        });
+    </script>
+</body>
+</html>
