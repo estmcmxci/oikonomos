@@ -24,10 +24,9 @@ export interface Env {
   POOL_MANAGER?: string; // Uniswap V4 PoolManager address
   AGENT_WALLET?: string; // OIK-40: Agent wallet address for x402 fee collection
   TREASURY_KV: KVNamespace; // KV namespace for state and policy storage
-  // OIK-10: ZeroDev session key config
-  ZERODEV_PROJECT_ID?: string;
-  ZERODEV_BUNDLER_URL?: string;
-  ZERODEV_PAYMASTER_URL?: string;
+  // OIK-10: Pimlico bundler config for session key execution
+  PIMLICO_API_KEY?: string;
+  PIMLICO_BUNDLER_URL?: string;
 }
 
 const CORS_HEADERS = {
@@ -320,9 +319,9 @@ export default {
                 available: true,
               },
               'session-key': {
-                description: 'One-time delegation via ZeroDev session keys',
-                available: !!env.ZERODEV_BUNDLER_URL,
-                features: ['passkey-auth', 'scoped-permissions', 'erc-4337'],
+                description: 'One-time delegation via ERC-4337 session keys (Pimlico bundler)',
+                available: !!env.PIMLICO_API_KEY,
+                features: ['passkey-auth', 'scoped-permissions', 'erc-4337', 'pimlico-bundler'],
               },
             },
             mode: 'intent-only', // Default mode for backward compatibility
