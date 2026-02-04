@@ -1,6 +1,6 @@
 import type { Address } from 'viem';
 import type { X402PaymentPayload, X402PaymentRequirement, X402SettleResponse } from './types';
-import { FACILITATOR_URL, NETWORK, PAYMENT_TOKEN, PAYMENT_TIMEOUT_SECONDS } from './config';
+import { FACILITATOR_URL, NETWORK, PAYMENT_TOKEN, PAYMENT_TIMEOUT_SECONDS, PAYMENT_TOKEN_NAME, PAYMENT_TOKEN_VERSION } from './config';
 
 /**
  * x402 Payment Middleware for Cloudflare Workers
@@ -19,8 +19,8 @@ export interface PaymentValidationResult {
 }
 
 /**
- * Build x402 payment requirement for 402 response
- * Includes EIP-712 domain parameters for permit-enabled tokens (OIK-51)
+ * Build x402 payment requirement for 402 response and facilitator verification
+ * Includes EIP-712 domain parameters for permit-enabled tokens (OIK-51/OIK-52)
  */
 export function buildPaymentRequirement(
   feeAmount: string,
@@ -37,13 +37,11 @@ export function buildPaymentRequirement(
     mimeType: 'application/json',
     payTo,
     maxTimeoutSeconds: PAYMENT_TIMEOUT_SECONDS,
-    asset: PAYMENT_TOKEN, // Full token address for x402 SDK
-    // EIP-712 domain parameters for official Base Sepolia USDC
-    // x402 SDK expects these inside `extra` object
-    // Values from x402 SDK: name: "USDC", version: "2"
+    asset: PAYMENT_TOKEN,
+    // EIP-712 domain params required by facilitator for permit verification
     extra: {
-      name: 'USDC',
-      version: '2',
+      name: PAYMENT_TOKEN_NAME,
+      version: PAYMENT_TOKEN_VERSION,
     },
   };
 }
@@ -62,6 +60,7 @@ export function create402Response(
   corsHeaders: Record<string, string>
 ): Response {
   // Build x402 SDK compatible response body
+  // OIK-52: Include EIP-712 domain params (name, version) in extra field for permit support
   const x402Body = {
     x402Version: 1,
     accepts: [
@@ -75,8 +74,7 @@ export function create402Response(
         payTo: requirement.payTo,
         maxTimeoutSeconds: requirement.maxTimeoutSeconds,
         asset: requirement.asset, // Token address for x402 SDK
-        // EIP-712 domain parameters for permit (OIK-51)
-        // x402 SDK expects these inside `extra` object
+        // EIP-712 domain parameters for permit (OIK-51/OIK-52)
         extra: requirement.extra,
       },
     ],
@@ -180,10 +178,19 @@ export async function validateX402Payment(
   resource: string
 ): Promise<PaymentValidationResult> {
   console.log('[x402] Validating payment...');
-  console.log('[x402] Headers:', Object.fromEntries(request.headers.entries()));
+
+  // OIK-52 Debug: Log all headers to see what we're receiving
+  const headersObj = Object.fromEntries(request.headers.entries());
+  console.log('[x402] All headers:', JSON.stringify(headersObj));
+
+  // Check specific payment headers
+  const paymentSig = request.headers.get('PAYMENT-SIGNATURE');
+  const xPayment = request.headers.get('X-PAYMENT');
+  console.log('[x402] PAYMENT-SIGNATURE header:', paymentSig ? 'present' : 'missing');
+  console.log('[x402] X-PAYMENT header:', xPayment ? 'present' : 'missing');
 
   const payload = extractPaymentPayload(request);
-  console.log('[x402] Extracted payload:', JSON.stringify(payload));
+  console.log('[x402] Extracted payload:', payload ? 'found' : 'null');
 
   if (!payload) {
     return { valid: false, error: 'No payment header provided' };

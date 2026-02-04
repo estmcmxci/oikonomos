@@ -1,6 +1,6 @@
 import { createPublicClient, http, erc20Abi, formatUnits, type Address } from 'viem';
-import { sepolia } from 'viem/chains';
 import type { Env } from '../index';
+import { getChain } from '../config/chain';
 
 interface TokenInfo {
   address: Address;
@@ -81,7 +81,7 @@ async function getPortfolio(
   tokens: TokenInfo[]
 ): Promise<PortfolioResponse> {
   const client = createPublicClient({
-    chain: sepolia,
+    chain: getChain(env),
     transport: http(env.RPC_URL),
   });
 

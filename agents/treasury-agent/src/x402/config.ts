@@ -6,9 +6,13 @@ import type { Address } from 'viem';
  * (MockUSDC/MockDAI are still used for Uniswap pool trading)
  */
 
-// Official Base Sepolia USDC (supported by x402 facilitator)
+// Official Base Sepolia USDC with EIP-2612 permit support (OIK-52)
 // Faucet: https://faucet.circle.com/
 export const PAYMENT_TOKEN: Address = '0x036CbD53842c5426634e7929541eC2318f3dCF7e';
+
+// EIP-712 domain params for official USDC (required by x402 SDK)
+export const PAYMENT_TOKEN_NAME = 'USDC';
+export const PAYMENT_TOKEN_VERSION = '2';
 
 // Network identifier - use human-readable format that matches x402 SDK registered networks
 // SDK registered networks: ["base-sepolia", "base", "polygon", ...]
