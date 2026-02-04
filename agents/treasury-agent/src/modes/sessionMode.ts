@@ -117,16 +117,17 @@ export async function executeWithSessionKey(
     transport: http(env.RPC_URL),
   });
 
-  // Check if bundler URL is configured
-  if (!env.ZERODEV_BUNDLER_URL) {
-    console.log('[sessionMode] No bundler URL configured, falling back to direct execution');
+  // Check if Pimlico API key is configured
+  if (!env.PIMLICO_API_KEY) {
+    console.log('[sessionMode] No Pimlico API key configured, falling back to direct execution');
     return await executeDirectly(env, params);
   }
 
+  // Build Pimlico bundler URL with API key
+  const bundlerUrl = `${env.PIMLICO_BUNDLER_URL || 'https://api.pimlico.io/v2/84532/rpc'}?apikey=${env.PIMLICO_API_KEY}`;
+
   try {
     // Build UserOperation
-    // Note: In production, this should use the full ZeroDev SDK flow
-    // For now, we construct the UserOp manually and send to bundler
     const userOp = await buildUserOperation(
       publicClient,
       sessionKey.smartAccountAddress,
@@ -136,14 +137,14 @@ export async function executeWithSessionKey(
       env
     );
 
-    // Send to bundler
-    const userOpHash = await sendUserOperation(env.ZERODEV_BUNDLER_URL, userOp, chain.id);
+    // Send to Pimlico bundler
+    const userOpHash = await sendUserOperation(bundlerUrl, userOp, chain.id);
 
-    console.log('[sessionMode] UserOperation submitted:', userOpHash);
+    console.log('[sessionMode] UserOperation submitted to Pimlico:', userOpHash);
 
-    // Optionally wait for receipt
+    // Wait for receipt
     const receipt = await waitForUserOperationReceipt(
-      env.ZERODEV_BUNDLER_URL,
+      bundlerUrl,
       userOpHash,
       chain.id
     );
@@ -269,7 +270,7 @@ async function buildUserOperation(
     preVerificationGas: '0x10000',
     maxFeePerGas: '0x3B9ACA00', // 1 gwei
     maxPriorityFeePerGas: '0x3B9ACA00',
-    paymasterAndData: env.ZERODEV_PAYMASTER_URL ? '0x' : '0x', // Will be filled by paymaster
+    paymasterAndData: '0x', // Will be filled by Pimlico paymaster if sponsoring
     signature: '0x', // Will be signed
   };
 
