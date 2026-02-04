@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "ponder dev",
-    "start": "ponder start --schema oikonomos_v2",
+    "start": "ponder start --schema oikonomos_v3",
     "codegen": "ponder codegen"
   },
   "dependencies": {

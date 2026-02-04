@@ -16,7 +16,8 @@ COPY . .
 ENV PORT=42069
 
 # Database schema for production mode (required by ponder start)
-ENV DATABASE_SCHEMA=oikonomos_v2
+# Bumped to v3 for OIK-46: added `score` field to strategyMetrics
+ENV DATABASE_SCHEMA=oikonomos_v3
 
 # Expose port
 EXPOSE 42069
