@@ -17,3 +17,22 @@ export {
   getPublicResolverAddress,
   buildSetTextCalldata,
 } from './setter';
+
+export {
+  // Types
+  type SubnameRegistrationParams,
+  type CCIPConfig,
+  type SubnameRecord,
+  // Functions
+  validateLabel,
+  getFullSubname,
+  getSubnameNamehash,
+  isSubnameAvailable,
+  getSubnameRecord,
+  registerSubname,
+  computeOikonomosParentNode,
+  // Config
+  SEPOLIA_CCIP_CONFIG,
+  // ABI
+  OffchainSubnameManagerABI,
+} from './subname';

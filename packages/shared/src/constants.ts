@@ -62,3 +62,20 @@ export const ENS_RECORDS = {
   ROLES_MODIFIER: 'agent:rolesModifier',
   ERC8004: 'agent:erc8004',
 } as const;
+
+// OIK-54: CCIP Subname Configuration
+export const CCIP_CONFIG = {
+  sepolia: {
+    managerAddress: '0x89E3740C8b81D90e146c62B6C6451b85Ec8E6E78' as `0x${string}`,
+    gatewayUrl: 'https://oikonomos-ccip-gateway.estmcmxci.workers.dev',
+    parentName: 'oikonomos.eth',
+    // namehash("oikonomos.eth") = 0xbc23131a7dcd8ca1a9bda07c71c3c3ebbeea050103df1f3fa7ab131e604872c5
+    parentNode: '0xbc23131a7dcd8ca1a9bda07c71c3c3ebbeea050103df1f3fa7ab131e604872c5' as `0x${string}`,
+  },
+  mainnet: {
+    managerAddress: null as `0x${string}` | null, // TBD
+    gatewayUrl: null as string | null,
+    parentName: 'oikonomos.eth',
+    parentNode: null as `0x${string}` | null,
+  },
+} as const;
