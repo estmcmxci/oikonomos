@@ -81,11 +81,25 @@ export async function handleExecute(
     return create402Response(requirement, corsHeaders);
   }
 
-  // 5. Execute the trade
+  // 5. Log payment verification for audit trail (OIK-49)
+  const paymentAuditLog = {
+    event: 'x402_payment_verified',
+    timestamp: new Date().toISOString(),
+    quoteId: body.quoteId,
+    payer: body.userAddress,
+    recipient: paymentAddress,
+    amount: quote.pricing.feeAmount,
+    currency: PAYMENT_TOKEN,
+    network: NETWORK,
+    txHash: paymentResult.txHash || null,
+  };
+  console.log('[payment-audit]', JSON.stringify(paymentAuditLog));
+
+  // 6. Execute the trade
   try {
     const result = await executeQuotedTrade(env, body, quote);
 
-    // 6. Record fee earnings
+    // 7. Record fee earnings
     if (result.success && paymentResult.txHash) {
       await recordFeeEarning(env.TREASURY_KV, {
         quoteId: body.quoteId,
@@ -95,6 +109,16 @@ export async function handleExecute(
         txHash: paymentResult.txHash,
         timestamp: Date.now(),
       });
+
+      // Log successful execution for audit trail
+      console.log('[execution-audit]', JSON.stringify({
+        event: 'trade_executed',
+        timestamp: new Date().toISOString(),
+        quoteId: body.quoteId,
+        userAddress: body.userAddress,
+        txHash: result.txHash,
+        paymentTxHash: paymentResult.txHash,
+      }));
     }
 
     return new Response(JSON.stringify(result), {
