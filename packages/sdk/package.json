@@ -12,6 +12,10 @@
   },
   "dependencies": {
     "@oikonomos/shared": "workspace:*",
+    "@zerodev/passkey-validator": "^5.6.0",
+    "@zerodev/sdk": "^5.5.7",
+    "@zerodev/session-key": "^5.5.4",
+    "permissionless": "^0.3.4",
     "viem": "^2.21.0"
   },
   "devDependencies": {

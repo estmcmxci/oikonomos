@@ -9,6 +9,7 @@ import { handleExecute, handlePrepareExecute } from './execute/handler';
 import { getFeeAnalytics, getRecentEarnings } from './x402/analytics';
 import { handleScheduledTrigger, handleEventsWebhook, savePolicy, saveAuthorization, deleteAuthorization, type UserAuthorization } from './observation';
 import { handleVerifyReceipt } from './verification/handler'; // OIK-53: Receipt verification
+import { handleCreateSession, handleGetSession, handleRevokeSession } from './session/handler'; // OIK-10: Session keys
 
 export interface Env {
   CHAIN_ID: string;
@@ -23,6 +24,9 @@ export interface Env {
   POOL_MANAGER?: string; // Uniswap V4 PoolManager address
   AGENT_WALLET?: string; // OIK-40: Agent wallet address for x402 fee collection
   TREASURY_KV: KVNamespace; // KV namespace for state and policy storage
+  // OIK-10: Pimlico bundler config for session key execution
+  PIMLICO_API_KEY?: string;
+  PIMLICO_BUNDLER_URL?: string;
 }
 
 const CORS_HEADERS = {
@@ -308,7 +312,19 @@ export default {
             description: 'Treasury rebalancing for stablecoin portfolios',
             version: '1.0.0',
             chainId: env.CHAIN_ID || '11155111',
-            mode: 'intent-only',
+            // OIK-10: Mode A (intent-only) or Mode B (session key) supported
+            modes: {
+              'intent-only': {
+                description: 'User signs each trade via EIP-712',
+                available: true,
+              },
+              'session-key': {
+                description: 'One-time delegation via ERC-4337 session keys (Pimlico bundler)',
+                available: !!env.PIMLICO_API_KEY,
+                features: ['passkey-auth', 'scoped-permissions', 'erc-4337', 'pimlico-bundler'],
+              },
+            },
+            mode: 'intent-only', // Default mode for backward compatibility
           }),
           { headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
         );
@@ -318,6 +334,28 @@ export default {
       if (url.pathname.startsWith('/verify/') && request.method === 'GET') {
         const receiptId = url.pathname.slice('/verify/'.length);
         return handleVerifyReceipt(receiptId, env, CORS_HEADERS);
+      }
+
+      // OIK-10: Session key endpoints
+      // POST /session/create - Create session key for user
+      if (url.pathname === '/session/create' && request.method === 'POST') {
+        return handleCreateSession(request, env, CORS_HEADERS);
+      }
+
+      // GET /session/:userAddress - Get active session
+      if (url.pathname.startsWith('/session/') && request.method === 'GET') {
+        const userAddress = url.pathname.slice('/session/'.length);
+        if (userAddress && userAddress !== 'create') {
+          return handleGetSession(userAddress, env, CORS_HEADERS);
+        }
+      }
+
+      // DELETE /session/:userAddress - Revoke session
+      if (url.pathname.startsWith('/session/') && request.method === 'DELETE') {
+        const userAddress = url.pathname.slice('/session/'.length);
+        if (userAddress) {
+          return handleRevokeSession(userAddress, env, CORS_HEADERS);
+        }
       }
 
       // Health check
