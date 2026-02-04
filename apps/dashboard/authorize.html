@@ -1,0 +1,1121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Authorize Intent | Oikonomos</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Space+Grotesk:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-base: #0a0a0b;
+            --bg-elevated: #111114;
+            --bg-card: rgba(17, 17, 20, 0.7);
+            --border-subtle: rgba(82, 152, 255, 0.15);
+            --border-accent: rgba(82, 152, 255, 0.4);
+            --text-primary: #ffffff;
+            --text-secondary: rgba(255, 255, 255, 0.6);
+            --text-tertiary: rgba(255, 255, 255, 0.4);
+            --accent-blue: #5298FF;
+            --accent-cyan: #00D4AA;
+            --accent-red: #FF5252;
+            --accent-blue-glow: rgba(82, 152, 255, 0.3);
+            --accent-cyan-glow: rgba(0, 212, 170, 0.3);
+            --font-display: 'Space Grotesk', sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+
+            --color-usdc: #2775CA;
+            --color-dai: #F5AC37;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html {
+            font-size: 16px;
+        }
+
+        body {
+            font-family: var(--font-display);
+            background: var(--bg-base);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        /* Background layers */
+        .bg-grid {
+            position: fixed;
+            inset: 0;
+            background-image:
+                linear-gradient(rgba(82, 152, 255, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(82, 152, 255, 0.03) 1px, transparent 1px);
+            background-size: 60px 60px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .bg-gradient {
+            position: fixed;
+            inset: 0;
+            background:
+                radial-gradient(ellipse 80% 50% at 50% -20%, rgba(82, 152, 255, 0.15), transparent),
+                radial-gradient(ellipse 60% 40% at 80% 60%, rgba(0, 212, 170, 0.05), transparent);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .bg-noise {
+            position: fixed;
+            inset: 0;
+            opacity: 0.4;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+            pointer-events: none;
+            z-index: 0;
+            mix-blend-mode: overlay;
+        }
+
+        .container {
+            position: relative;
+            z-index: 1;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        /* Header */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 24px 0;
+            border-bottom: 1px solid var(--border-subtle);
+            opacity: 0;
+            animation: fadeSlideDown 0.6s ease-out 0.1s forwards;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+            color: var(--text-primary);
+        }
+
+        .logo-mark {
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .logo-mark svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        .logo-text {
+            font-family: var(--font-mono);
+            font-size: 1.125rem;
+            font-weight: 500;
+            letter-spacing: -0.02em;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 24px;
+        }
+
+        .wallet-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 14px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            backdrop-filter: blur(10px);
+        }
+
+        .wallet-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--accent-cyan);
+            border-radius: 50%;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        .wallet-address {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        /* Progress indicator */
+        .progress-indicator {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 20px 0;
+            opacity: 0;
+            animation: fadeSlideDown 0.6s ease-out 0.2s forwards;
+        }
+
+        .progress-step {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .progress-number {
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: var(--font-mono);
+            font-size: 0.625rem;
+            font-weight: 700;
+            border: 1px solid var(--border-subtle);
+            color: var(--text-tertiary);
+        }
+
+        .progress-number.completed {
+            background: var(--accent-cyan);
+            border-color: var(--accent-cyan);
+            color: var(--bg-base);
+        }
+
+        .progress-number.active {
+            background: var(--accent-blue);
+            border-color: var(--accent-blue);
+            color: var(--bg-base);
+        }
+
+        .progress-label {
+            font-family: var(--font-mono);
+            font-size: 0.625rem;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+
+        .progress-label.active {
+            color: var(--text-secondary);
+        }
+
+        .progress-line {
+            width: 32px;
+            height: 1px;
+            background: var(--border-subtle);
+        }
+
+        .progress-line.completed {
+            background: var(--accent-cyan);
+        }
+
+        /* Page header */
+        .page-header {
+            text-align: center;
+            padding: 32px 0 24px;
+            opacity: 0;
+            animation: fadeSlideUp 0.6s ease-out 0.3s forwards;
+        }
+
+        .page-label {
+            font-family: var(--font-mono);
+            font-size: 0.6875rem;
+            font-weight: 500;
+            color: var(--accent-blue);
+            text-transform: uppercase;
+            letter-spacing: 0.2em;
+            margin-bottom: 8px;
+        }
+
+        .page-title {
+            font-family: var(--font-display);
+            font-size: 2.5rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+        }
+
+        /* Main content - pre-sign state */
+        .auth-content {
+            padding-bottom: 48px;
+        }
+
+        .auth-content.hidden {
+            display: none;
+        }
+
+        /* Authorization summary */
+        .auth-summary {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            backdrop-filter: blur(20px);
+            margin-bottom: 24px;
+            opacity: 0;
+            animation: fadeSlideUp 0.6s ease-out 0.4s forwards;
+        }
+
+        .summary-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border-subtle);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .summary-title {
+            font-family: var(--font-mono);
+            font-size: 0.6875rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            color: var(--text-secondary);
+        }
+
+        .summary-body {
+            padding: 20px;
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+        }
+
+        .summary-item {
+            padding: 16px;
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid var(--border-subtle);
+        }
+
+        .summary-item.full-width {
+            grid-column: 1 / -1;
+        }
+
+        .summary-item-label {
+            font-family: var(--font-mono);
+            font-size: 0.5625rem;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 6px;
+        }
+
+        .summary-item-value {
+            font-family: var(--font-mono);
+            font-size: 0.9375rem;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .summary-item-value.agent {
+            color: var(--accent-blue);
+        }
+
+        .token-flow {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .token-badge {
+            padding: 4px 8px;
+            font-family: var(--font-mono);
+            font-size: 0.6875rem;
+            font-weight: 500;
+            border: 1px solid;
+        }
+
+        .token-badge.usdc {
+            background: rgba(39, 117, 202, 0.1);
+            border-color: rgba(39, 117, 202, 0.3);
+            color: var(--color-usdc);
+        }
+
+        .token-badge.dai {
+            background: rgba(245, 172, 55, 0.1);
+            border-color: rgba(245, 172, 55, 0.3);
+            color: var(--color-dai);
+        }
+
+        .token-arrow {
+            color: var(--text-tertiary);
+        }
+
+        .validity-select {
+            padding: 4px 8px;
+            background: transparent;
+            border: 1px solid var(--border-subtle);
+            font-family: var(--font-mono);
+            font-size: 0.875rem;
+            color: var(--text-primary);
+            cursor: pointer;
+            outline: none;
+        }
+
+        .validity-select:focus {
+            border-color: var(--border-accent);
+        }
+
+        /* Intent preview */
+        .intent-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            backdrop-filter: blur(20px);
+            margin-bottom: 24px;
+            opacity: 0;
+            animation: fadeSlideUp 0.6s ease-out 0.5s forwards;
+        }
+
+        .intent-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border-subtle);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .intent-title {
+            font-family: var(--font-mono);
+            font-size: 0.6875rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            color: var(--text-secondary);
+        }
+
+        .eip-badge {
+            padding: 2px 6px;
+            background: rgba(82, 152, 255, 0.1);
+            border: 1px solid rgba(82, 152, 255, 0.2);
+            font-family: var(--font-mono);
+            font-size: 0.5rem;
+            color: var(--accent-blue);
+        }
+
+        .intent-body {
+            padding: 20px;
+        }
+
+        .intent-code {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border-subtle);
+            padding: 16px;
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            line-height: 1.8;
+            color: var(--text-secondary);
+            overflow-x: auto;
+        }
+
+        .intent-code .key {
+            color: var(--accent-blue);
+        }
+
+        .intent-code .string {
+            color: var(--accent-cyan);
+        }
+
+        .intent-code .number {
+            color: var(--color-dai);
+        }
+
+        .intent-code .comment {
+            color: var(--text-tertiary);
+            font-style: italic;
+        }
+
+        /* Permissions */
+        .permissions-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            backdrop-filter: blur(20px);
+            margin-bottom: 24px;
+            opacity: 0;
+            animation: fadeSlideUp 0.6s ease-out 0.6s forwards;
+        }
+
+        .permissions-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .permissions-title {
+            font-family: var(--font-mono);
+            font-size: 0.6875rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            color: var(--text-secondary);
+        }
+
+        .permissions-body {
+            padding: 20px;
+        }
+
+        .permissions-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .permissions-column h4 {
+            font-family: var(--font-mono);
+            font-size: 0.625rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .permissions-column.allowed h4 {
+            color: var(--accent-cyan);
+        }
+
+        .permissions-column.forbidden h4 {
+            color: var(--accent-red);
+        }
+
+        .permission-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 10px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+        }
+
+        .permission-item:last-child {
+            border-bottom: none;
+        }
+
+        .permission-icon {
+            width: 18px;
+            height: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            margin-top: 1px;
+        }
+
+        .permission-icon.allowed {
+            color: var(--accent-cyan);
+        }
+
+        .permission-icon.forbidden {
+            color: var(--accent-red);
+        }
+
+        .permission-text {
+            font-family: var(--font-display);
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            line-height: 1.4;
+        }
+
+        /* Sign section */
+        .sign-section {
+            opacity: 0;
+            animation: fadeSlideUp 0.6s ease-out 0.7s forwards;
+        }
+
+        .security-notice {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 16px;
+            background: rgba(82, 152, 255, 0.05);
+            border: 1px solid rgba(82, 152, 255, 0.15);
+            margin-bottom: 20px;
+        }
+
+        .security-icon {
+            color: var(--accent-blue);
+            flex-shrink: 0;
+        }
+
+        .security-text {
+            font-family: var(--font-display);
+            font-size: 0.8125rem;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        .security-text strong {
+            color: var(--text-primary);
+        }
+
+        .btn-sign {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            width: 100%;
+            padding: 20px 28px;
+            background: var(--accent-blue);
+            color: var(--bg-base);
+            font-family: var(--font-mono);
+            font-size: 0.9375rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn-sign::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transform: translateX(-100%);
+            transition: transform 0.5s ease;
+        }
+
+        .btn-sign:hover {
+            background: #6aa5ff;
+            box-shadow: 0 0 60px var(--accent-blue-glow);
+        }
+
+        .btn-sign:hover::before {
+            transform: translateX(100%);
+        }
+
+        /* Success state */
+        .success-content {
+            display: none;
+            text-align: center;
+            padding: 60px 0;
+        }
+
+        .success-content.visible {
+            display: block;
+        }
+
+        .success-icon {
+            width: 120px;
+            height: 120px;
+            margin: 0 auto 32px;
+            position: relative;
+        }
+
+        .success-circle {
+            fill: none;
+            stroke: var(--accent-cyan);
+            stroke-width: 3;
+            stroke-dasharray: 377;
+            stroke-dashoffset: 377;
+            animation: drawCircle 0.6s ease-out forwards;
+        }
+
+        .success-check {
+            fill: none;
+            stroke: var(--accent-cyan);
+            stroke-width: 4;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            stroke-dasharray: 60;
+            stroke-dashoffset: 60;
+            animation: drawCheck 0.4s ease-out 0.5s forwards;
+        }
+
+        @keyframes drawCircle {
+            to {
+                stroke-dashoffset: 0;
+            }
+        }
+
+        @keyframes drawCheck {
+            to {
+                stroke-dashoffset: 0;
+            }
+        }
+
+        .success-glow {
+            position: absolute;
+            inset: -20px;
+            background: radial-gradient(circle, var(--accent-cyan-glow), transparent 70%);
+            opacity: 0;
+            animation: pulseGlow 2s ease-in-out 0.8s infinite;
+        }
+
+        @keyframes pulseGlow {
+            0%, 100% { opacity: 0.3; transform: scale(1); }
+            50% { opacity: 0.6; transform: scale(1.1); }
+        }
+
+        .success-title {
+            font-family: var(--font-display);
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 12px;
+            opacity: 0;
+            animation: fadeSlideUp 0.5s ease-out 0.9s forwards;
+        }
+
+        .success-message {
+            font-family: var(--font-display);
+            font-size: 1rem;
+            font-weight: 300;
+            color: var(--text-secondary);
+            margin-bottom: 32px;
+            opacity: 0;
+            animation: fadeSlideUp 0.5s ease-out 1s forwards;
+        }
+
+        .success-details {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            backdrop-filter: blur(20px);
+            padding: 20px;
+            margin-bottom: 32px;
+            text-align: left;
+            opacity: 0;
+            animation: fadeSlideUp 0.5s ease-out 1.1s forwards;
+        }
+
+        .success-detail-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+        }
+
+        .success-detail-row:last-child {
+            border-bottom: none;
+        }
+
+        .success-detail-label {
+            font-family: var(--font-mono);
+            font-size: 0.6875rem;
+            color: var(--text-tertiary);
+        }
+
+        .success-detail-value {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-primary);
+        }
+
+        .success-detail-value.cyan {
+            color: var(--accent-cyan);
+        }
+
+        .btn-dashboard {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 16px 32px;
+            background: var(--accent-cyan);
+            color: var(--bg-base);
+            font-family: var(--font-mono);
+            font-size: 0.8125rem;
+            font-weight: 500;
+            text-decoration: none;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            transition: all 0.2s ease;
+            opacity: 0;
+            animation: fadeSlideUp 0.5s ease-out 1.2s forwards;
+        }
+
+        .btn-dashboard:hover {
+            background: #00e6b8;
+            box-shadow: 0 0 40px var(--accent-cyan-glow);
+        }
+
+        /* Animations */
+        @keyframes fadeSlideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeSlideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .summary-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .permissions-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .progress-label {
+                display: none;
+            }
+
+            .page-title {
+                font-size: 1.75rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-grid"></div>
+    <div class="bg-gradient"></div>
+    <div class="bg-noise"></div>
+
+    <div class="container">
+        <header>
+            <a href="index.html" class="logo">
+                <div class="logo-mark">
+                    <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <linearGradient id="owlGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stop-color="#5298FF"/>
+                                <stop offset="100%" stop-color="#00D4AA"/>
+                            </linearGradient>
+                        </defs>
+                        <path d="M8 28C8 28 6 26 6 22C6 18 8 16 8 16C8 16 7 14 8 11C9 8 12 6 15 6C15 6 16 4 19 4C22 4 24 6 25 8C26 10 26 12 25 14C25 14 28 15 29 18C30 21 29 24 28 26L26 28" stroke="url(#owlGradient)" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+                        <circle cx="20" cy="11" r="5" stroke="url(#owlGradient)" stroke-width="1.5" fill="none"/>
+                        <circle cx="20" cy="11" r="2.5" fill="url(#owlGradient)"/>
+                        <path d="M26 13L30 15L26 17" stroke="url(#owlGradient)" stroke-width="1.5" fill="none" stroke-linejoin="round"/>
+                        <path d="M10 18C12 17 14 18 16 20C18 22 18 25 17 27" stroke="url(#owlGradient)" stroke-width="1" opacity="0.6"/>
+                        <path d="M8 20C10 19 12 20 14 22" stroke="url(#owlGradient)" stroke-width="1" opacity="0.4"/>
+                        <path d="M6 26L4 30" stroke="url(#owlGradient)" stroke-width="1.5" stroke-linecap="round"/>
+                        <path d="M8 27L7 31" stroke="url(#owlGradient)" stroke-width="1.5" stroke-linecap="round"/>
+                        <path d="M18 28L18 32M16 32H20" stroke="url(#owlGradient)" stroke-width="1.5" stroke-linecap="round"/>
+                        <path d="M24 27L24 32M22 32H26" stroke="url(#owlGradient)" stroke-width="1.5" stroke-linecap="round"/>
+                    </svg>
+                </div>
+                <span class="logo-text">oikonomos</span>
+            </a>
+
+            <div class="header-right">
+                <div class="wallet-badge">
+                    <div class="wallet-dot"></div>
+                    <span class="wallet-address">0x7a25...3f8d</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Progress indicator -->
+        <div class="progress-indicator">
+            <div class="progress-step">
+                <div class="progress-number completed">1</div>
+                <span class="progress-label">Connect</span>
+            </div>
+            <div class="progress-line completed"></div>
+            <div class="progress-step">
+                <div class="progress-number completed">2</div>
+                <span class="progress-label">Analyze</span>
+            </div>
+            <div class="progress-line completed"></div>
+            <div class="progress-step">
+                <div class="progress-number completed">3</div>
+                <span class="progress-label">Discover</span>
+            </div>
+            <div class="progress-line completed"></div>
+            <div class="progress-step">
+                <div class="progress-number completed">4</div>
+                <span class="progress-label">Configure</span>
+            </div>
+            <div class="progress-line completed"></div>
+            <div class="progress-step">
+                <div class="progress-number active">5</div>
+                <span class="progress-label active">Authorize</span>
+            </div>
+        </div>
+
+        <div class="page-header">
+            <div class="page-label">Final Step</div>
+            <h1 class="page-title">Review & Authorize</h1>
+        </div>
+
+        <!-- Pre-sign content -->
+        <div class="auth-content" id="authContent">
+            <!-- Authorization summary -->
+            <div class="auth-summary">
+                <div class="summary-header">
+                    <span class="summary-title">Authorization Summary</span>
+                </div>
+                <div class="summary-body">
+                    <div class="summary-grid">
+                        <div class="summary-item">
+                            <div class="summary-item-label">Agent</div>
+                            <div class="summary-item-value agent">treasury.oikonomos.eth</div>
+                        </div>
+                        <div class="summary-item">
+                            <div class="summary-item-label">Policy Type</div>
+                            <div class="summary-item-value">Stablecoin Rebalance</div>
+                        </div>
+                        <div class="summary-item">
+                            <div class="summary-item-label">Token Pair</div>
+                            <div class="token-flow">
+                                <span class="token-badge usdc">USDC</span>
+                                <span class="token-arrow">↔</span>
+                                <span class="token-badge dai">DAI</span>
+                            </div>
+                        </div>
+                        <div class="summary-item">
+                            <div class="summary-item-label">Constraints</div>
+                            <div class="summary-item-value">5% drift · 50bps slippage</div>
+                        </div>
+                        <div class="summary-item full-width">
+                            <div class="summary-item-label">Valid For</div>
+                            <select class="validity-select" id="validitySelect">
+                                <option value="1">1 day</option>
+                                <option value="7" selected>7 days</option>
+                                <option value="30">30 days</option>
+                                <option value="90">90 days</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Intent preview -->
+            <div class="intent-card">
+                <div class="intent-header">
+                    <span class="intent-title">Signed Intent Preview</span>
+                    <span class="eip-badge">EIP-712</span>
+                </div>
+                <div class="intent-body">
+                    <pre class="intent-code">{
+  <span class="key">"user"</span>: <span class="string">"0x7a25...3f8d"</span>,
+  <span class="key">"strategyId"</span>: <span class="string">"0x8f3a...treasury.oikonomos.eth"</span>,
+  <span class="key">"tokenIn"</span>: <span class="string">"0xA0b8...USDC"</span>,
+  <span class="key">"tokenOut"</span>: <span class="string">"0x6B17...DAI"</span>,
+  <span class="key">"maxSlippage"</span>: <span class="number">50</span>, <span class="comment">// basis points</span>
+  <span class="key">"deadline"</span>: <span class="number">1707350400</span> <span class="comment">// 7 days from now</span>
+}</pre>
+                </div>
+            </div>
+
+            <!-- Permissions -->
+            <div class="permissions-card">
+                <div class="permissions-header">
+                    <span class="permissions-title">Agent Permissions</span>
+                </div>
+                <div class="permissions-body">
+                    <div class="permissions-grid">
+                        <div class="permissions-column allowed">
+                            <h4>
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                                </svg>
+                                Allowed
+                            </h4>
+                            <div class="permission-item">
+                                <div class="permission-icon allowed">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                        <polyline points="20 6 9 17 4 12"/>
+                                    </svg>
+                                </div>
+                                <span class="permission-text">Swap USDC for DAI (and vice versa)</span>
+                            </div>
+                            <div class="permission-item">
+                                <div class="permission-icon allowed">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                        <polyline points="20 6 9 17 4 12"/>
+                                    </svg>
+                                </div>
+                                <span class="permission-text">Execute trades within 50bps slippage</span>
+                            </div>
+                            <div class="permission-item">
+                                <div class="permission-icon allowed">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                        <polyline points="20 6 9 17 4 12"/>
+                                    </svg>
+                                </div>
+                                <span class="permission-text">Rebalance when drift exceeds 5%</span>
+                            </div>
+                        </div>
+                        <div class="permissions-column forbidden">
+                            <h4>
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="12" cy="12" r="10"/>
+                                    <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
+                                </svg>
+                                Not Allowed
+                            </h4>
+                            <div class="permission-item">
+                                <div class="permission-icon forbidden">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                        <line x1="18" y1="6" x2="6" y2="18"/>
+                                        <line x1="6" y1="6" x2="18" y2="18"/>
+                                    </svg>
+                                </div>
+                                <span class="permission-text">Access any other tokens in your wallet</span>
+                            </div>
+                            <div class="permission-item">
+                                <div class="permission-icon forbidden">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                        <line x1="18" y1="6" x2="6" y2="18"/>
+                                        <line x1="6" y1="6" x2="18" y2="18"/>
+                                    </svg>
+                                </div>
+                                <span class="permission-text">Execute trades above slippage limit</span>
+                            </div>
+                            <div class="permission-item">
+                                <div class="permission-icon forbidden">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                        <line x1="18" y1="6" x2="6" y2="18"/>
+                                        <line x1="6" y1="6" x2="18" y2="18"/>
+                                    </svg>
+                                </div>
+                                <span class="permission-text">Withdraw or transfer funds elsewhere</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sign section -->
+            <div class="sign-section">
+                <div class="security-notice">
+                    <div class="security-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"/>
+                            <line x1="12" y1="8" x2="12" y2="12"/>
+                            <line x1="12" y1="16" x2="12.01" y2="16"/>
+                        </svg>
+                    </div>
+                    <p class="security-text">
+                        <strong>You are signing a message, not a transaction.</strong>
+                        This signature authorizes the agent to submit transactions on your behalf within the specified constraints.
+                        No gas will be charged for this signature. You can revoke this authorization at any time.
+                    </p>
+                </div>
+
+                <button class="btn-sign" id="signBtn" onclick="handleSign()">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 19l7-7 3 3-7 7-3-3z"/>
+                        <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/>
+                        <path d="M2 2l7.586 7.586"/>
+                        <circle cx="11" cy="11" r="2"/>
+                    </svg>
+                    Sign Intent
+                </button>
+            </div>
+        </div>
+
+        <!-- Success state -->
+        <div class="success-content" id="successContent">
+            <div class="success-icon">
+                <div class="success-glow"></div>
+                <svg viewBox="0 0 120 120" width="120" height="120">
+                    <circle class="success-circle" cx="60" cy="60" r="56"/>
+                    <polyline class="success-check" points="38 62 52 76 82 46"/>
+                </svg>
+            </div>
+
+            <h2 class="success-title">Authorization Active</h2>
+            <p class="success-message">Your intent has been signed. The agent can now execute trades on your behalf.</p>
+
+            <div class="success-details">
+                <div class="success-detail-row">
+                    <span class="success-detail-label">Agent</span>
+                    <span class="success-detail-value cyan">treasury.oikonomos.eth</span>
+                </div>
+                <div class="success-detail-row">
+                    <span class="success-detail-label">Status</span>
+                    <span class="success-detail-value cyan">Active</span>
+                </div>
+                <div class="success-detail-row">
+                    <span class="success-detail-label">Expires</span>
+                    <span class="success-detail-value" id="expiryDate">Feb 11, 2025</span>
+                </div>
+                <div class="success-detail-row">
+                    <span class="success-detail-label">Signature</span>
+                    <span class="success-detail-value">0x8f3a...c2d1</span>
+                </div>
+            </div>
+
+            <a href="dashboard.html" class="btn-dashboard">
+                View Dashboard
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M5 12h14M12 5l7 7-7 7"/>
+                </svg>
+            </a>
+        </div>
+    </div>
+
+    <script>
+        // Update expiry based on validity selection
+        document.getElementById('validitySelect').addEventListener('change', function() {
+            const days = parseInt(this.value);
+            const expiry = new Date();
+            expiry.setDate(expiry.getDate() + days);
+            const options = { month: 'short', day: 'numeric', year: 'numeric' };
+            document.getElementById('expiryDate').textContent = expiry.toLocaleDateString('en-US', options);
+        });
+
+        // Handle sign action
+        function handleSign() {
+            const btn = document.getElementById('signBtn');
+            btn.innerHTML = `
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin">
+                    <circle cx="12" cy="12" r="10" stroke-dasharray="32" stroke-dashoffset="32"/>
+                </svg>
+                Waiting for signature...
+            `;
+            btn.style.pointerEvents = 'none';
+
+            // Add spin animation
+            const style = document.createElement('style');
+            style.textContent = `
+                @keyframes spin {
+                    to { transform: rotate(360deg); }
+                }
+                .spin {
+                    animation: spin 1s linear infinite;
+                }
+            `;
+            document.head.appendChild(style);
+
+            // Simulate wallet signature delay
+            setTimeout(() => {
+                document.getElementById('authContent').classList.add('hidden');
+                document.getElementById('successContent').classList.add('visible');
+
+                // Update expiry date
+                const days = parseInt(document.getElementById('validitySelect').value);
+                const expiry = new Date();
+                expiry.setDate(expiry.getDate() + days);
+                const options = { month: 'short', day: 'numeric', year: 'numeric' };
+                document.getElementById('expiryDate').textContent = expiry.toLocaleDateString('en-US', options);
+            }, 2000);
+        }
+    </script>
+</body>
+</html>
