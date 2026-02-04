@@ -2,8 +2,8 @@
 // Main endpoint handler for /suggest-policy
 
 import { createPublicClient, http, erc20Abi, formatUnits, type Address } from 'viem';
-import { sepolia } from 'viem/chains';
 import type { Env } from '../index';
+import { getChain } from '../config/chain';
 import { classifyToken, analyzeComposition, type PortfolioComposition } from './classifier';
 import { findCompatiblePools, hasReceiptHookPool, type PoolMatch } from './pools';
 import { matchPolicy, type PolicyMatch, type RiskProfile } from './matcher';
@@ -231,7 +231,7 @@ async function fetchPortfolio(
   tokens: TokenInfo[]
 ): Promise<PortfolioToken[]> {
   const client = createPublicClient({
-    chain: sepolia,
+    chain: getChain(env),
     transport: http(env.RPC_URL),
   });
 

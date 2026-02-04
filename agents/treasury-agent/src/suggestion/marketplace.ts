@@ -2,8 +2,8 @@
 // Fetches registered agents, resolves ENS marketplace records, filters & ranks
 
 import { createPublicClient, http, namehash, type Address } from 'viem';
-import { sepolia } from 'viem/chains';
 import type { Env } from '../index';
+import { getChain } from '../config/chain';
 
 // ENS Public Resolver on Sepolia (from oikonomos.eth subnames)
 const ENS_PUBLIC_RESOLVER = '0xe99638b40e4fff0129d56f03b55b6bbc4bbe49b5';
@@ -188,7 +188,7 @@ export async function resolveMarketplaceRecords(
   ensName: string
 ): Promise<MarketplaceRecords> {
   const client = createPublicClient({
-    chain: sepolia,
+    chain: getChain(env),
     transport: http(env.RPC_URL),
   });
 
