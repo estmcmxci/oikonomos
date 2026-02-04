@@ -21,10 +21,10 @@ export interface PoolConfig {
 // OIK-50: ReceiptHook deployment on Base Sepolia
 const RECEIPT_HOOK = '0x906E3e24C04f6b6B5b6743BB77d0FCBE4d87C040' as Address;
 
-// OIK-50: Token addresses on Base Sepolia
+// OIK-51: Permit-enabled token addresses on Base Sepolia
 export const TOKENS = {
-  USDC: '0x524C057B1030B3D832f1688e4993159C7A124518' as Address, // MockUSDC
-  DAI: '0x233Dc75Bda7dB90a33454e4333E3ac96eB7FB84E' as Address,  // MockDAI
+  USDC: '0x944a6D90b3111884CcCbfcc45B381b7C864D7943' as Address, // MockUSDC (EIP-2612 permit)
+  DAI: '0xCE728786975c72711e810aDCD9BC233A2a55d7C1' as Address,  // MockDAI (EIP-2612 permit)
   WETH: '0x4200000000000000000000000000000000000006' as Address, // Canonical Base WETH
 } as const;
 
@@ -36,7 +36,8 @@ export const TOKENS = {
 // };
 
 /**
- * Registry of pools initialized with ReceiptHook on Base Sepolia (OIK-50).
+ * Registry of pools initialized with ReceiptHook on Base Sepolia.
+ * OIK-51: Updated with permit-enabled tokens
  * Key format: sorted lowercase addresses joined by '-'
  *
  * To add a new pool:
@@ -44,18 +45,18 @@ export const TOKENS = {
  * 2. Add entry here with the pool parameters used during initialization
  */
 export const SUPPORTED_POOLS: Record<string, PoolConfig> = {
-  // DAI/USDC - 0.05% fee tier (stablecoin pair)
-  // Note: DAI < USDC lexicographically, so DAI is currency0
-  '0x233dc75bda7db90a33454e4333e3ac96eb7fb84e-0x524c057b1030b3d832f1688e4993159c7a124518': {
-    currency0: TOKENS.DAI,
-    currency1: TOKENS.USDC,
+  // USDC/DAI - 0.05% fee tier (stablecoin pair)
+  // Note: USDC (0x944a...) < DAI (0xCE72...) lexicographically, so USDC is currency0
+  '0x944a6d90b3111884cccbfcc45b381b7c864d7943-0xce728786975c72711e810adcd9bc233a2a55d7c1': {
+    currency0: TOKENS.USDC,
+    currency1: TOKENS.DAI,
     fee: 500, // 0.05%
     tickSpacing: 10,
     hooks: RECEIPT_HOOK,
   },
   // WETH/USDC - 0.3% fee tier (volatile pair)
-  // Note: WETH (0x42...) < USDC (0x52...) lexicographically
-  '0x4200000000000000000000000000000000000006-0x524c057b1030b3d832f1688e4993159c7a124518': {
+  // Note: WETH (0x4200...) < USDC (0x944a...) lexicographically
+  '0x4200000000000000000000000000000000000006-0x944a6d90b3111884cccbfcc45b381b7c864d7943': {
     currency0: TOKENS.WETH,
     currency1: TOKENS.USDC,
     fee: 3000, // 0.3%

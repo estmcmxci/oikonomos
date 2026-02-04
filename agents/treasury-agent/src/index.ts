@@ -248,6 +248,44 @@ export default {
         );
       }
 
+      // Provider earnings endpoint (OIK-49)
+      if (url.pathname === '/earnings' && request.method === 'GET') {
+        const totals = await getFeeAnalytics(env.TREASURY_KV);
+        const earnings = totals?.totalEarnings || '0';
+        // x402 fees are paid in USDC on Base Sepolia
+        return new Response(
+          JSON.stringify({
+            earnings,
+            currency: 'USDC',
+            chainId: parseInt(env.CHAIN_ID || '84532'),
+            executionCount: totals?.totalExecutions || 0,
+            lastUpdated: totals?.lastUpdated || null,
+            // x402 pays directly to agent wallet, no withdrawal needed
+            withdrawable: false,
+            withdrawalNote: 'Fees are paid directly via x402 protocol to agent wallet',
+          }),
+          { headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Withdrawal info endpoint (OIK-49)
+      if (url.pathname === '/withdraw' && request.method === 'POST') {
+        // x402 fees are paid directly to the agent wallet, no withdrawal needed
+        return new Response(
+          JSON.stringify({
+            success: false,
+            message: 'No withdrawal needed - x402 pays fees directly to agent wallet',
+            details: {
+              paymentMethod: 'x402',
+              description: 'The x402 protocol facilitates micropayments where consumers pay fees directly to the agent wallet address at execution time. There is no escrow or accumulated balance to withdraw.',
+              agentWallet: env.AGENT_WALLET || 'Not configured',
+              checkBalance: 'Use a block explorer or wallet to check your USDC balance on Base Sepolia',
+            },
+          }),
+          { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+        );
+      }
+
       // Capabilities endpoint (OIK-34: Dynamic marketplace capabilities)
       if (url.pathname === '/capabilities' && request.method === 'GET') {
         return new Response(
