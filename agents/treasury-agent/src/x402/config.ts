@@ -2,18 +2,20 @@ import type { Address } from 'viem';
 
 /**
  * x402 Configuration for Treasury Agent
- * OIK-50: Updated for Base Sepolia (x402 native support)
+ * OIK-51: Using official Base Sepolia USDC for x402 payments
+ * (MockUSDC/MockDAI are still used for Uniswap pool trading)
  */
 
 // Official Base Sepolia USDC with EIP-2612 permit support (OIK-52)
+// Faucet: https://faucet.circle.com/
 export const PAYMENT_TOKEN: Address = '0x036CbD53842c5426634e7929541eC2318f3dCF7e';
 
 // EIP-712 domain params for official USDC (required by x402 SDK)
 export const PAYMENT_TOKEN_NAME = 'USDC';
 export const PAYMENT_TOKEN_VERSION = '2';
 
-// Network identifier - use human-readable format for x402 SDK compatibility
-// The x402 SDK uses 'base-sepolia' internally, not CAIP-2 'eip155:84532'
+// Network identifier - use human-readable format that matches x402 SDK registered networks
+// SDK registered networks: ["base-sepolia", "base", "polygon", ...]
 export const NETWORK = 'base-sepolia'; // Base Sepolia
 
 // Legacy Sepolia (for reference)
