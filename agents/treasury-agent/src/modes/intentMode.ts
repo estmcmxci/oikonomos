@@ -39,6 +39,60 @@ interface PoolKey {
   hooks: Address;
 }
 
+/**
+ * Build the EIP-712 typed data for an intent (without signing)
+ * Used for clients to sign the intent themselves
+ */
+export function buildIntentTypedData(env: Env, params: IntentParams & { deadline: bigint }) {
+  return {
+    domain: {
+      name: 'OikonomosIntentRouter',
+      version: '1',
+      chainId: parseInt(env.CHAIN_ID),
+      verifyingContract: env.INTENT_ROUTER as Address,
+    },
+    types: {
+      Intent: [
+        { name: 'user', type: 'address' },
+        { name: 'tokenIn', type: 'address' },
+        { name: 'tokenOut', type: 'address' },
+        { name: 'amountIn', type: 'uint256' },
+        { name: 'maxSlippage', type: 'uint256' },
+        { name: 'deadline', type: 'uint256' },
+        { name: 'strategyId', type: 'bytes32' },
+        { name: 'nonce', type: 'uint256' },
+      ],
+    },
+    primaryType: 'Intent' as const,
+    message: {
+      user: params.user,
+      tokenIn: params.tokenIn,
+      tokenOut: params.tokenOut,
+      amountIn: params.amountIn,
+      maxSlippage: BigInt(params.maxSlippageBps),
+      deadline: params.deadline,
+      strategyId: params.strategyId,
+      nonce: params.nonce,
+    },
+  };
+}
+
+/**
+ * Build the intent message without signing - returns data needed for client-side signing
+ */
+export function buildIntentMessage(
+  env: Env,
+  params: IntentParams
+): { intent: SignedIntentData; typedData: ReturnType<typeof buildIntentTypedData> } {
+  const deadline = BigInt(Math.floor(Date.now() / 1000) + params.ttlSeconds);
+  const intentWithDeadline = { ...params, deadline };
+
+  return {
+    intent: intentWithDeadline,
+    typedData: buildIntentTypedData(env, intentWithDeadline),
+  };
+}
+
 export async function buildAndSignIntent(
   env: Env,
   params: IntentParams
@@ -58,38 +112,12 @@ export async function buildAndSignIntent(
     deadline,
   };
 
+  const typedData = buildIntentTypedData(env, intent);
+
   // Sign the intent using EIP-712
   const signature = await walletClient.signTypedData({
     account,
-    domain: {
-      name: 'OikonomosIntentRouter',
-      version: '1',
-      chainId: parseInt(env.CHAIN_ID),
-      verifyingContract: env.INTENT_ROUTER as Address,
-    },
-    types: {
-      Intent: [
-        { name: 'user', type: 'address' },
-        { name: 'tokenIn', type: 'address' },
-        { name: 'tokenOut', type: 'address' },
-        { name: 'amountIn', type: 'uint256' },
-        { name: 'maxSlippage', type: 'uint256' },
-        { name: 'deadline', type: 'uint256' },
-        { name: 'strategyId', type: 'bytes32' },
-        { name: 'nonce', type: 'uint256' },
-      ],
-    },
-    primaryType: 'Intent',
-    message: {
-      user: intent.user,
-      tokenIn: intent.tokenIn,
-      tokenOut: intent.tokenOut,
-      amountIn: intent.amountIn,
-      maxSlippage: BigInt(intent.maxSlippageBps),
-      deadline: intent.deadline,
-      strategyId: intent.strategyId,
-      nonce: intent.nonce,
-    },
+    ...typedData,
   });
 
   return {

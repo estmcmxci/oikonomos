@@ -19,7 +19,8 @@ export interface PaymentValidationResult {
 }
 
 /**
- * Build x402 payment requirement for 402 response
+ * Build x402 payment requirement for 402 response and facilitator verification
+ * OIK-52: Include EIP-712 domain params for permit support
  */
 export function buildPaymentRequirement(
   feeAmount: string,
@@ -36,7 +37,12 @@ export function buildPaymentRequirement(
     mimeType: 'application/json',
     payTo,
     maxTimeoutSeconds: PAYMENT_TIMEOUT_SECONDS,
-    asset: PAYMENT_TOKEN, // Full token address for x402 SDK
+    asset: PAYMENT_TOKEN,
+    // EIP-712 domain params required by facilitator for permit verification
+    extra: {
+      name: PAYMENT_TOKEN_NAME,
+      version: PAYMENT_TOKEN_VERSION,
+    },
   };
 }
 
@@ -65,10 +71,7 @@ export function create402Response(
         payTo: requirement.payTo,
         maxTimeoutSeconds: requirement.maxTimeoutSeconds,
         asset: requirement.asset, // Token address for x402 SDK
-        extra: {
-          name: PAYMENT_TOKEN_NAME,
-          version: PAYMENT_TOKEN_VERSION,
-        },
+        extra: requirement.extra, // EIP-712 domain params from buildPaymentRequirement
       },
     ],
     error: 'Payment Required',
@@ -171,10 +174,19 @@ export async function validateX402Payment(
   resource: string
 ): Promise<PaymentValidationResult> {
   console.log('[x402] Validating payment...');
-  console.log('[x402] Headers:', Object.fromEntries(request.headers.entries()));
+
+  // OIK-52 Debug: Log all headers to see what we're receiving
+  const headersObj = Object.fromEntries(request.headers.entries());
+  console.log('[x402] All headers:', JSON.stringify(headersObj));
+
+  // Check specific payment headers
+  const paymentSig = request.headers.get('PAYMENT-SIGNATURE');
+  const xPayment = request.headers.get('X-PAYMENT');
+  console.log('[x402] PAYMENT-SIGNATURE header:', paymentSig ? 'present' : 'missing');
+  console.log('[x402] X-PAYMENT header:', xPayment ? 'present' : 'missing');
 
   const payload = extractPaymentPayload(request);
-  console.log('[x402] Extracted payload:', JSON.stringify(payload));
+  console.log('[x402] Extracted payload:', payload ? 'found' : 'null');
 
   if (!payload) {
     return { valid: false, error: 'No payment header provided' };

@@ -5,7 +5,7 @@ import { handleRebalance } from './rebalance/executor';
 import { handlePortfolio } from './portfolio/handler';
 import { handleSuggestPolicy } from './suggestion/handler';
 import { handleQuote } from './quote/handler';
-import { handleExecute } from './execute/handler';
+import { handleExecute, handlePrepareExecute } from './execute/handler';
 import { getFeeAnalytics, getRecentEarnings } from './x402/analytics';
 import { handleScheduledTrigger, handleEventsWebhook, savePolicy, saveAuthorization, deleteAuthorization, type UserAuthorization } from './observation';
 
@@ -27,7 +27,8 @@ export interface Env {
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  // OIK-52: Allow x402 payment headers (PAYMENT-SIGNATURE, X-PAYMENT)
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, PAYMENT-SIGNATURE, X-PAYMENT',
 };
 
 // In-memory lock for preventing concurrent rebalances per user
@@ -231,6 +232,11 @@ export default {
       // Quote endpoint (OIK-36)
       if (url.pathname === '/quote' && request.method === 'POST') {
         return handleQuote(request, env, CORS_HEADERS);
+      }
+
+      // Prepare execute endpoint (OIK-52: Returns EIP-712 data for user to sign)
+      if (url.pathname === '/prepare-execute' && request.method === 'POST') {
+        return handlePrepareExecute(request, env, CORS_HEADERS);
       }
 
       // Execute endpoint (OIK-40: x402 payment-gated execution)
