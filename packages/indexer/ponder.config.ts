@@ -18,7 +18,7 @@ const BASE_SEPOLIA_IDENTITY_REGISTRY_START_BLOCK = 37200000; // Approximate
 
 export default createConfig({
   // Note: Schema is passed via CLI --schema flag in package.json scripts
-  // Bumped to v4 for OIK-50: added Base Sepolia multi-chain support
+  // Bumped to v5 for OIK-50: Base Sepolia reindex after E2E test
   chains: {
     sepolia: {
       id: 11155111,
