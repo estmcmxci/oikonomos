@@ -2,13 +2,18 @@ import type { Address } from 'viem';
 
 /**
  * x402 Configuration for Treasury Agent
+ * OIK-50: Updated for Base Sepolia (x402 native support)
  */
 
-// Sepolia USDC (Aave testnet)
-export const PAYMENT_TOKEN: Address = '0x94a9D9AC8a22534E3FaCa9F4e7F2E2cf85d5E4C8';
+// Base Sepolia MockUSDC (OIK-50)
+export const PAYMENT_TOKEN: Address = '0x524C057B1030B3D832f1688e4993159C7A124518';
 
 // Network in CAIP-2 format
-export const NETWORK = 'eip155:11155111'; // Sepolia
+export const NETWORK = 'eip155:84532'; // Base Sepolia
+
+// Legacy Sepolia (for reference)
+// export const PAYMENT_TOKEN: Address = '0x94a9D9AC8a22534E3FaCa9F4e7F2E2cf85d5E4C8';
+// export const NETWORK = 'eip155:11155111'; // Sepolia
 
 // x402 Facilitator URL (use x402.org public facilitator for testnet)
 export const FACILITATOR_URL = 'https://x402.org/facilitator';

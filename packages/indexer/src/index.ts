@@ -245,8 +245,27 @@ async function extractENSFromAgentURI(agentURI: string): Promise<string | null> 
   }
 }
 
-// ReceiptHook handlers
-ponder.on('ReceiptHook:ExecutionReceipt', async ({ event, context }) => {
+// ReceiptHook handlers (shared logic for both chains)
+async function handleExecutionReceipt(
+  event: {
+    args: {
+      strategyId: `0x${string}`;
+      quoteId: `0x${string}`;
+      user: `0x${string}`;
+      router: `0x${string}`;
+      amount0: bigint;
+      amount1: bigint;
+      actualSlippage: bigint;
+      policyCompliant: boolean;
+      timestamp: bigint;
+    };
+    transaction: { hash: `0x${string}` };
+    log: { logIndex: number };
+    block: { number: bigint };
+  },
+  context: { db: any },
+  chainId: number
+) {
   const receiptId = `${event.transaction.hash}-${event.log.logIndex}`;
 
   // Store the receipt
@@ -302,7 +321,7 @@ ponder.on('ReceiptHook:ExecutionReceipt', async ({ event, context }) => {
       // OIK-46: Computed reputation score
       score: initialScore,
     })
-    .onConflictDoUpdate((existing) => {
+    .onConflictDoUpdate((existing: any) => {
       const newTotalExecutions = existing.totalExecutions + 1n;
       const newTotalVolume = existing.totalVolume + volume;
       const newSlippageSum = existing.slippageSum + event.args.actualSlippage;
@@ -352,13 +371,28 @@ ponder.on('ReceiptHook:ExecutionReceipt', async ({ event, context }) => {
       timestamp: event.args.timestamp.toString(),
       transactionHash: event.transaction.hash,
     },
-    11155111 // Sepolia chain ID
+    chainId
   );
+}
+
+// Sepolia ReceiptHook handler
+ponder.on('ReceiptHook:ExecutionReceipt', async ({ event, context }) => {
+  await handleExecutionReceipt(event, context, 11155111);
 });
 
-// Canonical ERC-8004 IdentityRegistry handlers (howto8004.com)
-// Event: Registered(uint256 indexed agentId, string agentURI, address indexed owner)
-ponder.on('IdentityRegistry:Registered', async ({ event, context }) => {
+// Base Sepolia ReceiptHook handler (OIK-50)
+ponder.on('ReceiptHookBaseSepolia:ExecutionReceipt', async ({ event, context }) => {
+  await handleExecutionReceipt(event, context, 84532);
+});
+
+// IdentityRegistry handlers (shared logic for both chains)
+async function handleRegistered(
+  event: {
+    args: { agentId: bigint; agentURI: string; owner: `0x${string}` };
+    block: { timestamp: bigint };
+  },
+  context: { db: any }
+) {
   // Extract ENS name from metadata (OIK-35, OIK-38)
   const ens = await extractENSFromAgentURI(event.args.agentURI);
 
@@ -375,27 +409,26 @@ ponder.on('IdentityRegistry:Registered', async ({ event, context }) => {
     id: event.args.agentId.toString(),
     owner: event.args.owner,
     agentURI: event.args.agentURI,
-    agentWallet: event.args.owner, // Initially same as owner, updated via MetadataSet
-    ens, // ENS name from metadata
-    strategyId, // keccak256(ens) for dynamic resolution (OIK-38)
+    agentWallet: event.args.owner,
+    ens,
+    strategyId,
     registeredAt: event.block.timestamp,
   });
 
   console.log(`[agent] Indexed marketplace agent ${event.args.agentId}: ${ens} (strategyId: ${strategyId})`);
-});
+}
 
-// Event: MetadataSet - handles agentWallet updates
-// Only updates existing marketplace agents (doesn't create new entries)
-ponder.on('IdentityRegistry:MetadataSet', async ({ event, context }) => {
-  // Check if this is an agentWallet update
+async function handleMetadataSet(
+  event: {
+    args: { agentId: bigint; metadataKey: string; metadataValue: `0x${string}` };
+  },
+  context: { db: any }
+) {
   if (event.args.metadataKey === 'agentWallet') {
-    // metadataValue is the wallet address encoded as bytes
     const walletAddress = ('0x' + event.args.metadataValue.slice(2).slice(0, 40)) as `0x${string}`;
 
-    // Check if agent exists (was indexed as marketplace agent via Registered)
     const existing = await context.db.find(agent, { id: event.args.agentId.toString() });
     if (!existing) {
-      // Agent not in marketplace - skip silently
       return;
     }
 
@@ -405,14 +438,17 @@ ponder.on('IdentityRegistry:MetadataSet', async ({ event, context }) => {
 
     console.log(`[agent] Updated wallet for agent ${event.args.agentId} to ${walletAddress}`);
   }
-});
+}
 
-// Event: URIUpdated - handles agent URI changes (may change ENS)
-// Uses upsert pattern since URIUpdated can fire for agents registered before start block
-ponder.on('IdentityRegistry:URIUpdated', async ({ event, context }) => {
+async function handleURIUpdated(
+  event: {
+    args: { agentId: bigint; newURI: string; updatedBy: `0x${string}` };
+    block: { timestamp: bigint };
+  },
+  context: { db: any }
+) {
   const ens = await extractENSFromAgentURI(event.args.newURI);
 
-  // Only index agents in our marketplace (OIK-45)
   if (!isMarketplaceAgent(ens)) {
     console.log(`[agent] Skipping URI update for agent ${event.args.agentId} - not in marketplace`);
     return;
@@ -424,7 +460,7 @@ ponder.on('IdentityRegistry:URIUpdated', async ({ event, context }) => {
     .insert(agent)
     .values({
       id: event.args.agentId.toString(),
-      owner: event.args.updatedBy, // Best guess for owner
+      owner: event.args.updatedBy,
       agentURI: event.args.newURI,
       agentWallet: event.args.updatedBy,
       ens,
@@ -438,4 +474,31 @@ ponder.on('IdentityRegistry:URIUpdated', async ({ event, context }) => {
     });
 
   console.log(`[agent] Updated marketplace agent ${event.args.agentId}: ${ens}`);
+}
+
+// Sepolia IdentityRegistry handlers
+ponder.on('IdentityRegistry:Registered', async ({ event, context }) => {
+  await handleRegistered(event, context);
 });
+
+ponder.on('IdentityRegistry:MetadataSet', async ({ event, context }) => {
+  await handleMetadataSet(event, context);
+});
+
+ponder.on('IdentityRegistry:URIUpdated', async ({ event, context }) => {
+  await handleURIUpdated(event, context);
+});
+
+// Base Sepolia IdentityRegistry handlers (OIK-50)
+ponder.on('IdentityRegistryBaseSepolia:Registered', async ({ event, context }) => {
+  await handleRegistered(event, context);
+});
+
+ponder.on('IdentityRegistryBaseSepolia:MetadataSet', async ({ event, context }) => {
+  await handleMetadataSet(event, context);
+});
+
+ponder.on('IdentityRegistryBaseSepolia:URIUpdated', async ({ event, context }) => {
+  await handleURIUpdated(event, context);
+});
+
