@@ -1,9 +1,14 @@
 // OIK-34: Multi-Agent Marketplace Discovery
 // Fetches registered agents, resolves ENS marketplace records, filters & ranks
 
-import { createPublicClient, http, namehash, type Address } from 'viem';
+import { createPublicClient, http, namehash, keccak256, toBytes, type Address } from 'viem';
 import type { Env } from '../index';
 import { getChain } from '../config/chain';
+
+// Helper to compute strategyId from ENS name (keccak256 hash)
+function computeStrategyId(ensName: string): `0x${string}` {
+  return keccak256(toBytes(ensName));
+}
 
 // ENS Public Resolver on Sepolia (from oikonomos.eth subnames)
 const ENS_PUBLIC_RESOLVER = '0xe99638b40e4fff0129d56f03b55b6bbc4bbe49b5';
@@ -29,6 +34,7 @@ export interface IndexerAgent {
   agentURI: string;
   agentWallet: string;
   ens: string | null;
+  strategyId?: string; // OIK-53: keccak256(ens) from indexer for trust score lookup
   registeredAt: string;
 }
 
@@ -68,6 +74,7 @@ export interface AgentCapabilities {
 
 // Known agents for MVP fallback (when indexer is empty or unavailable)
 // These are agents registered on Sepolia with ENS records
+// OIK-53: strategyId is keccak256(ens) - pre-computed for trust score lookup
 const KNOWN_AGENTS: IndexerAgent[] = [
   {
     id: '642',
@@ -75,6 +82,7 @@ const KNOWN_AGENTS: IndexerAgent[] = [
     agentURI: 'treasury.oikonomos.eth',
     agentWallet: '0x1C2F3137E71dEC33c6111cFeB7F58B8389F9fF21',
     ens: 'treasury.oikonomos.eth',
+    strategyId: computeStrategyId('treasury.oikonomos.eth'),
     registeredAt: '1706745600',
   },
   {
@@ -83,6 +91,7 @@ const KNOWN_AGENTS: IndexerAgent[] = [
     agentURI: 'alice-treasury.oikonomos.eth',
     agentWallet: '0x1C2F3137E71dEC33c6111cFeB7F58B8389F9fF21',
     ens: 'alice-treasury.oikonomos.eth',
+    strategyId: computeStrategyId('alice-treasury.oikonomos.eth'),
     registeredAt: '1706745600',
   },
   {
@@ -91,6 +100,7 @@ const KNOWN_AGENTS: IndexerAgent[] = [
     agentURI: 'bob-strategy.oikonomos.eth',
     agentWallet: '0x1C2F3137E71dEC33c6111cFeB7F58B8389F9fF21',
     ens: 'bob-strategy.oikonomos.eth',
+    strategyId: computeStrategyId('bob-strategy.oikonomos.eth'),
     registeredAt: '1706745600',
   },
 ];
@@ -248,27 +258,21 @@ export async function resolveMarketplaceRecords(
  *   25% compliance rate
  *   25% volume (log scale)
  *   15% execution count (log scale)
+ *
+ * OIK-53: Now accepts strategyId directly instead of computing it
+ * (was incorrectly using SHA-256, but indexer stores keccak256)
  */
 export async function calculateTrustScore(
   env: Env,
-  agentId: string,
-  ensName?: string
+  strategyId?: string
 ): Promise<number> {
-  const indexerUrl = env.INDEXER_URL || 'https://oikonomos-indexer.ponder.sh';
+  const indexerUrl = env.INDEXER_URL || 'https://indexer-production-323e.up.railway.app';
 
   try {
-    // strategyId is the keccak256 hash of the ENS name
-    // We need to compute this to lookup metrics
-    if (!ensName) {
-      return 50; // No ENS name, return default
+    // OIK-53: strategyId should be passed from agent record (keccak256 hash from indexer)
+    if (!strategyId) {
+      return 50; // No strategyId, return default
     }
-
-    // Compute strategyId from ENS name (same as contracts do)
-    const encoder = new TextEncoder();
-    const data = encoder.encode(ensName);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    const strategyId = '0x' + hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 
     const response = await fetch(`${indexerUrl}/strategies/${strategyId}`, {
       signal: AbortSignal.timeout(5000),
@@ -276,6 +280,7 @@ export async function calculateTrustScore(
 
     if (!response.ok) {
       // No metrics yet - return base score for new agents
+      console.log(`[marketplace] No metrics found for strategyId ${strategyId}, using default score`);
       return 50;
     }
 
@@ -284,7 +289,16 @@ export async function calculateTrustScore(
       totalVolume: string;
       avgSlippage: string;
       complianceRate: string;
+      score?: string; // OIK-46: Pre-computed score from indexer
     };
+
+    // OIK-46: If indexer provides pre-computed score, use it (0-10000 scale -> 0-100)
+    if (metrics.score) {
+      const indexerScore = parseInt(metrics.score) || 0;
+      const normalizedScore = Math.floor(indexerScore / 100); // 10000 -> 100
+      console.log(`[marketplace] Using indexer score for ${strategyId}: ${normalizedScore}`);
+      return Math.min(100, Math.max(0, normalizedScore));
+    }
 
     // Parse metrics (they come as strings from BigInt serialization)
     const executions = parseInt(metrics.totalExecutions) || 0;
@@ -307,6 +321,7 @@ export async function calculateTrustScore(
 
     const totalScore = slippageScore + complianceScore + volumeScore + executionScore;
 
+    console.log(`[marketplace] Calculated trust score for ${strategyId}: ${totalScore}`);
     return Math.min(100, Math.max(0, totalScore));
   } catch (error) {
     console.error('[marketplace] Error calculating trust score:', error);
@@ -367,7 +382,9 @@ export async function discoverMarketplaceAgents(
         }
       }
 
-      const trustScore = await calculateTrustScore(env, agent.id, agent.ens!);
+      // OIK-53: Pass strategyId directly (from indexer or computed from ENS)
+      const strategyId = agent.strategyId || (agent.ens ? computeStrategyId(agent.ens) : undefined);
+      const trustScore = await calculateTrustScore(env, strategyId);
       return { ...agent, records, trustScore };
     })
   );
