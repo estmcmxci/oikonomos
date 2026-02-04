@@ -98,6 +98,62 @@ function absBigInt(n: bigint): bigint {
   return n >= 0n ? n : -n;
 }
 
+/**
+ * OIK-46: Compute reputation score from strategy metrics
+ * Formula:
+ * - 40% compliance rate (0-4000 points from complianceRate basis points)
+ * - 30% volume tier (log scale, 0-3000 points)
+ * - 20% execution count tier (log scale, 0-2000 points)
+ * - 10% slippage (inverse, lower = better, 0-1000 points)
+ *
+ * Returns score in basis points (0-10000 = 0.00-100.00%)
+ */
+function computeReputationScore(metrics: {
+  complianceRate: bigint; // basis points (0-10000)
+  totalVolume: bigint; // wei
+  totalExecutions: bigint; // count
+  avgSlippage: bigint; // basis points
+}): bigint {
+  // 40% from compliance (scale 0-10000 to 0-4000)
+  const complianceScore = (metrics.complianceRate * 40n) / 100n;
+
+  // 30% from volume tier (log scale based on ETH value, 1 ETH = 10^18 wei)
+  // Tiers: <1 ETH = 0, 1-10 ETH = 1000, 10-100 ETH = 2000, 100+ ETH = 3000
+  const oneEth = 10n ** 18n;
+  let volumeScore = 0n;
+  if (metrics.totalVolume >= 100n * oneEth) {
+    volumeScore = 3000n;
+  } else if (metrics.totalVolume >= 10n * oneEth) {
+    volumeScore = 2000n;
+  } else if (metrics.totalVolume >= oneEth) {
+    volumeScore = 1000n;
+  }
+
+  // 20% from execution count tier (log scale)
+  // Tiers: <5 = 0, 5-19 = 667, 20-99 = 1333, 100+ = 2000
+  let executionScore = 0n;
+  if (metrics.totalExecutions >= 100n) {
+    executionScore = 2000n;
+  } else if (metrics.totalExecutions >= 20n) {
+    executionScore = 1333n;
+  } else if (metrics.totalExecutions >= 5n) {
+    executionScore = 667n;
+  }
+
+  // 10% from slippage (inverse - lower slippage = higher score)
+  // 0 bps = 1000 pts, 50 bps = 500 pts, 100+ bps = 0 pts
+  let slippageScore = 0n;
+  if (metrics.avgSlippage <= 0n) {
+    slippageScore = 1000n;
+  } else if (metrics.avgSlippage < 100n) {
+    // Linear interpolation: 1000 - (slippage * 10)
+    slippageScore = 1000n - metrics.avgSlippage * 10n;
+  }
+  // 100+ bps = 0 points
+
+  return complianceScore + volumeScore + executionScore + slippageScore;
+}
+
 // IPFS Gateway URL (configurable via env, defaults to public gateway)
 const IPFS_GATEWAY_URL = process.env.IPFS_GATEWAY_URL || 'https://ipfs.io/ipfs';
 
@@ -219,6 +275,15 @@ ponder.on('ReceiptHook:ExecutionReceipt', async ({ event, context }) => {
   // Determine if execution was successful (policyCompliant is a good proxy for now)
   const isSuccess = event.args.policyCompliant;
 
+  // Compute initial score for first execution
+  const initialComplianceRate = event.args.policyCompliant ? 10000n : 0n;
+  const initialScore = computeReputationScore({
+    complianceRate: initialComplianceRate,
+    totalVolume: volume,
+    totalExecutions: 1n,
+    avgSlippage: event.args.actualSlippage,
+  });
+
   await context.db
     .insert(strategyMetrics)
     .values({
@@ -233,26 +298,41 @@ ponder.on('ReceiptHook:ExecutionReceipt', async ({ event, context }) => {
       // Legacy computed fields (for backwards compatibility)
       avgSlippage: event.args.actualSlippage,
       successRate: isSuccess ? 10000n : 0n,
-      complianceRate: event.args.policyCompliant ? 10000n : 0n,
+      complianceRate: initialComplianceRate,
+      // OIK-46: Computed reputation score
+      score: initialScore,
     })
     .onConflictDoUpdate((existing) => {
       const newTotalExecutions = existing.totalExecutions + 1n;
+      const newTotalVolume = existing.totalVolume + volume;
       const newSlippageSum = existing.slippageSum + event.args.actualSlippage;
       const newCompliantCount = existing.compliantCount + (event.args.policyCompliant ? 1n : 0n);
       const newSuccessCount = existing.successCount + (isSuccess ? 1n : 0n);
+      const newAvgSlippage = newSlippageSum / newTotalExecutions;
+      const newComplianceRate = (newCompliantCount * 10000n) / newTotalExecutions;
+
+      // OIK-46: Recompute score with updated metrics
+      const newScore = computeReputationScore({
+        complianceRate: newComplianceRate,
+        totalVolume: newTotalVolume,
+        totalExecutions: newTotalExecutions,
+        avgSlippage: newAvgSlippage,
+      });
 
       return {
         totalExecutions: newTotalExecutions,
-        totalVolume: existing.totalVolume + volume,
+        totalVolume: newTotalVolume,
         // Store sums (calculate rates on query for precision)
         slippageSum: newSlippageSum,
         compliantCount: newCompliantCount,
         successCount: newSuccessCount,
         lastExecutionAt: event.args.timestamp,
         // Legacy computed fields (truncation still occurs, but sums are available for precise calc)
-        avgSlippage: newSlippageSum / newTotalExecutions,
+        avgSlippage: newAvgSlippage,
         successRate: (newSuccessCount * 10000n) / newTotalExecutions,
-        complianceRate: (newCompliantCount * 10000n) / newTotalExecutions,
+        complianceRate: newComplianceRate,
+        // OIK-46: Updated reputation score
+        score: newScore,
       };
     });
 
