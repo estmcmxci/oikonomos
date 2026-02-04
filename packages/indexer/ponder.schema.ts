@@ -65,6 +65,7 @@ export const subname = onchainTable('subname', (t) => ({
   fullName: t.text().notNull(), // Full ENS name (e.g., "treasury.oikonomos.eth")
   owner: t.hex().notNull(),
   agentId: t.text().notNull(), // Associated ERC-8004 agent ID
+  a2aUrl: t.text().notNull(), // A2A protocol endpoint URL (e.g., "https://treasury.oikonomos.workers.dev")
   expiry: t.bigint().notNull(),
   registeredAt: t.bigint().notNull(),
   transactionHash: t.hex().notNull(),

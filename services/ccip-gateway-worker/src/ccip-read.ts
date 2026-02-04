@@ -2,7 +2,7 @@
  * CCIP-Read (EIP-3668) Gateway Implementation for Oikonomos
  *
  * Handles OffchainLookup requests for oikonomos.eth subname registration.
- * Extended to support agentId for ERC-8004 integration.
+ * Extended to support agentId and a2aUrl for ERC-8004 and A2A protocol integration.
  */
 
 import type { Hex } from "viem";
@@ -22,7 +22,7 @@ import type { Env, DecodedRequest, CCIPReadRequest } from "./types";
 
 /**
  * ABI schema for decoding OffchainLookup callData
- * Extended to include agentId for Oikonomos
+ * Extended to include agentId and a2aUrl for Oikonomos
  *
  * Matches the encoding in OffchainSubnameManager.sol:
  * abi.encode(
@@ -31,6 +31,7 @@ import type { Env, DecodedRequest, CCIPReadRequest } from "./types";
  *   labelHash,       // bytes32
  *   subnameOwner,    // address
  *   agentId,         // uint256
+ *   a2aUrl,          // string
  *   desiredExpiry,   // uint64
  *   requester,       // address (msg.sender)
  *   chainId,         // uint256 (block.chainid)
@@ -38,15 +39,15 @@ import type { Env, DecodedRequest, CCIPReadRequest } from "./types";
  * )
  */
 const REQUEST_SCHEMA = parseAbiParameters(
-  "bytes32 parentNode,string label,bytes32 labelHash,address subnameOwner,uint256 agentId,uint64 desiredExpiry,address requester,uint256 chainId,address contractAddress"
+  "bytes32 parentNode,string label,bytes32 labelHash,address subnameOwner,uint256 agentId,string a2aUrl,uint64 desiredExpiry,address requester,uint256 chainId,address contractAddress"
 );
 
 /**
  * ABI schema for the message that gets signed
- * Extended to include agentId
+ * Extended to include agentId and a2aUrlHash (hashed to keep signature size manageable)
  */
 const MESSAGE_SCHEMA = parseAbiParameters(
-  "bytes32 parentNode,bytes32 labelHash,address subnameOwner,uint256 agentId,uint64 expiry,address requester,uint256 chainId,address contractAddress"
+  "bytes32 parentNode,bytes32 labelHash,address subnameOwner,uint256 agentId,bytes32 a2aUrlHash,uint64 expiry,address requester,uint256 chainId,address contractAddress"
 );
 
 /**
@@ -135,6 +136,7 @@ export function decodeCallData(
     labelHash,
     subnameOwner,
     agentId,
+    a2aUrl,
     desiredExpiry,
     requester,
     chainId,
@@ -148,6 +150,7 @@ export function decodeCallData(
       labelHash: labelHash as `0x${string}`,
       subnameOwner: subnameOwner as `0x${string}`,
       agentId: agentId as bigint,
+      a2aUrl: a2aUrl as string,
       desiredExpiry: desiredExpiry as bigint,
       requester: requester as `0x${string}`,
       chainId: chainId as bigint,
@@ -168,19 +171,24 @@ export async function buildCCIPReadResponse(
   labelHash: `0x${string}`,
   subnameOwner: `0x${string}`,
   agentId: bigint,
+  a2aUrl: string,
   expiry: bigint,
   requester: `0x${string}`,
   chainId: bigint,
   contractAddress: `0x${string}`,
   env: Env
 ): Promise<{ data?: Hex; error?: Response }> {
-  // Create message hash that will be signed (includes agentId)
+  // Hash the a2aUrl to keep signature size manageable (matches contract)
+  const a2aUrlHash = keccak256(new TextEncoder().encode(a2aUrl));
+
+  // Create message hash that will be signed (includes agentId and a2aUrlHash)
   const messageHash = keccak256(
     encodeAbiParameters(MESSAGE_SCHEMA, [
       parentNode,
       labelHash,
       subnameOwner,
       agentId,
+      a2aUrlHash,
       expiry,
       requester,
       chainId,
@@ -275,6 +283,7 @@ export async function handleCCIPReadRequest(
     labelHash,
     subnameOwner,
     agentId,
+    a2aUrl,
     desiredExpiry,
     requester,
     chainId,
@@ -315,20 +324,24 @@ export async function handleCCIPReadRequest(
   }
 
   // Validate label format (3-32 chars, lowercase alphanumeric + hyphens)
-  const labelRegex = /^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$/;
-  if (!labelRegex.test(label) && label.length !== 3) {
-    // Allow exactly 3-char labels too
-    if (label.length < 3 || label.length > 32) {
+  if (label.length < 3 || label.length > 32) {
+    return jsonResponse(400, {
+      error: "Label must be 3-32 characters",
+    });
+  }
+  if (!/^[a-z0-9][a-z0-9-]*[a-z0-9]$/.test(label) && label.length > 2) {
+    if (!/^[a-z0-9]+$/.test(label)) {
       return jsonResponse(400, {
-        error: "Label must be 3-32 characters",
+        error: "Label must contain only lowercase letters, numbers, and hyphens",
       });
     }
-    if (!/^[a-z0-9-]+$/.test(label)) {
-      return jsonResponse(400, {
-        error:
-          "Label must contain only lowercase letters, numbers, and hyphens",
-      });
-    }
+  }
+
+  // Validate a2aUrl format
+  if (!a2aUrl || !a2aUrl.startsWith("https://")) {
+    return jsonResponse(400, {
+      error: "a2aUrl must be a valid HTTPS URL",
+    });
   }
 
   // Approve the registration
@@ -340,6 +353,7 @@ export async function handleCCIPReadRequest(
     labelHash,
     subnameOwner,
     agentId,
+    a2aUrl,
     expiry,
     requester,
     chainId,
@@ -357,6 +371,7 @@ export async function handleCCIPReadRequest(
       label,
       subnameOwner,
       agentId: agentId.toString(),
+      a2aUrl,
       fullName: `${label}.oikonomos.eth`,
     },
   });

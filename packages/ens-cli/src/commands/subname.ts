@@ -37,6 +37,7 @@ export type SubnameRegisterOptions = {
   label: string;
   owner: string;
   agentId: string;
+  a2aUrl: string;
   expiry?: string;
   network?: string;
 } & LedgerOptions;
@@ -67,9 +68,8 @@ interface CCIPNetworkConfig {
 const CCIP_CONFIGS: Record<string, CCIPNetworkConfig> = {
   sepolia: {
     chain: sepolia,
-    // UPDATE after deployment
-    managerAddress: "0x0000000000000000000000000000000000000000" as Address,
-    gatewayUrl: "https://oikonomos-ccip.workers.dev",
+    managerAddress: "0x89E3740C8b81D90e146c62B6C6451b85Ec8E6E78" as Address,
+    gatewayUrl: "https://oikonomos-ccip-gateway.estmcmxci.workers.dev",
     parentNode: computeOikonomosParentNode(),
     rpcUrl: process.env.SEPOLIA_RPC_URL || "https://rpc.sepolia.org",
   },
@@ -146,6 +146,7 @@ export async function subnameAvailable(options: SubnameAvailableOptions) {
       if (record) {
         console.log(colors.dim(`  Owner: ${record.owner}`));
         console.log(colors.dim(`  Agent ID: ${record.agentId}`));
+        console.log(colors.dim(`  A2A URL: ${record.a2aUrl}`));
       }
     }
   } catch (error) {
@@ -158,7 +159,7 @@ export async function subnameAvailable(options: SubnameAvailableOptions) {
  * Register a new subname
  */
 export async function subnameRegister(options: SubnameRegisterOptions) {
-  const { label, owner, agentId, expiry = "0", network = "sepolia" } = options;
+  const { label, owner, agentId, a2aUrl, expiry = "0", network = "sepolia" } = options;
 
   // Validate label
   const validation = validateLabel(label);
@@ -170,6 +171,12 @@ export async function subnameRegister(options: SubnameRegisterOptions) {
   // Validate owner address
   if (!owner.startsWith("0x") || owner.length !== 42) {
     console.error(colors.red("Invalid owner address"));
+    return;
+  }
+
+  // Validate a2aUrl
+  if (!a2aUrl || !a2aUrl.startsWith("https://")) {
+    console.error(colors.red("Invalid a2aUrl - must be a valid HTTPS URL"));
     return;
   }
 
@@ -194,6 +201,7 @@ export async function subnameRegister(options: SubnameRegisterOptions) {
   console.log(colors.blue(`\nRegistering ${label}.oikonomos.eth`));
   console.log(colors.dim(`  Owner: ${owner}`));
   console.log(colors.dim(`  Agent ID: ${agentId}`));
+  console.log(colors.dim(`  A2A URL: ${a2aUrl}`));
   console.log(colors.dim(`  Network: ${network}`));
   console.log();
 
@@ -245,6 +253,7 @@ export async function subnameRegister(options: SubnameRegisterOptions) {
         label,
         subnameOwner: owner as Address,
         agentId: agentIdBigInt,
+        a2aUrl,
         desiredExpiry: expiryBigInt,
       },
       {
@@ -266,6 +275,7 @@ export async function subnameRegister(options: SubnameRegisterOptions) {
         `  agent:erc8004: eip155:${config.chain.id}:0x8004A818BFB912233c491871b3d84c89A494BD9e:${agentId}`
       )
     );
+    console.log(colors.dim(`  agent:a2a: ${a2aUrl}`));
   } catch (error) {
     stopSpinner();
     console.error(colors.red(`\nRegistration failed: ${(error as Error).message}`));
@@ -304,6 +314,7 @@ export async function subnameInfo(options: SubnameInfoOptions) {
     console.log(colors.dim("─".repeat(40)));
     console.log(`  Owner:         ${record.owner}`);
     console.log(`  Agent ID:      ${record.agentId}`);
+    console.log(`  A2A URL:       ${record.a2aUrl}`);
     console.log(
       `  Registered:    ${new Date(Number(record.registeredAt) * 1000).toISOString()}`
     );

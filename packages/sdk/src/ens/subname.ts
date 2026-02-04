@@ -29,6 +29,8 @@ export interface SubnameRegistrationParams {
   subnameOwner: Address;
   /** ERC-8004 agent ID to associate with this subname */
   agentId: bigint;
+  /** A2A protocol endpoint URL (e.g., "https://treasury.oikonomos.workers.dev") */
+  a2aUrl: string;
   /** Optional expiry timestamp (0 for no expiry) */
   desiredExpiry?: bigint;
 }
@@ -47,6 +49,7 @@ export interface CCIPConfig {
 export interface SubnameRecord {
   owner: Address;
   agentId: bigint;
+  a2aUrl: string;
   expiry: bigint;
   registeredAt: bigint;
 }
@@ -62,6 +65,7 @@ export const OffchainSubnameManagerABI = [
       { name: "label", type: "string" },
       { name: "subnameOwner", type: "address" },
       { name: "agentId", type: "uint256" },
+      { name: "a2aUrl", type: "string" },
       { name: "desiredExpiry", type: "uint64" },
     ],
     name: "registerSubname",
@@ -100,6 +104,7 @@ export const OffchainSubnameManagerABI = [
         components: [
           { name: "owner", type: "address" },
           { name: "agentId", type: "uint256" },
+          { name: "a2aUrl", type: "string" },
           { name: "expiry", type: "uint64" },
           { name: "registeredAt", type: "uint64" },
         ],
@@ -221,6 +226,7 @@ export async function getSubnameRecord(
     return {
       owner: record.owner,
       agentId: record.agentId,
+      a2aUrl: record.a2aUrl,
       expiry: record.expiry,
       registeredAt: record.registeredAt,
     };
@@ -250,7 +256,7 @@ export async function registerSubname(
   params: SubnameRegistrationParams,
   config: CCIPConfig
 ): Promise<Hex> {
-  const { label, subnameOwner, agentId, desiredExpiry = 0n } = params;
+  const { label, subnameOwner, agentId, a2aUrl, desiredExpiry = 0n } = params;
 
   // Validate label
   const validation = validateLabel(label);
@@ -264,6 +270,11 @@ export async function registerSubname(
     throw new Error(`Subname "${label}.oikonomos.eth" is already registered`);
   }
 
+  // Validate a2aUrl format
+  if (!a2aUrl || !a2aUrl.startsWith("https://")) {
+    throw new Error("a2aUrl must be a valid HTTPS URL");
+  }
+
   // Step 1: Encode the registerSubname call to trigger OffchainLookup
   const callData = encodeFunctionData({
     abi: OffchainSubnameManagerABI,
@@ -273,6 +284,7 @@ export async function registerSubname(
       label,
       subnameOwner,
       agentId,
+      a2aUrl,
       desiredExpiry,
     ],
   });

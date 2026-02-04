@@ -1,4 +1,5 @@
 name = "oikonomos-ccip-gateway"
+# Deployed at: https://oikonomos-ccip-gateway.estmcmxci.workers.dev
 main = "src/index.ts"
 compatibility_date = "2024-01-01"
 
@@ -6,15 +7,14 @@ compatibility_date = "2024-01-01"
 # - PRIVATE_KEY: Trusted signer private key (hex with 0x prefix)
 
 [vars]
-# Contract address - UPDATE after deployment
-CONTRACT_ADDRESS = "0x0000000000000000000000000000000000000000"
+# Contract address (deployed on Sepolia)
+CONTRACT_ADDRESS = "0x89E3740C8b81D90e146c62B6C6451b85Ec8E6E78"
 # Sepolia chain ID
 CHAIN_ID = "11155111"
-# namehash("oikonomos.eth") - computed for Sepolia
-# To compute: cast keccak $(cast abi-encode "f(bytes32,bytes32)" $(cast keccak $(cast abi-encode "f(bytes32,bytes32)" 0x0000000000000000000000000000000000000000000000000000000000000000 $(cast keccak "eth"))) $(cast keccak "oikonomos"))
-PARENT_NODE = "0x0000000000000000000000000000000000000000000000000000000000000000"
-# Trusted signer address - must match PRIVATE_KEY
-TRUSTED_SIGNER = "0x0000000000000000000000000000000000000000"
+# namehash("oikonomos.eth") = 0xbc23131a7dcd8ca1a9bda07c71c3c3ebbeea050103df1f3fa7ab131e604872c5
+PARENT_NODE = "0xbc23131a7dcd8ca1a9bda07c71c3c3ebbeea050103df1f3fa7ab131e604872c5"
+# Trusted signer address - matches deployer/PRIVATE_KEY
+TRUSTED_SIGNER = "0x1C2F3137E71dEC33c6111cFeB7F58B8389F9fF21"
 # ERC-8004 Identity Registry on Sepolia
 IDENTITY_REGISTRY = "0x8004A818BFB912233c491871b3d84c89A494BD9e"
 

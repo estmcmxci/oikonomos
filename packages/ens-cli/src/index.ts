@@ -570,6 +570,12 @@ const subnameRegister = command({
       short: "a",
       description: "ERC-8004 agent ID to associate with this subname",
     }),
+    a2aUrl: option({
+      type: string,
+      long: "a2a-url",
+      short: "u",
+      description: "A2A protocol endpoint URL (e.g., https://treasury.oikonomos.workers.dev)",
+    }),
     expiry: option({
       type: optional(string),
       long: "expiry",
@@ -584,14 +590,15 @@ const subnameRegister = command({
     }),
   },
   handler: async (args) => {
-    if (!args.label || !args.owner || !args.agentId) {
-      console.log("Usage: ens subname register <label> --owner <address> --agent-id <id>");
+    if (!args.label || !args.owner || !args.agentId || !args.a2aUrl) {
+      console.log("Usage: ens subname register <label> --owner <address> --agent-id <id> --a2a-url <url>");
       return;
     }
     await subnameRegisterCmd({
       label: args.label,
       owner: args.owner,
       agentId: args.agentId,
+      a2aUrl: args.a2aUrl,
       expiry: args.expiry,
       network: args.network,
     });

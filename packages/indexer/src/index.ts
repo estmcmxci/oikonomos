@@ -522,12 +522,13 @@ ponder.on('OffchainSubnameManager:SubnameRegistered', async ({ event, context })
     fullName,
     owner: event.args.owner,
     agentId: event.args.agentId.toString(),
+    a2aUrl: event.args.a2aUrl,
     expiry: event.args.expiry,
     registeredAt: event.block.timestamp,
     transactionHash: event.transaction.hash,
     chainId: 11155111, // Sepolia
   });
 
-  console.log(`[subname] Registered ${fullName} -> owner: ${event.args.owner}, agentId: ${event.args.agentId}`);
+  console.log(`[subname] Registered ${fullName} -> owner: ${event.args.owner}, agentId: ${event.args.agentId}, a2aUrl: ${event.args.a2aUrl}`);
 });
 

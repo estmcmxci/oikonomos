@@ -24,7 +24,7 @@ export interface Env {
 
 /**
  * Decoded request parameters from OffchainLookup callData
- * Extended to include agentId for Oikonomos
+ * Extended to include agentId and a2aUrl for Oikonomos
  */
 export interface DecodedRequest {
   parentNode: `0x${string}`;
@@ -32,6 +32,7 @@ export interface DecodedRequest {
   labelHash: `0x${string}`;
   subnameOwner: `0x${string}`;
   agentId: bigint;
+  a2aUrl: string;
   desiredExpiry: bigint;
   requester: `0x${string}`;
   chainId: bigint;

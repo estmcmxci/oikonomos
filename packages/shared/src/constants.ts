@@ -64,14 +64,13 @@ export const ENS_RECORDS = {
 } as const;
 
 // OIK-54: CCIP Subname Configuration
-// NOTE: Update managerAddress after contract deployment
 export const CCIP_CONFIG = {
   sepolia: {
-    managerAddress: '0x0000000000000000000000000000000000000000' as `0x${string}`, // UPDATE after deployment
-    gatewayUrl: 'https://oikonomos-ccip.workers.dev',
+    managerAddress: '0x89E3740C8b81D90e146c62B6C6451b85Ec8E6E78' as `0x${string}`,
+    gatewayUrl: 'https://oikonomos-ccip-gateway.estmcmxci.workers.dev',
     parentName: 'oikonomos.eth',
-    // namehash("oikonomos.eth") - compute with: cast namehash oikonomos.eth
-    parentNode: '0x0000000000000000000000000000000000000000000000000000000000000000' as `0x${string}`, // UPDATE after computing
+    // namehash("oikonomos.eth") = 0xbc23131a7dcd8ca1a9bda07c71c3c3ebbeea050103df1f3fa7ab131e604872c5
+    parentNode: '0xbc23131a7dcd8ca1a9bda07c71c3c3ebbeea050103df1f3fa7ab131e604872c5' as `0x${string}`,
   },
   mainnet: {
     managerAddress: null as `0x${string}` | null, // TBD

@@ -2,6 +2,7 @@
 // Contract: Oikonomos CCIP Subname Manager for oikonomos.eth
 export const OffchainSubnameManagerABI = [
   // SubnameRegistered event - emitted when a subname is registered
+  // Includes a2aUrl for A2A protocol endpoint per STRATEGY_PROVIDER_JOURNEY.md
   {
     type: 'event',
     name: 'SubnameRegistered',
@@ -11,6 +12,7 @@ export const OffchainSubnameManagerABI = [
       { name: 'label', type: 'string', indexed: false },
       { name: 'owner', type: 'address', indexed: true },
       { name: 'agentId', type: 'uint256', indexed: false },
+      { name: 'a2aUrl', type: 'string', indexed: false },
       { name: 'expiry', type: 'uint64', indexed: false },
     ],
   },
