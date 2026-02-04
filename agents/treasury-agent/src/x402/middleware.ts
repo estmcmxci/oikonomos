@@ -36,35 +36,61 @@ export function buildPaymentRequirement(
     mimeType: 'application/json',
     payTo,
     maxTimeoutSeconds: PAYMENT_TIMEOUT_SECONDS,
-    asset: 'USDC',
+    asset: PAYMENT_TOKEN, // Full token address for x402 SDK
   };
 }
 
 /**
  * Create 402 Payment Required response
+ * Compatible with @x402/fetch SDK which expects either:
+ * 1. PAYMENT-REQUIRED header with base64 encoded JSON
+ * 2. Body with x402Version: 1 and accepts array
  */
 export function create402Response(
   requirement: X402PaymentRequirement,
   corsHeaders: Record<string, string>
 ): Response {
-  return new Response(
-    JSON.stringify({
-      error: 'Payment Required',
-      paymentRequirements: requirement,
-    }),
-    {
-      status: 402,
-      headers: {
-        ...corsHeaders,
-        'Content-Type': 'application/json',
-        'X-Payment-Requirements': JSON.stringify(requirement),
+  // Build x402 SDK compatible response body
+  const x402Body = {
+    x402Version: 1,
+    accepts: [
+      {
+        scheme: requirement.scheme,
+        network: requirement.network,
+        maxAmountRequired: requirement.maxAmountRequired,
+        resource: requirement.resource,
+        description: requirement.description,
+        mimeType: requirement.mimeType,
+        payTo: requirement.payTo,
+        maxTimeoutSeconds: requirement.maxTimeoutSeconds,
+        asset: requirement.asset, // Token address for x402 SDK
       },
-    }
-  );
+    ],
+    error: 'Payment Required',
+  };
+
+  // Encode for PAYMENT-REQUIRED header (base64 JSON)
+  // Use TextEncoder for UTF-8 support in Workers
+  const jsonString = JSON.stringify(x402Body);
+  const encoder = new TextEncoder();
+  const bytes = encoder.encode(jsonString);
+  const paymentRequiredHeader = btoa(String.fromCharCode(...bytes));
+
+  return new Response(JSON.stringify(x402Body), {
+    status: 402,
+    headers: {
+      ...corsHeaders,
+      'Content-Type': 'application/json',
+      'PAYMENT-REQUIRED': paymentRequiredHeader,
+      // Legacy header for backwards compatibility
+      'X-Payment-Requirements': JSON.stringify(requirement),
+    },
+  });
 }
 
 /**
  * Extract payment payload from request headers
+ * x402 SDK sends PAYMENT-SIGNATURE as Base64-encoded JSON
  */
 export function extractPaymentPayload(request: Request): X402PaymentPayload | null {
   // Try new header format first, then legacy
@@ -76,10 +102,17 @@ export function extractPaymentPayload(request: Request): X402PaymentPayload | nu
   }
 
   try {
-    return JSON.parse(paymentHeader) as X402PaymentPayload;
+    // First try Base64 decode (new SDK format)
+    const decoded = atob(paymentHeader);
+    return JSON.parse(decoded) as X402PaymentPayload;
   } catch {
-    console.error('Failed to parse payment header');
-    return null;
+    // Fallback to raw JSON (legacy format)
+    try {
+      return JSON.parse(paymentHeader) as X402PaymentPayload;
+    } catch {
+      console.error('[x402] Failed to parse payment header');
+      return null;
+    }
   }
 }
 
@@ -90,6 +123,10 @@ export async function verifyPayment(
   payload: X402PaymentPayload,
   requirement: X402PaymentRequirement
 ): Promise<X402SettleResponse> {
+  console.log('[x402] Verifying with facilitator:', FACILITATOR_URL);
+  console.log('[x402] Payment payload:', JSON.stringify(payload));
+  console.log('[x402] Requirement:', JSON.stringify(requirement));
+
   try {
     const response = await fetch(`${FACILITATOR_URL}/settle`, {
       method: 'POST',
@@ -100,15 +137,19 @@ export async function verifyPayment(
       }),
     });
 
+    console.log('[x402] Facilitator response status:', response.status);
+
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Facilitator error:', errorText);
+      console.error('[x402] Facilitator error:', errorText);
       return { success: false, error: `Facilitator error: ${response.status}` };
     }
 
-    return (await response.json()) as X402SettleResponse;
+    const result = (await response.json()) as X402SettleResponse;
+    console.log('[x402] Facilitator result:', JSON.stringify(result));
+    return result;
   } catch (error) {
-    console.error('Payment verification failed:', error);
+    console.error('[x402] Payment verification failed:', error);
     return { success: false, error: String(error) };
   }
 }
@@ -124,14 +165,19 @@ export async function validateX402Payment(
   payTo: Address,
   resource: string
 ): Promise<PaymentValidationResult> {
+  console.log('[x402] Validating payment...');
+  console.log('[x402] Headers:', Object.fromEntries(request.headers.entries()));
+
   const payload = extractPaymentPayload(request);
+  console.log('[x402] Extracted payload:', JSON.stringify(payload));
 
   if (!payload) {
     return { valid: false, error: 'No payment header provided' };
   }
 
-  // Validate payload structure
-  if (payload.scheme !== 'exact' || !payload.payload?.signature) {
+  // Validate payload structure - x402 SDK sends {scheme, network, payload: {signature, ...}}
+  if (!payload.scheme || !payload.payload) {
+    console.log('[x402] Invalid payload structure - missing scheme or payload');
     return { valid: false, error: 'Invalid payment payload structure' };
   }
 

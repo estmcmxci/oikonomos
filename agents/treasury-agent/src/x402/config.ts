@@ -8,8 +8,9 @@ import type { Address } from 'viem';
 // Base Sepolia MockUSDC (OIK-50)
 export const PAYMENT_TOKEN: Address = '0x524C057B1030B3D832f1688e4993159C7A124518';
 
-// Network in CAIP-2 format
-export const NETWORK = 'eip155:84532'; // Base Sepolia
+// Network identifier - use human-readable format for x402 SDK compatibility
+// The x402 SDK uses 'base-sepolia' internally, not CAIP-2 'eip155:84532'
+export const NETWORK = 'base-sepolia'; // Base Sepolia
 
 // Legacy Sepolia (for reference)
 // export const PAYMENT_TOKEN: Address = '0x94a9D9AC8a22534E3FaCa9F4e7F2E2cf85d5E4C8';

@@ -30,6 +30,28 @@ export async function handleExecute(
   env: Env,
   corsHeaders: Record<string, string>
 ): Promise<Response> {
+  // Global error handler to catch unhandled exceptions
+  try {
+    return await handleExecuteInternal(request, env, corsHeaders);
+  } catch (error) {
+    console.error('[execute] Unhandled error:', error);
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: 'Internal server error',
+        details: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+}
+
+async function handleExecuteInternal(
+  request: Request,
+  env: Env,
+  corsHeaders: Record<string, string>
+): Promise<Response> {
   let body: ExecuteRequest;
 
   try {
