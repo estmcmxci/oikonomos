@@ -1,0 +1,1234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Configure ENS | Oikonomos</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Space+Grotesk:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-base: #0a0a0b;
+            --bg-elevated: #111114;
+            --bg-card: rgba(17, 17, 20, 0.7);
+            --bg-code: rgba(0, 0, 0, 0.4);
+            --border-subtle: rgba(82, 152, 255, 0.15);
+            --border-accent: rgba(82, 152, 255, 0.4);
+            --text-primary: #ffffff;
+            --text-secondary: rgba(255, 255, 255, 0.6);
+            --text-tertiary: rgba(255, 255, 255, 0.4);
+            --accent-blue: #5298FF;
+            --accent-cyan: #00D4AA;
+            --accent-red: #FF5252;
+            --accent-yellow: #F5AC37;
+            --accent-blue-glow: rgba(82, 152, 255, 0.3);
+            --accent-cyan-glow: rgba(0, 212, 170, 0.3);
+            --font-display: 'Space Grotesk', sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html {
+            font-size: 16px;
+        }
+
+        body {
+            font-family: var(--font-display);
+            background: var(--bg-base);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        /* Background layers */
+        .bg-grid {
+            position: fixed;
+            inset: 0;
+            background-image:
+                linear-gradient(rgba(82, 152, 255, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(82, 152, 255, 0.03) 1px, transparent 1px);
+            background-size: 60px 60px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .bg-gradient {
+            position: fixed;
+            inset: 0;
+            background:
+                radial-gradient(ellipse 80% 50% at 50% -20%, rgba(82, 152, 255, 0.15), transparent),
+                radial-gradient(ellipse 60% 40% at 80% 60%, rgba(82, 152, 255, 0.08), transparent);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .bg-noise {
+            position: fixed;
+            inset: 0;
+            opacity: 0.4;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+            pointer-events: none;
+            z-index: 0;
+            mix-blend-mode: overlay;
+        }
+
+        .container {
+            position: relative;
+            z-index: 1;
+            max-width: 760px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        /* Header */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 24px 0;
+            border-bottom: 1px solid var(--border-subtle);
+            opacity: 0;
+            animation: fadeSlideDown 0.6s ease-out 0.1s forwards;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+            color: var(--text-primary);
+        }
+
+        .logo-mark {
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .logo-mark svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        .logo-text {
+            font-family: var(--font-mono);
+            font-size: 1.125rem;
+            font-weight: 500;
+            letter-spacing: -0.02em;
+        }
+
+        .wallet-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 14px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            backdrop-filter: blur(10px);
+        }
+
+        .wallet-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--accent-cyan);
+            border-radius: 50%;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        .wallet-address {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        /* Progress indicator */
+        .progress-indicator {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 24px 0;
+            opacity: 0;
+            animation: fadeSlideDown 0.6s ease-out 0.2s forwards;
+        }
+
+        .progress-step {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .progress-number {
+            width: 28px;
+            height: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: var(--font-mono);
+            font-size: 0.6875rem;
+            font-weight: 700;
+            border: 1px solid var(--border-subtle);
+            color: var(--text-tertiary);
+        }
+
+        .progress-number.active {
+            background: var(--accent-blue);
+            border-color: var(--accent-blue);
+            color: var(--bg-base);
+        }
+
+        .progress-number.completed {
+            background: var(--accent-cyan);
+            border-color: var(--accent-cyan);
+            color: var(--bg-base);
+        }
+
+        .progress-label {
+            font-family: var(--font-mono);
+            font-size: 0.6875rem;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+
+        .progress-label.active {
+            color: var(--text-secondary);
+        }
+
+        .progress-line {
+            width: 48px;
+            height: 1px;
+            background: var(--border-subtle);
+        }
+
+        .progress-line.completed {
+            background: var(--accent-cyan);
+        }
+
+        /* Page header */
+        .page-header {
+            text-align: center;
+            padding: 32px 0 40px;
+            opacity: 0;
+            animation: fadeSlideUp 0.6s ease-out 0.3s forwards;
+        }
+
+        .page-label {
+            font-family: var(--font-mono);
+            font-size: 0.6875rem;
+            font-weight: 500;
+            color: var(--accent-blue);
+            text-transform: uppercase;
+            letter-spacing: 0.2em;
+            margin-bottom: 8px;
+        }
+
+        .page-title {
+            font-family: var(--font-display);
+            font-size: 2.25rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            margin-bottom: 12px;
+        }
+
+        .page-description {
+            font-family: var(--font-display);
+            font-size: 1rem;
+            font-weight: 300;
+            color: var(--text-secondary);
+            max-width: 520px;
+            margin: 0 auto;
+        }
+
+        /* Main content */
+        .main-content {
+            padding-bottom: 60px;
+        }
+
+        .main-content.hidden {
+            display: none;
+        }
+
+        /* Agent summary */
+        .agent-summary {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 20px 24px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            backdrop-filter: blur(20px);
+            margin-bottom: 32px;
+            opacity: 0;
+            animation: fadeSlideUp 0.6s ease-out 0.4s forwards;
+        }
+
+        .agent-info {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .agent-avatar {
+            width: 48px;
+            height: 48px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(82, 152, 255, 0.1);
+            border: 1px solid rgba(82, 152, 255, 0.3);
+            font-family: var(--font-mono);
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--accent-blue);
+        }
+
+        .agent-details {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .agent-name {
+            font-family: var(--font-mono);
+            font-size: 1rem;
+            font-weight: 500;
+            color: var(--accent-blue);
+        }
+
+        .agent-id {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-tertiary);
+        }
+
+        .agent-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 14px;
+            background: rgba(0, 212, 170, 0.1);
+            border: 1px solid rgba(0, 212, 170, 0.3);
+            font-family: var(--font-mono);
+            font-size: 0.6875rem;
+            color: var(--accent-cyan);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+
+        /* Records section */
+        .records-section {
+            opacity: 0;
+            animation: fadeSlideUp 0.6s ease-out 0.5s forwards;
+        }
+
+        .section-title {
+            font-family: var(--font-mono);
+            font-size: 0.6875rem;
+            font-weight: 500;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .section-title::before {
+            content: '';
+            width: 8px;
+            height: 8px;
+            background: var(--accent-blue);
+        }
+
+        /* Record card */
+        .record-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            backdrop-filter: blur(20px);
+            margin-bottom: 16px;
+            transition: all 0.3s ease;
+        }
+
+        .record-card.verified {
+            border-color: rgba(0, 212, 170, 0.3);
+        }
+
+        .record-card.missing {
+            border-color: rgba(245, 172, 55, 0.3);
+        }
+
+        .record-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .record-key {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .record-icon {
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .record-icon.identity {
+            background: rgba(245, 172, 55, 0.1);
+            border: 1px solid rgba(245, 172, 55, 0.3);
+            color: var(--accent-yellow);
+        }
+
+        .record-icon.endpoint {
+            background: rgba(82, 152, 255, 0.1);
+            border: 1px solid rgba(82, 152, 255, 0.3);
+            color: var(--accent-blue);
+        }
+
+        .record-name {
+            font-family: var(--font-mono);
+            font-size: 0.9375rem;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .record-status {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-family: var(--font-mono);
+            font-size: 0.625rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+
+        .record-status.verified {
+            color: var(--accent-cyan);
+        }
+
+        .record-status.missing {
+            color: var(--accent-yellow);
+        }
+
+        .record-status-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+        }
+
+        .record-status-dot.verified {
+            background: var(--accent-cyan);
+        }
+
+        .record-status-dot.missing {
+            background: var(--accent-yellow);
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        .record-body {
+            padding: 20px;
+        }
+
+        .record-description {
+            font-family: var(--font-display);
+            font-size: 0.875rem;
+            font-weight: 300;
+            color: var(--text-secondary);
+            line-height: 1.5;
+            margin-bottom: 16px;
+        }
+
+        .record-value-label {
+            font-family: var(--font-mono);
+            font-size: 0.5625rem;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 8px;
+        }
+
+        .record-value-box {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 14px 16px;
+            background: var(--bg-code);
+            border: 1px solid var(--border-subtle);
+        }
+
+        .record-value {
+            flex: 1;
+            font-family: var(--font-mono);
+            font-size: 0.8125rem;
+            color: var(--accent-cyan);
+            word-break: break-all;
+        }
+
+        .btn-copy {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 36px;
+            height: 36px;
+            background: transparent;
+            border: 1px solid var(--border-subtle);
+            color: var(--text-tertiary);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            flex-shrink: 0;
+        }
+
+        .btn-copy:hover {
+            border-color: var(--border-accent);
+            color: var(--text-primary);
+        }
+
+        .btn-copy.copied {
+            border-color: var(--accent-cyan);
+            color: var(--accent-cyan);
+        }
+
+        /* CLI command */
+        .cli-section {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border-subtle);
+        }
+
+        .cli-label {
+            font-family: var(--font-mono);
+            font-size: 0.5625rem;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .cli-label svg {
+            opacity: 0.6;
+        }
+
+        .cli-command {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 16px;
+            background: var(--bg-code);
+            border: 1px solid var(--border-subtle);
+        }
+
+        .cli-prompt {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--accent-blue);
+            flex-shrink: 0;
+        }
+
+        .cli-text {
+            flex: 1;
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            line-height: 1.6;
+            word-break: break-all;
+        }
+
+        .cli-text .flag {
+            color: var(--accent-yellow);
+        }
+
+        .cli-text .value {
+            color: var(--accent-cyan);
+        }
+
+        /* Verify section */
+        .verify-section {
+            margin-top: 32px;
+            opacity: 0;
+            animation: fadeSlideUp 0.6s ease-out 0.6s forwards;
+        }
+
+        .verify-notice {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 16px;
+            background: rgba(82, 152, 255, 0.05);
+            border: 1px solid rgba(82, 152, 255, 0.15);
+            margin-bottom: 20px;
+        }
+
+        .verify-notice-icon {
+            color: var(--accent-blue);
+            flex-shrink: 0;
+        }
+
+        .verify-notice-text {
+            font-family: var(--font-display);
+            font-size: 0.8125rem;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        .verify-actions {
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn-verify {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 18px 24px;
+            background: var(--accent-blue);
+            color: var(--bg-base);
+            font-family: var(--font-mono);
+            font-size: 0.875rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-verify:hover {
+            background: #6aa5ff;
+            box-shadow: 0 0 40px var(--accent-blue-glow);
+        }
+
+        .btn-ens-app {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 18px 24px;
+            background: transparent;
+            border: 1px solid var(--border-subtle);
+            font-family: var(--font-mono);
+            font-size: 0.875rem;
+            font-weight: 400;
+            color: var(--text-secondary);
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-ens-app:hover {
+            border-color: var(--border-accent);
+            color: var(--text-primary);
+        }
+
+        /* Success state */
+        .success-content {
+            display: none;
+            text-align: center;
+            padding: 60px 0;
+        }
+
+        .success-content.visible {
+            display: block;
+        }
+
+        .success-icon {
+            width: 120px;
+            height: 120px;
+            margin: 0 auto 32px;
+            position: relative;
+        }
+
+        .success-circle {
+            fill: none;
+            stroke: var(--accent-cyan);
+            stroke-width: 3;
+            stroke-dasharray: 377;
+            stroke-dashoffset: 377;
+            animation: drawCircle 0.6s ease-out forwards;
+        }
+
+        .success-check {
+            fill: none;
+            stroke: var(--accent-cyan);
+            stroke-width: 4;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            stroke-dasharray: 60;
+            stroke-dashoffset: 60;
+            animation: drawCheck 0.4s ease-out 0.5s forwards;
+        }
+
+        @keyframes drawCircle {
+            to { stroke-dashoffset: 0; }
+        }
+
+        @keyframes drawCheck {
+            to { stroke-dashoffset: 0; }
+        }
+
+        .success-glow {
+            position: absolute;
+            inset: -20px;
+            background: radial-gradient(circle, var(--accent-cyan-glow), transparent 70%);
+            opacity: 0;
+            animation: pulseGlow 2s ease-in-out 0.8s infinite;
+        }
+
+        @keyframes pulseGlow {
+            0%, 100% { opacity: 0.3; transform: scale(1); }
+            50% { opacity: 0.6; transform: scale(1.1); }
+        }
+
+        .success-title {
+            font-family: var(--font-display);
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 12px;
+            opacity: 0;
+            animation: fadeSlideUp 0.5s ease-out 0.9s forwards;
+        }
+
+        .success-message {
+            font-family: var(--font-display);
+            font-size: 1rem;
+            font-weight: 300;
+            color: var(--text-secondary);
+            margin-bottom: 40px;
+            max-width: 440px;
+            margin-left: auto;
+            margin-right: auto;
+            opacity: 0;
+            animation: fadeSlideUp 0.5s ease-out 1s forwards;
+        }
+
+        .success-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            backdrop-filter: blur(20px);
+            padding: 24px;
+            margin-bottom: 32px;
+            text-align: left;
+            opacity: 0;
+            animation: fadeSlideUp 0.5s ease-out 1.1s forwards;
+        }
+
+        .success-card-title {
+            font-family: var(--font-mono);
+            font-size: 0.6875rem;
+            font-weight: 500;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            margin-bottom: 16px;
+        }
+
+        .success-checklist {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .success-check-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            background: rgba(0, 212, 170, 0.05);
+            border: 1px solid rgba(0, 212, 170, 0.15);
+        }
+
+        .success-check-icon {
+            color: var(--accent-cyan);
+            flex-shrink: 0;
+        }
+
+        .success-check-text {
+            font-family: var(--font-mono);
+            font-size: 0.8125rem;
+            color: var(--text-primary);
+        }
+
+        .success-check-value {
+            font-family: var(--font-mono);
+            font-size: 0.6875rem;
+            color: var(--accent-cyan);
+            margin-top: 4px;
+            word-break: break-all;
+        }
+
+        .btn-dashboard {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 18px 32px;
+            background: var(--accent-cyan);
+            color: var(--bg-base);
+            font-family: var(--font-mono);
+            font-size: 0.875rem;
+            font-weight: 600;
+            text-decoration: none;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            transition: all 0.2s ease;
+            opacity: 0;
+            animation: fadeSlideUp 0.5s ease-out 1.2s forwards;
+        }
+
+        .btn-dashboard:hover {
+            background: #00e6b8;
+            box-shadow: 0 0 40px var(--accent-cyan-glow);
+        }
+
+        /* Animations */
+        @keyframes fadeSlideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeSlideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .spin {
+            animation: spin 1s linear infinite;
+        }
+
+        /* Responsive */
+        @media (max-width: 640px) {
+            .page-title {
+                font-size: 1.75rem;
+            }
+
+            .progress-label {
+                display: none;
+            }
+
+            .agent-summary {
+                flex-direction: column;
+                gap: 16px;
+                text-align: center;
+            }
+
+            .agent-info {
+                flex-direction: column;
+            }
+
+            .verify-actions {
+                flex-direction: column;
+            }
+
+            .cli-command {
+                flex-direction: column;
+                gap: 8px;
+            }
+
+            .cli-prompt {
+                align-self: flex-start;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-grid"></div>
+    <div class="bg-gradient"></div>
+    <div class="bg-noise"></div>
+
+    <div class="container">
+        <header>
+            <a href="index.html" class="logo">
+                <div class="logo-mark">
+                    <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <linearGradient id="owlGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stop-color="#5298FF"/>
+                                <stop offset="100%" stop-color="#00D4AA"/>
+                            </linearGradient>
+                        </defs>
+                        <path d="M8 28C8 28 6 26 6 22C6 18 8 16 8 16C8 16 7 14 8 11C9 8 12 6 15 6C15 6 16 4 19 4C22 4 24 6 25 8C26 10 26 12 25 14C25 14 28 15 29 18C30 21 29 24 28 26L26 28" stroke="url(#owlGradient)" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+                        <circle cx="20" cy="11" r="5" stroke="url(#owlGradient)" stroke-width="1.5" fill="none"/>
+                        <circle cx="20" cy="11" r="2.5" fill="url(#owlGradient)"/>
+                        <path d="M26 13L30 15L26 17" stroke="url(#owlGradient)" stroke-width="1.5" fill="none" stroke-linejoin="round"/>
+                        <path d="M10 18C12 17 14 18 16 20C18 22 18 25 17 27" stroke="url(#owlGradient)" stroke-width="1" opacity="0.6"/>
+                        <path d="M8 20C10 19 12 20 14 22" stroke="url(#owlGradient)" stroke-width="1" opacity="0.4"/>
+                        <path d="M6 26L4 30" stroke="url(#owlGradient)" stroke-width="1.5" stroke-linecap="round"/>
+                        <path d="M8 27L7 31" stroke="url(#owlGradient)" stroke-width="1.5" stroke-linecap="round"/>
+                        <path d="M18 28L18 32M16 32H20" stroke="url(#owlGradient)" stroke-width="1.5" stroke-linecap="round"/>
+                        <path d="M24 27L24 32M22 32H26" stroke="url(#owlGradient)" stroke-width="1.5" stroke-linecap="round"/>
+                    </svg>
+                </div>
+                <span class="logo-text">oikonomos</span>
+            </a>
+
+            <div class="wallet-badge">
+                <div class="wallet-dot"></div>
+                <span class="wallet-address">0x7a25...3f8d</span>
+            </div>
+        </header>
+
+        <!-- Progress indicator -->
+        <div class="progress-indicator">
+            <div class="progress-step">
+                <div class="progress-number completed">✓</div>
+                <span class="progress-label">Identity</span>
+            </div>
+            <div class="progress-line completed"></div>
+            <div class="progress-step">
+                <div class="progress-number active">2</div>
+                <span class="progress-label active">ENS</span>
+            </div>
+        </div>
+
+        <div class="page-header">
+            <div class="page-label">Step 2 of 2</div>
+            <h1 class="page-title">Configure ENS Records</h1>
+            <p class="page-description">Set two TXT records on your ENS name so users can discover your agent and endpoint.</p>
+        </div>
+
+        <!-- Main content -->
+        <div class="main-content" id="mainContent">
+            <!-- Agent summary -->
+            <div class="agent-summary">
+                <div class="agent-info">
+                    <div class="agent-avatar">SA</div>
+                    <div class="agent-details">
+                        <span class="agent-name">strategy.alice.eth</span>
+                        <span class="agent-id">Agent ID: #642</span>
+                    </div>
+                </div>
+                <div class="agent-status">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                    Registered
+                </div>
+            </div>
+
+            <!-- Records section -->
+            <div class="records-section">
+                <div class="section-title">Required TXT Records</div>
+
+                <!-- Record 1: agent:erc8004 -->
+                <div class="record-card" id="record1Card">
+                    <div class="record-header">
+                        <div class="record-key">
+                            <div class="record-icon identity">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                                    <circle cx="12" cy="7" r="4"/>
+                                </svg>
+                            </div>
+                            <span class="record-name">agent:erc8004</span>
+                        </div>
+                        <div class="record-status missing" id="record1Status">
+                            <div class="record-status-dot missing"></div>
+                            <span>Not Set</span>
+                        </div>
+                    </div>
+                    <div class="record-body">
+                        <p class="record-description">Links your ENS name to your on-chain agent identity. This allows the indexer to verify ownership.</p>
+
+                        <div class="record-value-label">Value to Set</div>
+                        <div class="record-value-box">
+                            <span class="record-value" id="erc8004Value">eip155:11155111:0x8004A818BFB912233c491871b3d84c89A494BD9e:642</span>
+                            <button class="btn-copy" onclick="copyValue('erc8004Value', this)">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                                </svg>
+                            </button>
+                        </div>
+
+                        <div class="cli-section">
+                            <div class="cli-label">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="4 17 10 11 4 5"/>
+                                    <line x1="12" y1="19" x2="20" y2="19"/>
+                                </svg>
+                                CLI Command
+                            </div>
+                            <div class="cli-command">
+                                <span class="cli-prompt">$</span>
+                                <span class="cli-text">ens edit txt strategy.alice.eth <span class="flag">agent:erc8004</span> <span class="value">"eip155:11155111:0x8004A818BFB912233c491871b3d84c89A494BD9e:642"</span> <span class="flag">-n sepolia</span></span>
+                                <button class="btn-copy" onclick="copyCommand(0, this)">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Record 2: agent:a2a -->
+                <div class="record-card" id="record2Card">
+                    <div class="record-header">
+                        <div class="record-key">
+                            <div class="record-icon endpoint">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                                    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+                                </svg>
+                            </div>
+                            <span class="record-name">agent:a2a</span>
+                        </div>
+                        <div class="record-status missing" id="record2Status">
+                            <div class="record-status-dot missing"></div>
+                            <span>Not Set</span>
+                        </div>
+                    </div>
+                    <div class="record-body">
+                        <p class="record-description">Points to your A2A endpoint URL. Users and agents call this to request quotes and execute trades.</p>
+
+                        <div class="record-value-label">Value to Set</div>
+                        <div class="record-value-box">
+                            <span class="record-value" id="a2aValue">https://strategy-alice.workers.dev</span>
+                            <button class="btn-copy" onclick="copyValue('a2aValue', this)">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                                </svg>
+                            </button>
+                        </div>
+
+                        <div class="cli-section">
+                            <div class="cli-label">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="4 17 10 11 4 5"/>
+                                    <line x1="12" y1="19" x2="20" y2="19"/>
+                                </svg>
+                                CLI Command
+                            </div>
+                            <div class="cli-command">
+                                <span class="cli-prompt">$</span>
+                                <span class="cli-text">ens edit txt strategy.alice.eth <span class="flag">agent:a2a</span> <span class="value">"https://strategy-alice.workers.dev"</span> <span class="flag">-n sepolia</span></span>
+                                <button class="btn-copy" onclick="copyCommand(1, this)">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Verify section -->
+            <div class="verify-section">
+                <div class="verify-notice">
+                    <div class="verify-notice-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"/>
+                            <line x1="12" y1="8" x2="12" y2="12"/>
+                            <line x1="12" y1="16" x2="12.01" y2="16"/>
+                        </svg>
+                    </div>
+                    <p class="verify-notice-text">
+                        After setting both records via CLI or the ENS app, click verify to confirm they're configured correctly. Records may take a few minutes to propagate.
+                    </p>
+                </div>
+
+                <div class="verify-actions">
+                    <button class="btn-verify" id="verifyBtn" onclick="verifyRecords()">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="20 6 9 17 4 12"/>
+                        </svg>
+                        Verify Records
+                    </button>
+                    <a href="https://app.ens.domains/strategy.alice.eth" target="_blank" class="btn-ens-app">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                            <polyline points="15 3 21 3 21 9"/>
+                            <line x1="10" y1="14" x2="21" y2="3"/>
+                        </svg>
+                        ENS App
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Success state -->
+        <div class="success-content" id="successContent">
+            <div class="success-icon">
+                <div class="success-glow"></div>
+                <svg viewBox="0 0 120 120" width="120" height="120">
+                    <circle class="success-circle" cx="60" cy="60" r="56"/>
+                    <polyline class="success-check" points="38 62 52 76 82 46"/>
+                </svg>
+            </div>
+
+            <h2 class="success-title">Setup Complete</h2>
+            <p class="success-message">Your agent is now fully configured and discoverable on the Oikonomos marketplace.</p>
+
+            <div class="success-card">
+                <div class="success-card-title">Configuration Verified</div>
+                <div class="success-checklist">
+                    <div class="success-check-item">
+                        <div class="success-check-icon">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                <polyline points="20 6 9 17 4 12"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <div class="success-check-text">On-chain Identity</div>
+                            <div class="success-check-value">Agent ID #642 registered</div>
+                        </div>
+                    </div>
+                    <div class="success-check-item">
+                        <div class="success-check-icon">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                <polyline points="20 6 9 17 4 12"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <div class="success-check-text">agent:erc8004</div>
+                            <div class="success-check-value">eip155:11155111:0x8004...BD9e:642</div>
+                        </div>
+                    </div>
+                    <div class="success-check-item">
+                        <div class="success-check-icon">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                <polyline points="20 6 9 17 4 12"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <div class="success-check-text">agent:a2a</div>
+                            <div class="success-check-value">https://strategy-alice.workers.dev</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <a href="provider-dashboard.html" class="btn-dashboard">
+                Go to Dashboard
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M5 12h14M12 5l7 7-7 7"/>
+                </svg>
+            </a>
+        </div>
+    </div>
+
+    <script>
+        const commands = [
+            'ens edit txt strategy.alice.eth agent:erc8004 "eip155:11155111:0x8004A818BFB912233c491871b3d84c89A494BD9e:642" -n sepolia',
+            'ens edit txt strategy.alice.eth agent:a2a "https://strategy-alice.workers.dev" -n sepolia'
+        ];
+
+        function copyValue(elementId, button) {
+            const value = document.getElementById(elementId).textContent;
+            navigator.clipboard.writeText(value).then(() => {
+                showCopied(button);
+            });
+        }
+
+        function copyCommand(index, button) {
+            navigator.clipboard.writeText(commands[index]).then(() => {
+                showCopied(button);
+            });
+        }
+
+        function showCopied(button) {
+            button.classList.add('copied');
+            button.innerHTML = `
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="20 6 9 17 4 12"/>
+                </svg>
+            `;
+            setTimeout(() => {
+                button.classList.remove('copied');
+                button.innerHTML = `
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                    </svg>
+                `;
+            }, 2000);
+        }
+
+        function verifyRecords() {
+            const btn = document.getElementById('verifyBtn');
+            btn.innerHTML = `
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin">
+                    <circle cx="12" cy="12" r="10" stroke-dasharray="32" stroke-dashoffset="32"/>
+                </svg>
+                Verifying...
+            `;
+            btn.style.pointerEvents = 'none';
+
+            // Simulate verification
+            setTimeout(() => {
+                // Update record 1 status
+                const record1Status = document.getElementById('record1Status');
+                record1Status.className = 'record-status verified';
+                record1Status.innerHTML = `
+                    <div class="record-status-dot verified"></div>
+                    <span>Verified</span>
+                `;
+                document.getElementById('record1Card').classList.add('verified');
+
+                setTimeout(() => {
+                    // Update record 2 status
+                    const record2Status = document.getElementById('record2Status');
+                    record2Status.className = 'record-status verified';
+                    record2Status.innerHTML = `
+                        <div class="record-status-dot verified"></div>
+                        <span>Verified</span>
+                    `;
+                    document.getElementById('record2Card').classList.add('verified');
+
+                    setTimeout(() => {
+                        // Show success
+                        document.getElementById('mainContent').classList.add('hidden');
+                        document.getElementById('successContent').classList.add('visible');
+                    }, 500);
+                }, 800);
+            }, 1500);
+        }
+    </script>
+</body>
+</html>

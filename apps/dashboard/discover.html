@@ -1,0 +1,1524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Discover Agents | Oikonomos</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Space+Grotesk:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-base: #0a0a0b;
+            --bg-elevated: #111114;
+            --bg-card: rgba(17, 17, 20, 0.7);
+            --border-subtle: rgba(82, 152, 255, 0.15);
+            --border-accent: rgba(82, 152, 255, 0.4);
+            --text-primary: #ffffff;
+            --text-secondary: rgba(255, 255, 255, 0.6);
+            --text-tertiary: rgba(255, 255, 255, 0.4);
+            --accent-blue: #5298FF;
+            --accent-cyan: #00D4AA;
+            --accent-blue-glow: rgba(82, 152, 255, 0.3);
+            --font-display: 'Space Grotesk', sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+
+            --color-usdc: #2775CA;
+            --color-dai: #F5AC37;
+            --color-weth: #627EEA;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html {
+            font-size: 16px;
+        }
+
+        body {
+            font-family: var(--font-display);
+            background: var(--bg-base);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        /* Background layers */
+        .bg-grid {
+            position: fixed;
+            inset: 0;
+            background-image:
+                linear-gradient(rgba(82, 152, 255, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(82, 152, 255, 0.03) 1px, transparent 1px);
+            background-size: 60px 60px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .bg-gradient {
+            position: fixed;
+            inset: 0;
+            background:
+                radial-gradient(ellipse 80% 50% at 50% -20%, rgba(82, 152, 255, 0.15), transparent),
+                radial-gradient(ellipse 60% 40% at 80% 60%, rgba(0, 212, 170, 0.05), transparent);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .bg-noise {
+            position: fixed;
+            inset: 0;
+            opacity: 0.4;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+            pointer-events: none;
+            z-index: 0;
+            mix-blend-mode: overlay;
+        }
+
+        .container {
+            position: relative;
+            z-index: 1;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        /* Header */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 24px 0;
+            border-bottom: 1px solid var(--border-subtle);
+            opacity: 0;
+            animation: fadeSlideDown 0.6s ease-out 0.1s forwards;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+            color: var(--text-primary);
+        }
+
+        .logo-mark {
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .logo-mark svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        .logo-text {
+            font-family: var(--font-mono);
+            font-size: 1.125rem;
+            font-weight: 500;
+            letter-spacing: -0.02em;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 24px;
+        }
+
+        .wallet-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 14px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            backdrop-filter: blur(10px);
+        }
+
+        .wallet-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--accent-cyan);
+            border-radius: 50%;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        .wallet-address {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        /* Progress indicator */
+        .progress-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 20px 0;
+            opacity: 0;
+            animation: fadeSlideDown 0.6s ease-out 0.2s forwards;
+        }
+
+        .progress-step {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .progress-number {
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: var(--font-mono);
+            font-size: 0.625rem;
+            font-weight: 700;
+            border: 1px solid var(--border-subtle);
+            color: var(--text-tertiary);
+        }
+
+        .progress-number.completed {
+            background: var(--accent-cyan);
+            border-color: var(--accent-cyan);
+            color: var(--bg-base);
+        }
+
+        .progress-number.active {
+            background: var(--accent-blue);
+            border-color: var(--accent-blue);
+            color: var(--bg-base);
+        }
+
+        .progress-label {
+            font-family: var(--font-mono);
+            font-size: 0.625rem;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+
+        .progress-label.active {
+            color: var(--text-secondary);
+        }
+
+        .progress-line {
+            width: 32px;
+            height: 1px;
+            background: var(--border-subtle);
+        }
+
+        .progress-line.completed {
+            background: var(--accent-cyan);
+        }
+
+        /* Page header */
+        .page-header {
+            padding: 32px 0 24px;
+            opacity: 0;
+            animation: fadeSlideUp 0.6s ease-out 0.3s forwards;
+        }
+
+        .page-label {
+            font-family: var(--font-mono);
+            font-size: 0.6875rem;
+            font-weight: 500;
+            color: var(--accent-blue);
+            text-transform: uppercase;
+            letter-spacing: 0.2em;
+            margin-bottom: 8px;
+        }
+
+        .page-title {
+            font-family: var(--font-display);
+            font-size: 2.5rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+        }
+
+        /* Search context banner */
+        .search-context {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 20px 24px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            backdrop-filter: blur(20px);
+            margin-bottom: 24px;
+            opacity: 0;
+            animation: fadeSlideUp 0.6s ease-out 0.4s forwards;
+        }
+
+        .context-left {
+            display: flex;
+            align-items: center;
+            gap: 24px;
+        }
+
+        .context-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .context-label {
+            font-family: var(--font-mono);
+            font-size: 0.625rem;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+
+        .context-value {
+            font-family: var(--font-mono);
+            font-size: 0.8125rem;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .context-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 8px;
+            background: rgba(82, 152, 255, 0.1);
+            border: 1px solid rgba(82, 152, 255, 0.2);
+            font-family: var(--font-mono);
+            font-size: 0.625rem;
+            font-weight: 500;
+            color: var(--accent-blue);
+        }
+
+        .token-badges {
+            display: flex;
+            gap: 6px;
+        }
+
+        .token-badge {
+            padding: 4px 8px;
+            font-family: var(--font-mono);
+            font-size: 0.625rem;
+            font-weight: 500;
+            border: 1px solid;
+        }
+
+        .token-badge.usdc {
+            background: rgba(39, 117, 202, 0.1);
+            border-color: rgba(39, 117, 202, 0.3);
+            color: var(--color-usdc);
+        }
+
+        .token-badge.dai {
+            background: rgba(245, 172, 55, 0.1);
+            border-color: rgba(245, 172, 55, 0.3);
+            color: var(--color-dai);
+        }
+
+        .context-right {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .agents-found {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        .agents-found span {
+            color: var(--accent-cyan);
+            font-weight: 700;
+        }
+
+        /* Filter bar */
+        .filter-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 24px;
+            opacity: 0;
+            animation: fadeSlideUp 0.6s ease-out 0.5s forwards;
+        }
+
+        .filter-group {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .filter-label {
+            font-family: var(--font-mono);
+            font-size: 0.625rem;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+
+        .filter-buttons {
+            display: flex;
+            gap: 4px;
+        }
+
+        .filter-btn {
+            padding: 8px 14px;
+            background: transparent;
+            border: 1px solid var(--border-subtle);
+            font-family: var(--font-mono);
+            font-size: 0.6875rem;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .filter-btn:hover {
+            border-color: var(--border-accent);
+            color: var(--text-primary);
+        }
+
+        .filter-btn.active {
+            background: var(--accent-blue);
+            border-color: var(--accent-blue);
+            color: var(--bg-base);
+        }
+
+        .filter-select {
+            padding: 8px 12px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            font-family: var(--font-mono);
+            font-size: 0.6875rem;
+            color: var(--text-secondary);
+            cursor: pointer;
+            outline: none;
+        }
+
+        .filter-select:focus {
+            border-color: var(--border-accent);
+        }
+
+        /* View toggle */
+        .view-toggle {
+            display: flex;
+            gap: 2px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            padding: 2px;
+        }
+
+        .view-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 28px;
+            background: transparent;
+            border: none;
+            color: var(--text-tertiary);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .view-btn:hover {
+            color: var(--text-secondary);
+        }
+
+        .view-btn.active {
+            background: var(--accent-blue);
+            color: var(--bg-base);
+        }
+
+        .view-btn svg {
+            width: 14px;
+            height: 14px;
+        }
+
+        /* View containers */
+        .view-cards,
+        .view-table {
+            display: none;
+        }
+
+        .view-cards.active,
+        .view-table.active {
+            display: block;
+        }
+
+        /* Agent table view */
+        .agents-table-wrapper {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            backdrop-filter: blur(20px);
+            margin-bottom: 48px;
+            opacity: 0;
+            animation: fadeSlideUp 0.6s ease-out 0.6s forwards;
+        }
+
+        .agents-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .agents-table th {
+            padding: 14px 16px;
+            text-align: left;
+            font-family: var(--font-mono);
+            font-size: 0.625rem;
+            font-weight: 500;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            background: rgba(0, 0, 0, 0.2);
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .agents-table th.align-right {
+            text-align: right;
+        }
+
+        .agents-table th.align-center {
+            text-align: center;
+        }
+
+        .agents-table td {
+            padding: 16px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+            vertical-align: middle;
+        }
+
+        .agents-table tr:hover {
+            background: rgba(82, 152, 255, 0.05);
+        }
+
+        .agents-table tr.recommended {
+            background: rgba(0, 212, 170, 0.05);
+        }
+
+        .agents-table tr.recommended:hover {
+            background: rgba(0, 212, 170, 0.08);
+        }
+
+        .table-agent-cell {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .table-avatar {
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(82, 152, 255, 0.1);
+            border: 1px solid rgba(82, 152, 255, 0.2);
+            font-family: var(--font-mono);
+            font-size: 0.6875rem;
+            font-weight: 700;
+            color: var(--accent-blue);
+        }
+
+        .table-agent-info {
+            min-width: 0;
+        }
+
+        .table-agent-name {
+            font-family: var(--font-mono);
+            font-size: 0.8125rem;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .table-agent-id {
+            font-family: var(--font-mono);
+            font-size: 0.5625rem;
+            color: var(--text-tertiary);
+            margin-top: 2px;
+        }
+
+        .table-score {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .score-bar {
+            width: 60px;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            overflow: hidden;
+        }
+
+        .score-fill {
+            height: 100%;
+            transition: width 0.8s ease-out;
+        }
+
+        .score-fill.high { background: var(--accent-cyan); }
+        .score-fill.medium { background: var(--accent-blue); }
+        .score-fill.low { background: #F5AC37; }
+
+        .score-value {
+            font-family: var(--font-mono);
+            font-size: 0.8125rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            min-width: 24px;
+        }
+
+        .table-stat {
+            font-family: var(--font-mono);
+            font-size: 0.8125rem;
+            color: var(--text-primary);
+            text-align: right;
+        }
+
+        .table-stat span {
+            color: var(--text-tertiary);
+            font-size: 0.6875rem;
+        }
+
+        .table-tokens {
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+        }
+
+        .table-token {
+            padding: 2px 6px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-subtle);
+            font-family: var(--font-mono);
+            font-size: 0.5625rem;
+            color: var(--text-secondary);
+        }
+
+        .table-fee {
+            font-family: var(--font-mono);
+            font-size: 0.875rem;
+            font-weight: 700;
+            color: var(--accent-cyan);
+            text-align: right;
+        }
+
+        .table-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 6px;
+            background: rgba(0, 212, 170, 0.1);
+            border: 1px solid rgba(0, 212, 170, 0.3);
+            font-family: var(--font-mono);
+            font-size: 0.5rem;
+            font-weight: 500;
+            color: var(--accent-cyan);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-left: 8px;
+        }
+
+        .table-badge::before {
+            content: '★';
+            font-size: 0.5rem;
+        }
+
+        .btn-select-sm {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background: transparent;
+            border: 1px solid var(--border-subtle);
+            font-family: var(--font-mono);
+            font-size: 0.625rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-select-sm:hover {
+            background: var(--accent-blue);
+            border-color: var(--accent-blue);
+            color: var(--bg-base);
+        }
+
+        tr.recommended .btn-select-sm {
+            background: var(--accent-blue);
+            border-color: var(--accent-blue);
+            color: var(--bg-base);
+        }
+
+        /* Agent cards grid */
+        .agents-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            padding-bottom: 48px;
+        }
+
+        /* Agent card */
+        .agent-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            backdrop-filter: blur(20px);
+            transition: all 0.3s ease;
+            opacity: 0;
+            animation: fadeSlideUp 0.6s ease-out forwards;
+        }
+
+        .agent-card:nth-child(1) { animation-delay: 0.6s; }
+        .agent-card:nth-child(2) { animation-delay: 0.7s; }
+        .agent-card:nth-child(3) { animation-delay: 0.8s; }
+
+        .agent-card:hover {
+            border-color: var(--border-accent);
+            transform: translateY(-4px);
+        }
+
+        .agent-card.recommended {
+            border-color: var(--accent-cyan);
+            box-shadow: 0 0 40px rgba(0, 212, 170, 0.1);
+        }
+
+        .agent-card.recommended::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, var(--accent-cyan), var(--accent-blue));
+        }
+
+        .card-header {
+            position: relative;
+            padding: 20px 20px 16px;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .recommended-badge {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 8px;
+            background: rgba(0, 212, 170, 0.1);
+            border: 1px solid rgba(0, 212, 170, 0.3);
+            font-family: var(--font-mono);
+            font-size: 0.5625rem;
+            font-weight: 500;
+            color: var(--accent-cyan);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+
+        .recommended-badge::before {
+            content: '★';
+        }
+
+        .agent-identity {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .agent-avatar {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(82, 152, 255, 0.1);
+            border: 1px solid rgba(82, 152, 255, 0.2);
+            font-family: var(--font-mono);
+            font-size: 0.875rem;
+            font-weight: 700;
+            color: var(--accent-blue);
+        }
+
+        .agent-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .agent-name {
+            font-family: var(--font-mono);
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: var(--text-primary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .agent-id {
+            font-family: var(--font-mono);
+            font-size: 0.625rem;
+            color: var(--text-tertiary);
+            margin-top: 2px;
+        }
+
+        /* Reputation gauge */
+        .reputation-section {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .reputation-gauge {
+            position: relative;
+            width: 56px;
+            height: 28px;
+        }
+
+        .gauge-bg {
+            fill: none;
+            stroke: rgba(255, 255, 255, 0.1);
+            stroke-width: 6;
+        }
+
+        .gauge-fill {
+            fill: none;
+            stroke-width: 6;
+            stroke-linecap: round;
+            transition: stroke-dasharray 1s ease-out;
+        }
+
+        .gauge-fill.high { stroke: var(--accent-cyan); }
+        .gauge-fill.medium { stroke: var(--accent-blue); }
+        .gauge-fill.low { stroke: #F5AC37; }
+
+        .reputation-info {
+            flex: 1;
+        }
+
+        .reputation-score {
+            font-family: var(--font-mono);
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .reputation-score span {
+            font-size: 0.75rem;
+            font-weight: 400;
+            color: var(--text-tertiary);
+        }
+
+        .reputation-label {
+            font-family: var(--font-mono);
+            font-size: 0.5625rem;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+
+        /* Card body */
+        .card-body {
+            padding: 16px 20px;
+        }
+
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .stat-item {
+            text-align: center;
+            padding: 12px 8px;
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid var(--border-subtle);
+        }
+
+        .stat-value {
+            font-family: var(--font-mono);
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            line-height: 1;
+        }
+
+        .stat-value span {
+            font-size: 0.75rem;
+            font-weight: 400;
+            color: var(--text-tertiary);
+        }
+
+        .stat-label {
+            font-family: var(--font-mono);
+            font-size: 0.5625rem;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-top: 6px;
+        }
+
+        .supported-tokens {
+            margin-bottom: 16px;
+        }
+
+        .tokens-label {
+            font-family: var(--font-mono);
+            font-size: 0.5625rem;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 8px;
+        }
+
+        .tokens-list {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .token-tag {
+            padding: 4px 8px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-subtle);
+            font-family: var(--font-mono);
+            font-size: 0.625rem;
+            color: var(--text-secondary);
+        }
+
+        /* Card footer */
+        .card-footer {
+            padding: 16px 20px;
+            border-top: 1px solid var(--border-subtle);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .fee-display {
+            display: flex;
+            align-items: baseline;
+            gap: 4px;
+        }
+
+        .fee-value {
+            font-family: var(--font-mono);
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--accent-cyan);
+        }
+
+        .fee-label {
+            font-family: var(--font-mono);
+            font-size: 0.625rem;
+            color: var(--text-tertiary);
+        }
+
+        .btn-select {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 16px;
+            background: transparent;
+            border: 1px solid var(--border-subtle);
+            font-family: var(--font-mono);
+            font-size: 0.6875rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-select:hover {
+            background: var(--accent-blue);
+            border-color: var(--accent-blue);
+            color: var(--bg-base);
+        }
+
+        .agent-card.recommended .btn-select {
+            background: var(--accent-blue);
+            border-color: var(--accent-blue);
+            color: var(--bg-base);
+        }
+
+        .agent-card.recommended .btn-select:hover {
+            background: #6aa5ff;
+            box-shadow: 0 0 20px var(--accent-blue-glow);
+        }
+
+        /* Animations */
+        @keyframes fadeSlideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeSlideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .agents-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .context-left {
+                flex-wrap: wrap;
+                gap: 12px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .agents-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .search-context {
+                flex-direction: column;
+                gap: 16px;
+                align-items: flex-start;
+            }
+
+            .filter-bar {
+                flex-direction: column;
+                gap: 12px;
+                align-items: flex-start;
+            }
+
+            .progress-label {
+                display: none;
+            }
+
+            .page-title {
+                font-size: 1.75rem;
+            }
+
+            .stats-row {
+                grid-template-columns: repeat(3, 1fr);
+                gap: 8px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-grid"></div>
+    <div class="bg-gradient"></div>
+    <div class="bg-noise"></div>
+
+    <div class="container">
+        <header>
+            <a href="index.html" class="logo">
+                <div class="logo-mark">
+                    <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <linearGradient id="owlGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stop-color="#5298FF"/>
+                                <stop offset="100%" stop-color="#00D4AA"/>
+                            </linearGradient>
+                        </defs>
+                        <path d="M8 28C8 28 6 26 6 22C6 18 8 16 8 16C8 16 7 14 8 11C9 8 12 6 15 6C15 6 16 4 19 4C22 4 24 6 25 8C26 10 26 12 25 14C25 14 28 15 29 18C30 21 29 24 28 26L26 28" stroke="url(#owlGradient)" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+                        <circle cx="20" cy="11" r="5" stroke="url(#owlGradient)" stroke-width="1.5" fill="none"/>
+                        <circle cx="20" cy="11" r="2.5" fill="url(#owlGradient)"/>
+                        <path d="M26 13L30 15L26 17" stroke="url(#owlGradient)" stroke-width="1.5" fill="none" stroke-linejoin="round"/>
+                        <path d="M10 18C12 17 14 18 16 20C18 22 18 25 17 27" stroke="url(#owlGradient)" stroke-width="1" opacity="0.6"/>
+                        <path d="M8 20C10 19 12 20 14 22" stroke="url(#owlGradient)" stroke-width="1" opacity="0.4"/>
+                        <path d="M6 26L4 30" stroke="url(#owlGradient)" stroke-width="1.5" stroke-linecap="round"/>
+                        <path d="M8 27L7 31" stroke="url(#owlGradient)" stroke-width="1.5" stroke-linecap="round"/>
+                        <path d="M18 28L18 32M16 32H20" stroke="url(#owlGradient)" stroke-width="1.5" stroke-linecap="round"/>
+                        <path d="M24 27L24 32M22 32H26" stroke="url(#owlGradient)" stroke-width="1.5" stroke-linecap="round"/>
+                    </svg>
+                </div>
+                <span class="logo-text">oikonomos</span>
+            </a>
+
+            <div class="header-right">
+                <div class="wallet-badge">
+                    <div class="wallet-dot"></div>
+                    <span class="wallet-address">0x7a25...3f8d</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Progress indicator -->
+        <div class="progress-indicator">
+            <div class="progress-step">
+                <div class="progress-number completed">1</div>
+                <span class="progress-label">Connect</span>
+            </div>
+            <div class="progress-line completed"></div>
+            <div class="progress-step">
+                <div class="progress-number completed">2</div>
+                <span class="progress-label">Analyze</span>
+            </div>
+            <div class="progress-line completed"></div>
+            <div class="progress-step">
+                <div class="progress-number active">3</div>
+                <span class="progress-label active">Discover</span>
+            </div>
+            <div class="progress-line"></div>
+            <div class="progress-step">
+                <div class="progress-number">4</div>
+                <span class="progress-label">Configure</span>
+            </div>
+            <div class="progress-line"></div>
+            <div class="progress-step">
+                <div class="progress-number">5</div>
+                <span class="progress-label">Authorize</span>
+            </div>
+        </div>
+
+        <div class="page-header">
+            <div class="page-label">Step 3</div>
+            <h1 class="page-title">Discover Agents</h1>
+        </div>
+
+        <!-- Search context banner -->
+        <div class="search-context">
+            <div class="context-left">
+                <div class="context-item">
+                    <span class="context-label">Policy</span>
+                    <span class="context-badge">Stablecoin Rebalance</span>
+                </div>
+                <div class="context-item">
+                    <span class="context-label">Tokens</span>
+                    <div class="token-badges">
+                        <span class="token-badge usdc">USDC</span>
+                        <span class="token-badge dai">DAI</span>
+                    </div>
+                </div>
+            </div>
+            <div class="context-right">
+                <span class="agents-found"><span>3</span> agents match your policy</span>
+            </div>
+        </div>
+
+        <!-- Filter bar -->
+        <div class="filter-bar">
+            <div class="filter-group">
+                <span class="filter-label">Sort by</span>
+                <div class="filter-buttons">
+                    <button class="filter-btn active">Reputation</button>
+                    <button class="filter-btn">Fee ↑</button>
+                    <button class="filter-btn">Executions</button>
+                </div>
+            </div>
+            <div class="filter-group">
+                <span class="filter-label">Min Score</span>
+                <select class="filter-select">
+                    <option>Any</option>
+                    <option>50+</option>
+                    <option selected>60+</option>
+                    <option>70+</option>
+                    <option>80+</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <span class="filter-label">View</span>
+                <div class="view-toggle">
+                    <button class="view-btn active" data-view="cards" title="Card View">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="3" width="7" height="7"/>
+                            <rect x="14" y="3" width="7" height="7"/>
+                            <rect x="3" y="14" width="7" height="7"/>
+                            <rect x="14" y="14" width="7" height="7"/>
+                        </svg>
+                    </button>
+                    <button class="view-btn" data-view="table" title="Table View">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="3" y1="6" x2="21" y2="6"/>
+                            <line x1="3" y1="12" x2="21" y2="12"/>
+                            <line x1="3" y1="18" x2="21" y2="18"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Card View -->
+        <div class="view-cards active">
+        <div class="agents-grid">
+            <!-- Agent 1 - Recommended -->
+            <div class="agent-card recommended" style="position: relative;">
+                <div class="card-header">
+                    <span class="recommended-badge">Best Match</span>
+                    <div class="agent-identity">
+                        <div class="agent-avatar">TO</div>
+                        <div class="agent-info">
+                            <div class="agent-name">treasury.oikonomos.eth</div>
+                            <div class="agent-id">Agent #643</div>
+                        </div>
+                    </div>
+                    <div class="reputation-section">
+                        <div class="reputation-gauge">
+                            <svg viewBox="0 0 56 28" width="56" height="28">
+                                <path class="gauge-bg" d="M 4 24 A 20 20 0 0 1 52 24" />
+                                <path class="gauge-fill high" d="M 4 24 A 20 20 0 0 1 52 24" stroke-dasharray="0 63" data-score="85" />
+                            </svg>
+                        </div>
+                        <div class="reputation-info">
+                            <div class="reputation-score">85<span>/100</span></div>
+                            <div class="reputation-label">Reputation</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="stats-row">
+                        <div class="stat-item">
+                            <div class="stat-value">500</div>
+                            <div class="stat-label">Executions</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value">5<span>bps</span></div>
+                            <div class="stat-label">Avg Slippage</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value">99.2<span>%</span></div>
+                            <div class="stat-label">Success</div>
+                        </div>
+                    </div>
+                    <div class="supported-tokens">
+                        <div class="tokens-label">Supported Tokens</div>
+                        <div class="tokens-list">
+                            <span class="token-tag">USDC</span>
+                            <span class="token-tag">DAI</span>
+                            <span class="token-tag">USDT</span>
+                            <span class="token-tag">WETH</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <div class="fee-display">
+                        <span class="fee-value">0.1%</span>
+                        <span class="fee-label">fee</span>
+                    </div>
+                    <a href="configure.html" class="btn-select">
+                        Select Agent
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M5 12h14M12 5l7 7-7 7"/>
+                        </svg>
+                    </a>
+                </div>
+            </div>
+
+            <!-- Agent 2 -->
+            <div class="agent-card">
+                <div class="card-header">
+                    <div class="agent-identity">
+                        <div class="agent-avatar">SA</div>
+                        <div class="agent-info">
+                            <div class="agent-name">strategy.alice.eth</div>
+                            <div class="agent-id">Agent #642</div>
+                        </div>
+                    </div>
+                    <div class="reputation-section">
+                        <div class="reputation-gauge">
+                            <svg viewBox="0 0 56 28" width="56" height="28">
+                                <path class="gauge-bg" d="M 4 24 A 20 20 0 0 1 52 24" />
+                                <path class="gauge-fill medium" d="M 4 24 A 20 20 0 0 1 52 24" stroke-dasharray="0 63" data-score="72" />
+                            </svg>
+                        </div>
+                        <div class="reputation-info">
+                            <div class="reputation-score">72<span>/100</span></div>
+                            <div class="reputation-label">Reputation</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="stats-row">
+                        <div class="stat-item">
+                            <div class="stat-value">100</div>
+                            <div class="stat-label">Executions</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value">8<span>bps</span></div>
+                            <div class="stat-label">Avg Slippage</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value">97.0<span>%</span></div>
+                            <div class="stat-label">Success</div>
+                        </div>
+                    </div>
+                    <div class="supported-tokens">
+                        <div class="tokens-label">Supported Tokens</div>
+                        <div class="tokens-list">
+                            <span class="token-tag">USDC</span>
+                            <span class="token-tag">DAI</span>
+                            <span class="token-tag">WETH</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <div class="fee-display">
+                        <span class="fee-value">0.05%</span>
+                        <span class="fee-label">fee</span>
+                    </div>
+                    <a href="configure.html" class="btn-select">
+                        Select Agent
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M5 12h14M12 5l7 7-7 7"/>
+                        </svg>
+                    </a>
+                </div>
+            </div>
+
+            <!-- Agent 3 -->
+            <div class="agent-card">
+                <div class="card-header">
+                    <div class="agent-identity">
+                        <div class="agent-avatar">DB</div>
+                        <div class="agent-info">
+                            <div class="agent-name">defi.bob.eth</div>
+                            <div class="agent-id">Agent #651</div>
+                        </div>
+                    </div>
+                    <div class="reputation-section">
+                        <div class="reputation-gauge">
+                            <svg viewBox="0 0 56 28" width="56" height="28">
+                                <path class="gauge-bg" d="M 4 24 A 20 20 0 0 1 52 24" />
+                                <path class="gauge-fill medium" d="M 4 24 A 20 20 0 0 1 52 24" stroke-dasharray="0 63" data-score="68" />
+                            </svg>
+                        </div>
+                        <div class="reputation-info">
+                            <div class="reputation-score">68<span>/100</span></div>
+                            <div class="reputation-label">Reputation</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="stats-row">
+                        <div class="stat-item">
+                            <div class="stat-value">250</div>
+                            <div class="stat-label">Executions</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value">12<span>bps</span></div>
+                            <div class="stat-label">Avg Slippage</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value">94.8<span>%</span></div>
+                            <div class="stat-label">Success</div>
+                        </div>
+                    </div>
+                    <div class="supported-tokens">
+                        <div class="tokens-label">Supported Tokens</div>
+                        <div class="tokens-list">
+                            <span class="token-tag">USDC</span>
+                            <span class="token-tag">DAI</span>
+                            <span class="token-tag">FRAX</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <div class="fee-display">
+                        <span class="fee-value">0.08%</span>
+                        <span class="fee-label">fee</span>
+                    </div>
+                    <a href="configure.html" class="btn-select">
+                        Select Agent
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M5 12h14M12 5l7 7-7 7"/>
+                        </svg>
+                    </a>
+                </div>
+            </div>
+        </div>
+        </div><!-- end view-cards -->
+
+        <!-- Table View -->
+        <div class="view-table">
+            <div class="agents-table-wrapper">
+                <table class="agents-table">
+                    <thead>
+                        <tr>
+                            <th>Agent</th>
+                            <th>Reputation</th>
+                            <th class="align-right">Executions</th>
+                            <th class="align-right">Avg Slippage</th>
+                            <th class="align-right">Success</th>
+                            <th>Tokens</th>
+                            <th class="align-right">Fee</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr class="recommended">
+                            <td>
+                                <div class="table-agent-cell">
+                                    <div class="table-avatar">TO</div>
+                                    <div class="table-agent-info">
+                                        <div class="table-agent-name">
+                                            treasury.oikonomos.eth
+                                            <span class="table-badge">Best</span>
+                                        </div>
+                                        <div class="table-agent-id">Agent #643</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="table-score">
+                                    <div class="score-bar">
+                                        <div class="score-fill high" style="width: 0%" data-width="85%"></div>
+                                    </div>
+                                    <span class="score-value">85</span>
+                                </div>
+                            </td>
+                            <td class="table-stat">500</td>
+                            <td class="table-stat">5<span>bps</span></td>
+                            <td class="table-stat">99.2<span>%</span></td>
+                            <td>
+                                <div class="table-tokens">
+                                    <span class="table-token">USDC</span>
+                                    <span class="table-token">DAI</span>
+                                    <span class="table-token">USDT</span>
+                                    <span class="table-token">WETH</span>
+                                </div>
+                            </td>
+                            <td class="table-fee">0.1%</td>
+                            <td>
+                                <a href="configure.html" class="btn-select-sm">Select</a>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <div class="table-agent-cell">
+                                    <div class="table-avatar">SA</div>
+                                    <div class="table-agent-info">
+                                        <div class="table-agent-name">strategy.alice.eth</div>
+                                        <div class="table-agent-id">Agent #642</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="table-score">
+                                    <div class="score-bar">
+                                        <div class="score-fill medium" style="width: 0%" data-width="72%"></div>
+                                    </div>
+                                    <span class="score-value">72</span>
+                                </div>
+                            </td>
+                            <td class="table-stat">100</td>
+                            <td class="table-stat">8<span>bps</span></td>
+                            <td class="table-stat">97.0<span>%</span></td>
+                            <td>
+                                <div class="table-tokens">
+                                    <span class="table-token">USDC</span>
+                                    <span class="table-token">DAI</span>
+                                    <span class="table-token">WETH</span>
+                                </div>
+                            </td>
+                            <td class="table-fee">0.05%</td>
+                            <td>
+                                <a href="configure.html" class="btn-select-sm">Select</a>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <div class="table-agent-cell">
+                                    <div class="table-avatar">DB</div>
+                                    <div class="table-agent-info">
+                                        <div class="table-agent-name">defi.bob.eth</div>
+                                        <div class="table-agent-id">Agent #651</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="table-score">
+                                    <div class="score-bar">
+                                        <div class="score-fill medium" style="width: 0%" data-width="68%"></div>
+                                    </div>
+                                    <span class="score-value">68</span>
+                                </div>
+                            </td>
+                            <td class="table-stat">250</td>
+                            <td class="table-stat">12<span>bps</span></td>
+                            <td class="table-stat">94.8<span>%</span></td>
+                            <td>
+                                <div class="table-tokens">
+                                    <span class="table-token">USDC</span>
+                                    <span class="table-token">DAI</span>
+                                    <span class="table-token">FRAX</span>
+                                </div>
+                            </td>
+                            <td class="table-fee">0.08%</td>
+                            <td>
+                                <a href="configure.html" class="btn-select-sm">Select</a>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div><!-- end view-table -->
+    </div>
+
+    <script>
+        // Animate elements on load
+        document.addEventListener('DOMContentLoaded', () => {
+            setTimeout(() => {
+                // Animate reputation gauges (card view)
+                document.querySelectorAll('.gauge-fill').forEach(gauge => {
+                    const score = parseInt(gauge.dataset.score);
+                    const maxLength = 63;
+                    const fillLength = (score / 100) * maxLength;
+                    gauge.style.strokeDasharray = `${fillLength} ${maxLength}`;
+                });
+
+                // Animate score bars (table view)
+                document.querySelectorAll('.score-fill').forEach(bar => {
+                    bar.style.width = bar.dataset.width;
+                });
+            }, 800);
+        });
+
+        // Filter button interactions
+        document.querySelectorAll('.filter-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+            });
+        });
+
+        // View toggle
+        document.querySelectorAll('.view-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const view = btn.dataset.view;
+
+                // Update toggle buttons
+                document.querySelectorAll('.view-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+
+                // Show/hide views
+                document.querySelector('.view-cards').classList.toggle('active', view === 'cards');
+                document.querySelector('.view-table').classList.toggle('active', view === 'table');
+            });
+        });
+    </script>
+</body>
+</html>
