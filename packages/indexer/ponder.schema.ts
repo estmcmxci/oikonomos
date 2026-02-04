@@ -33,6 +33,9 @@ export const strategyMetrics = onchainTable('strategy_metrics', (t) => ({
   avgSlippage: t.bigint().notNull(), // basis points - DEPRECATED: use slippageSum/totalExecutions
   successRate: t.bigint().notNull(), // basis points - DEPRECATED: use successCount/totalExecutions*10000
   complianceRate: t.bigint().notNull(), // basis points - DEPRECATED: use compliantCount/totalExecutions*10000
+  // OIK-46: Computed reputation score (0-10000 = 0.00-100.00%)
+  // Formula: 40% compliance + 30% volume tier + 20% execution tier + 10% slippage (inverse)
+  score: t.bigint().notNull(),
 }));
 
 export const agent = onchainTable('agent', (t) => ({
