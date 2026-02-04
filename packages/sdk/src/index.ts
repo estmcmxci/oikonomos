@@ -101,6 +101,26 @@ export {
   INTENT_TYPES,
 } from './intents';
 
+// Session Keys (ZeroDev)
+export {
+  createSmartAccount,
+  recoverSmartAccount,
+  getPasskeyValidator,
+  createSessionKey,
+  validateSessionPermissions,
+  isOperationAllowed,
+  createDefaultSessionConfig,
+  OIKONOMOS_PERMISSION_SCOPE,
+  type CreateSmartAccountParams,
+  type RecoverSmartAccountParams,
+  type CreateSessionKeyParams,
+  type SessionKey,
+  type SessionKeyConfig,
+  type SmartAccountInfo,
+  type PermissionEntry,
+  type ValidationResult as SessionValidationResult,
+} from './session';
+
 // Re-export shared types and constants
 export {
   type AgentRecord,
