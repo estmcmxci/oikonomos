@@ -8,6 +8,7 @@ import { handleQuote } from './quote/handler';
 import { handleExecute, handlePrepareExecute } from './execute/handler';
 import { getFeeAnalytics, getRecentEarnings } from './x402/analytics';
 import { handleScheduledTrigger, handleEventsWebhook, savePolicy, saveAuthorization, deleteAuthorization, type UserAuthorization } from './observation';
+import { handleVerifyReceipt } from './verification/handler'; // OIK-53: Receipt verification
 
 export interface Env {
   CHAIN_ID: string;
@@ -311,6 +312,12 @@ export default {
           }),
           { headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
         );
+      }
+
+      // Receipt verification endpoint (OIK-53)
+      if (url.pathname.startsWith('/verify/') && request.method === 'GET') {
+        const receiptId = url.pathname.slice('/verify/'.length);
+        return handleVerifyReceipt(receiptId, env, CORS_HEADERS);
       }
 
       // Health check
