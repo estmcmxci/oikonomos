@@ -1,5 +1,8 @@
 import { onchainTable, index } from 'ponder';
 
+// OIK-54: Schema version bump for CCIP subnames
+// v6: Added subname table for oikonomos.eth CCIP subname registrations
+
 export const executionReceipt = onchainTable('execution_receipt', (t) => ({
   id: t.text().primaryKey(),
   strategyId: t.hex().notNull(),
@@ -51,4 +54,25 @@ export const agent = onchainTable('agent', (t) => ({
   agentWalletIdx: index().on(table.agentWallet),
   ensIdx: index().on(table.ens),
   strategyIdIdx: index().on(table.strategyId), // OIK-38: index for efficient lookup
+}));
+
+// OIK-54: CCIP Subname registrations under oikonomos.eth
+export const subname = onchainTable('subname', (t) => ({
+  id: t.text().primaryKey(), // parentNode-labelHash
+  parentNode: t.hex().notNull(),
+  labelHash: t.hex().notNull(),
+  label: t.text().notNull(), // Human-readable label (e.g., "treasury")
+  fullName: t.text().notNull(), // Full ENS name (e.g., "treasury.oikonomos.eth")
+  owner: t.hex().notNull(),
+  agentId: t.text().notNull(), // Associated ERC-8004 agent ID
+  a2aUrl: t.text().notNull(), // A2A protocol endpoint URL (e.g., "https://treasury.oikonomos.workers.dev")
+  expiry: t.bigint().notNull(),
+  registeredAt: t.bigint().notNull(),
+  transactionHash: t.hex().notNull(),
+  chainId: t.integer().notNull(),
+}), (table) => ({
+  ownerIdx: index().on(table.owner),
+  agentIdIdx: index().on(table.agentId),
+  labelIdx: index().on(table.label),
+  registeredAtIdx: index().on(table.registeredAt),
 }));
