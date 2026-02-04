@@ -7,8 +7,8 @@ import {
   type Hex,
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
-import { sepolia } from 'viem/chains';
 import type { Env } from '../index';
+import { getChain } from '../config/chain';
 import { IntentRouterABI } from '../../../shared/src/abis/IntentRouterABI';
 
 interface IntentParams {
@@ -47,7 +47,7 @@ export async function buildAndSignIntent(
 
   const walletClient = createWalletClient({
     account,
-    chain: sepolia,
+    chain: getChain(env),
     transport: http(env.RPC_URL),
   });
 
@@ -114,14 +114,16 @@ export async function submitIntent(
 ): Promise<Hex> {
   const account = privateKeyToAccount(env.PRIVATE_KEY as Hex);
 
+  const chain = getChain(env);
+
   const walletClient = createWalletClient({
     account,
-    chain: sepolia,
+    chain,
     transport: http(env.RPC_URL),
   });
 
   const publicClient = createPublicClient({
-    chain: sepolia,
+    chain,
     transport: http(env.RPC_URL),
   });
 
@@ -203,7 +205,7 @@ export async function submitIntent(
  */
 export async function getNonce(env: Env, user: Address): Promise<bigint> {
   const publicClient = createPublicClient({
-    chain: sepolia,
+    chain: getChain(env),
     transport: http(env.RPC_URL),
   });
 
