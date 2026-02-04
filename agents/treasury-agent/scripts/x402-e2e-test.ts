@@ -19,9 +19,9 @@ import { baseSepolia } from "viem/chains";
 const TREASURY_AGENT_URL = process.env.TREASURY_AGENT_URL || 'https://oikonomos-treasury-agent.estmcmxci.workers.dev';
 const PRIVATE_KEY = process.env.PRIVATE_KEY as Hex;
 
-// Base Sepolia tokens
-const USDC = '0x524C057B1030B3D832f1688e4993159C7A124518';
-const DAI = '0x233Dc75Bda7dB90a33454e4333E3ac96eB7FB84E';
+// Base Sepolia tokens (OIK-51: permit-enabled)
+const USDC = '0x944a6D90b3111884CcCbfcc45B381b7C864D7943';
+const DAI = '0xCE728786975c72711e810aDCD9BC233A2a55d7C1';
 
 if (!PRIVATE_KEY) {
   console.error('PRIVATE_KEY environment variable is required');
