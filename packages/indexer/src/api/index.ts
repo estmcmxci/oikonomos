@@ -129,6 +129,17 @@ app.get('/leaderboard/executions', async (c) => {
   return c.json(serializeBigInts(strategies));
 });
 
+// Get leaderboard by reputation score (OIK-46)
+app.get('/leaderboard/score', async (c) => {
+  const strategies = await db
+    .select()
+    .from(strategyMetrics)
+    .orderBy(desc(strategyMetrics.score))
+    .limit(50);
+
+  return c.json(serializeBigInts(strategies));
+});
+
 // Get agent by ID
 app.get('/agents/:agentId', async (c) => {
   const agentId = c.req.param('agentId');
