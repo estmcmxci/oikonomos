@@ -65,36 +65,30 @@ interface CCIPNetworkConfig {
 
 // CCIP configuration by network
 // Note: managerAddress should be updated after contract deployment
-const CCIP_CONFIGS: Record<string, CCIPNetworkConfig> = {
-  sepolia: {
-    chain: sepolia,
-    managerAddress: "0x89E3740C8b81D90e146c62B6C6451b85Ec8E6E78" as Address,
-    gatewayUrl: "https://oikonomos-ccip-gateway.estmcmxci.workers.dev",
-    parentNode: computeOikonomosParentNode(),
-    rpcUrl: process.env.SEPOLIA_RPC_URL || "https://rpc.sepolia.org",
-  },
-  mainnet: {
-    chain: mainnet,
-    // TBD - not deployed yet
-    managerAddress: "0x0000000000000000000000000000000000000000" as Address,
-    gatewayUrl: "",
-    parentNode: computeOikonomosParentNode(),
-    rpcUrl: process.env.MAINNET_RPC_URL || "https://eth.llamarpc.com",
-  },
-};
-
 function getCCIPConfig(network: string = "sepolia"): CCIPNetworkConfig {
-  const config = CCIP_CONFIGS[network];
-  if (!config) {
-    throw new Error(`Unsupported network: ${network}. Use 'sepolia' or 'mainnet'.`);
+  const parentNode = computeOikonomosParentNode();
+
+  if (network === "sepolia") {
+    return {
+      chain: sepolia,
+      managerAddress: "0x89E3740C8b81D90e146c62B6C6451b85Ec8E6E78" as Address,
+      gatewayUrl: "https://oikonomos-ccip-gateway.estmcmxci.workers.dev",
+      parentNode,
+      rpcUrl: process.env.SEPOLIA_RPC_URL || process.env.ETH_RPC_URL_SEPOLIA || "https://rpc.sepolia.org",
+    };
   }
-  if (config.managerAddress === "0x0000000000000000000000000000000000000000") {
-    throw new Error(
-      `OffchainSubnameManager not deployed on ${network}. ` +
-        "Please update the contract address in the CLI config."
-    );
+
+  if (network === "mainnet") {
+    return {
+      chain: mainnet,
+      managerAddress: "0x0000000000000000000000000000000000000000" as Address,
+      gatewayUrl: "",
+      parentNode,
+      rpcUrl: process.env.MAINNET_RPC_URL || process.env.ETH_RPC_URL_MAINNET || "https://eth.llamarpc.com",
+    };
   }
-  return config;
+
+  throw new Error(`Unsupported network: ${network}. Use 'sepolia' or 'mainnet'.`);
 }
 
 // ============================================================================
@@ -208,11 +202,11 @@ export async function subnameRegister(options: SubnameRegisterOptions) {
   try {
     const config = getCCIPConfig(network);
 
-    // Get private key from environment
-    const privateKey = process.env.PRIVATE_KEY;
+    // Get private key from environment (check ENS_PRIVATE_KEY first, then DEPLOYER_PRIVATE_KEY)
+    const privateKey = process.env.ENS_PRIVATE_KEY || process.env.DEPLOYER_PRIVATE_KEY;
     if (!privateKey) {
       throw new Error(
-        "PRIVATE_KEY environment variable required for registration"
+        "ENS_PRIVATE_KEY or DEPLOYER_PRIVATE_KEY environment variable required for registration"
       );
     }
 

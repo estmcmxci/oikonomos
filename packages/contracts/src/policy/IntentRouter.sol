@@ -13,7 +13,7 @@ import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {BalanceDelta} from "@uniswap/v4-core/src/types/BalanceDelta.sol";
 import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
-import {HookDataLib} from "../libraries/HookDataLib.sol";
+// Note: HookDataLib removed - using Clanker pools which don't need custom hook data
 
 /// @title IntentRouter
 /// @notice Mode A intent-first execution router for Oikonomos
@@ -125,17 +125,9 @@ contract IntentRouter is EIP712, IUnlockCallback, Ownable, Pausable {
         // 6. Approve PoolManager to spend tokens
         IERC20(intent.tokenIn).approve(address(POOL_MANAGER), intent.amountIn);
 
-        // 7. Build hookData for ReceiptHook (includes user address for attribution)
-        bytes32 quoteId = keccak256(strategyData);
-        // expectedAmount is the minimum output (amountIn minus max slippage)
-        uint256 expectedAmount = intent.amountIn * (10000 - intent.maxSlippage) / 10000;
-        bytes memory hookData = HookDataLib.encode(
-            intent.strategyId,
-            quoteId,
-            expectedAmount,
-            intent.maxSlippage,
-            intent.user // Pass user address for receipt attribution
-        );
+        // 7. hookData - empty for Clanker pools (no custom ReceiptHook)
+        // Note: Clanker/ClankerHook handles fee accounting internally
+        bytes memory hookData = "";
 
         // 8. Determine swap direction
         bool zeroForOne = Currency.unwrap(poolKey.currency0) == intent.tokenIn;

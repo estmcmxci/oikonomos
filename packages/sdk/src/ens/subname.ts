@@ -11,10 +11,11 @@ import {
   type Address,
   type Hex,
   namehash,
-  encodeFunctionData,
-  decodeErrorResult,
   keccak256,
   toBytes,
+  encodeFunctionData,
+  decodeAbiParameters,
+  parseAbiParameters,
 } from "viem";
 import { normalize } from "viem/ens";
 
@@ -275,78 +276,65 @@ export async function registerSubname(
     throw new Error("a2aUrl must be a valid HTTPS URL");
   }
 
-  // Step 1: Encode the registerSubname call to trigger OffchainLookup
+  // OffchainLookup error selector
+  const OFFCHAIN_LOOKUP_SELECTOR = "0x556f1830";
+
+  // Get RPC URL from the public client's transport
+  const rpcUrl = config.rpcUrl || (publicClient.transport as { url?: string }).url;
+  if (!rpcUrl) {
+    throw new Error("RPC URL required for CCIP-Read flow");
+  }
+
+  // Step 1: Encode the registerSubname call
   const callData = encodeFunctionData({
     abi: OffchainSubnameManagerABI,
     functionName: "registerSubname",
-    args: [
-      config.parentNode,
-      label,
-      subnameOwner,
-      agentId,
-      a2aUrl,
-      desiredExpiry,
-    ],
+    args: [config.parentNode, label, subnameOwner, agentId, a2aUrl, desiredExpiry],
   });
 
-  // Step 2: Make the call and catch OffchainLookup error
-  let offchainLookupData: {
-    sender: Address;
-    urls: string[];
-    callData: Hex;
-    callbackFunction: Hex;
-    extraData: Hex;
+  // Step 2: Make raw JSON-RPC call to trigger OffchainLookup
+  // Using raw RPC instead of viem's call() to get proper error data
+  const rpcResponse = await fetch(rpcUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      method: "eth_call",
+      params: [{ to: config.managerAddress, data: callData }, "latest"],
+      id: 1,
+    }),
+  });
+
+  const rpcResult = (await rpcResponse.json()) as {
+    error?: { data?: string };
+    result?: string;
   };
 
-  try {
-    await publicClient.call({
-      to: config.managerAddress,
-      data: callData,
-    });
-    // If we get here, something is wrong - registerSubname should always revert
-    throw new Error("Expected OffchainLookup revert, but call succeeded");
-  } catch (error: unknown) {
-    // Parse the OffchainLookup error
-    const errorData = (error as { data?: Hex })?.data;
-    if (!errorData) {
-      throw new Error("Failed to get OffchainLookup error data");
-    }
-
-    try {
-      const decoded = decodeErrorResult({
-        abi: OffchainSubnameManagerABI,
-        data: errorData,
-      });
-
-      if (decoded.errorName !== "OffchainLookup") {
-        throw new Error(`Unexpected error: ${decoded.errorName}`);
-      }
-
-      const [sender, urls, lookupCallData, callbackFunction, extraData] =
-        decoded.args as [Address, string[], Hex, Hex, Hex];
-
-      offchainLookupData = {
-        sender,
-        urls,
-        callData: lookupCallData,
-        callbackFunction,
-        extraData,
-      };
-    } catch (decodeError) {
-      throw new Error(
-        `Failed to decode OffchainLookup error: ${(decodeError as Error).message}`
-      );
-    }
+  if (!rpcResult.error?.data) {
+    throw new Error("Expected OffchainLookup error but call succeeded or returned different error");
   }
 
-  // Step 3: Query the gateway
-  const gatewayUrl = config.gatewayUrl || offchainLookupData.urls[0];
+  const errorData = rpcResult.error.data as Hex;
+  if (!errorData.startsWith(OFFCHAIN_LOOKUP_SELECTOR)) {
+    throw new Error(`Unexpected error selector: ${errorData.slice(0, 10)}`);
+  }
+
+  // Step 3: Decode OffchainLookup error
+  const decoded = decodeAbiParameters(
+    parseAbiParameters("address sender, string[] urls, bytes callData, bytes4 callbackFunction, bytes extraData"),
+    `0x${errorData.slice(10)}` as Hex
+  );
+
+  const [sender, urls, lookupCallData, callbackFunction, extraData] = decoded;
+
+  // Step 4: Query the gateway
+  const gatewayUrl = config.gatewayUrl || (urls as string[])[0];
   const gatewayResponse = await fetch(gatewayUrl, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      sender: offchainLookupData.sender,
-      data: offchainLookupData.callData,
+      sender: sender,
+      data: lookupCallData,
     }),
   });
 
@@ -360,19 +348,19 @@ export async function registerSubname(
     throw new Error("Gateway response missing data field");
   }
 
-  // Step 4: Call registerSubnameWithProof with the gateway response
-  const accounts = await walletClient.getAddresses();
-  if (!accounts.length) {
-    throw new Error("No accounts available in wallet client");
+  // Step 5: Call registerSubnameWithProof with the gateway response
+  // Use the wallet client's account directly for local signing
+  if (!walletClient.account) {
+    throw new Error("Wallet client must have an account configured for signing");
   }
 
   const hash = await walletClient.writeContract({
-    account: accounts[0],
+    account: walletClient.account,
     chain: walletClient.chain,
     address: config.managerAddress,
     abi: OffchainSubnameManagerABI,
     functionName: "registerSubnameWithProof",
-    args: [gatewayResult.data, offchainLookupData.extraData],
+    args: [gatewayResult.data, extraData as Hex],
   });
 
   return hash;
