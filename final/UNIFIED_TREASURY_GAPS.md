@@ -1,5 +1,19 @@
 # Unified Treasury Platform - Implementation Gaps
 
+## Progress Summary
+
+| Priority | Gap | Status |
+|----------|-----|--------|
+| **P1** | Gap 1: WETH→USDC Swap | ✅ Complete |
+| **P1** | Gap 2: /claim-fees Endpoint | ✅ Complete |
+| **P1** | Gap 3: Drift Checking | ✅ Complete |
+| **P2** | Gap 4: LP Compounding | ⏸️ Deferred (Phase 2) |
+| **P2** | Gap 5: Observation Loop | ✅ Complete |
+| **P2** | Gap 6: Token Balance Lookup | ✅ Complete |
+| **P3** | Gap 7-10: ENS/ERC-8004/Nostr/Indexer | ✅ Complete |
+
+**MVP Status: 9/10 gaps implemented (Gap 4 LP compounding deferred to Phase 2)**
+
 ## Context
 
 OIK-61 scaffolded the Unified Treasury Platform (Phases 1-5). This document addresses the critical gaps identified during reconciliation with `UNIFIED_TREASURY_PLAN.md`.
@@ -8,11 +22,11 @@ OIK-61 scaffolded the Unified Treasury Platform (Phases 1-5). This document addr
 
 ## P1: Critical Path (Must Complete for MVP)
 
-### Gap 1: WETH→USDC Swap in Fee Distribution
+### Gap 1: WETH→USDC Swap in Fee Distribution ✅
 
 **File:** `agents/treasury-agent/src/execute/wethDistribution.ts`
 
-**Current State:** Returns error "Direct swap not yet implemented"
+**Current State:** ~~Returns error "Direct swap not yet implemented"~~ FIXED
 
 **Solution:** Connect to existing IntentRouter swap flow
 
@@ -47,17 +61,19 @@ async function executeWethToUsdcSwap(
 ```
 
 **Tasks:**
-- [ ] Add internal quote helper (bypass HTTP, call directly)
-- [ ] Add EIP-712 intent builder for agent-signed swaps
+- [x] Add internal quote helper (bypass HTTP, call directly)
+- [x] Add EIP-712 intent builder for agent-signed swaps
 - [ ] Test with small amount on Base Sepolia
+
+**Implementation:** Uses Uniswap V3 SwapRouter on Base mainnet for direct WETH→USDC swaps with 1% slippage tolerance.
 
 ---
 
-### Gap 2: Route Fee Claims Through Execution
+### Gap 2: Route Fee Claims Through Execution ✅
 
 **File:** `agents/treasury-agent/src/index.ts`
 
-**Current State:** No `/claim-fees` endpoint; fee claiming not connected to execution flow
+**Current State:** ~~No `/claim-fees` endpoint; fee claiming not connected to execution flow~~ FIXED
 
 **Solution:** Add dedicated claim endpoint that orchestrates claim + distribute
 
@@ -93,18 +109,20 @@ export async function handleClaimFees(
 ```
 
 **Tasks:**
-- [ ] Create `src/execute/claimHandler.ts`
-- [ ] Add route to `index.ts`
-- [ ] Add request validation
+- [x] Create `src/execute/claimHandler.ts`
+- [x] Add route to `index.ts`
+- [x] Add request validation
 - [ ] Test claim flow end-to-end
+
+**Implementation:** Created claimHandler.ts with full orchestration of claim + distribute flow. Added POST /claim-fees endpoint.
 
 ---
 
-### Gap 3: Stablecoin Drift Checking
+### Gap 3: Stablecoin Drift Checking ✅
 
 **File:** `agents/treasury-agent/src/triggers/unified.ts`
 
-**Current State:** `checkDriftTrigger()` returns `{ hasDrift: false }` always
+**Current State:** ~~`checkDriftTrigger()` returns `{ hasDrift: false }` always~~ FIXED
 
 **Solution:** Implement actual balance checking via RPC
 
@@ -159,9 +177,11 @@ async function checkDriftTrigger(
 ```
 
 **Tasks:**
-- [ ] Add ERC20 balanceOf calls
-- [ ] Handle decimal normalization (USDC=6, DAI=18)
+- [x] Add ERC20 balanceOf calls
+- [x] Handle decimal normalization (USDC=6, DAI=18)
 - [ ] Add price oracle for non-stablecoin assets (optional)
+
+**Implementation:** Added checkDriftTrigger with proper decimal normalization to 18 decimals for consistent comparison.
 
 ---
 
@@ -200,11 +220,11 @@ async function compoundToLP(
 
 ---
 
-### Gap 5: Update Observation Loop
+### Gap 5: Update Observation Loop ✅
 
-**File:** `agents/treasury-agent/src/observation/loop.ts`
+**File:** `agents/treasury-agent/src/observation/cron.ts`
 
-**Current State:** Loop doesn't call `checkAllTriggers()` for unified policies
+**Current State:** ~~Loop doesn't call `checkAllTriggers()` for unified policies~~ FIXED
 
 **Solution:** Add unified policy handling to scheduled trigger
 
@@ -223,17 +243,19 @@ if (policy?.type === 'unified') {
 ```
 
 **Tasks:**
-- [ ] Import `checkAllTriggers` in observation loop
-- [ ] Add `executeTriggeredAction()` dispatcher
-- [ ] Add logging for trigger events
+- [x] Import `checkAllTriggers` in observation loop
+- [x] Add `executeTriggeredAction()` dispatcher
+- [x] Add logging for trigger events
+
+**Implementation:** Updated cron.ts with evaluateUnifiedPolicy() and executeTriggeredAction() dispatcher. Handles claim-fees, rebalance, exit-token, and compound actions.
 
 ---
 
-### Gap 6: Token Balance Lookup
+### Gap 6: Token Balance Lookup ✅
 
 **File:** `agents/treasury-agent/src/suggestion/clawnch.ts`
 
-**Current State:** `balance: '0'` hardcoded at line 173
+**Current State:** ~~`balance: '0'` hardcoded at line 173~~ FIXED
 
 **Solution:** Add on-chain balance check
 
@@ -253,140 +275,160 @@ allTokens.push({
 });
 ```
 
+**Implementation:** Added getTokenBalance() helper and integrated into discoverAgentTokens() parallel fetch.
+
 ---
 
-## P3: Nice to Have (Post-MVP)
+## P3: Essential Integrations ✅ COMPLETE
 
-### Gap 7: ENS Subname Registration
+### Gap 7: ENS Subname Registration ✅
 
-**File:** `agents/treasury-agent/src/launch/handler.ts`
+**File:** `agents/treasury-agent/src/launch/registration.ts`
 
-**Current State:** Returns "pending" status
+**Current State:** ~~Returns "pending" status~~ FIXED
 
-**Solution:** Call existing ENS CCIP resolver
+**Solution:** Created dedicated registration module with CCIP-Read flow
 
 ```typescript
-import { registerSubname } from '@oikonomos/sdk';
+// New file: src/launch/registration.ts
+export async function registerENSSubname(
+  env: Env,
+  agentPrivateKey: `0x${string}`,
+  params: { label: string; agentId: bigint; a2aUrl: string }
+): Promise<ENSRegistrationResult>
 
-// In handleLaunchAgent(), replace placeholder:
-const ensResult = await registerSubname({
-  label: body.agentName,
-  owner: agentWallet.address,
-  resolver: CCIP_RESOLVER_ADDRESS,
-});
+export async function isSubnameAvailable(env: Env, label: string): Promise<boolean>
 ```
+
+**Implementation:**
+- Uses OffchainSubnameManager at `0x89E3740C8b81D90e146c62B6C6451b85Ec8E6E78`
+- Registers subnames under `oikonomos.eth` parent node
+- Integrated into launch handler flow
 
 ---
 
-### Gap 8: ERC-8004 Registration
+### Gap 8: ERC-8004 Registration ✅
 
-**File:** `agents/treasury-agent/src/launch/handler.ts`
+**File:** `agents/treasury-agent/src/launch/registration.ts`
 
-**Solution:** Call ERC-8004 registry contract
+**Current State:** ~~Not implemented~~ FIXED
+
+**Solution:** Created ERC-8004 registration with base64 metadata URI
 
 ```typescript
-const registryContract = getContract({
-  address: ERC8004_REGISTRY,
-  abi: ERC8004RegistryABI,
-  client: walletClient,
-});
-
-const erc8004Id = await registryContract.write.registerAgent([
-  agentWallet.address,
-  ensName,
-  metadataUri,
-]);
+// In src/launch/registration.ts
+export async function registerAgentERC8004(
+  env: Env,
+  agentPrivateKey: `0x${string}`,
+  params: { name, description, ensName, a2aUrl, imageUrl? }
+): Promise<RegistrationResult>
 ```
+
+**Implementation:**
+- Uses canonical ERC-8004 registry at `0x8004A818BFB912233c491871b3d84c89A494BD9e`
+- Generates data URI with base64-encoded JSON metadata
+- Includes ENS service endpoint and A2A URL in metadata
+- Integrated into launch handler flow (executes before ENS registration)
 
 ---
 
-### Gap 9: Nostr Integration
+### Gap 9: Nostr Integration ✅
 
-**File:** `agents/treasury-agent/src/launch/handler.ts`
+**File:** `agents/treasury-agent/src/launch/nostr.ts`
 
-**Current State:** Nostr keys derived but not used
+**Current State:** ~~Nostr keys derived but not used~~ FIXED
 
-**Solution:** Use nostr-tools for profile + clawnch posting
+**Solution:** Created dedicated Nostr module with nostr-tools
 
 ```typescript
-import { getPublicKey, finalizeEvent, Relay } from 'nostr-tools';
+// New file: src/launch/nostr.ts
+export function createProfileEvent(
+  privateKeyHex: string,
+  profile: { name: string; about: string; picture?: string; bot?: boolean }
+): Event
 
-// Create profile event (kind 0)
-const profileEvent = finalizeEvent({
-  kind: 0,
-  created_at: Math.floor(Date.now() / 1000),
-  tags: [],
-  content: JSON.stringify({
-    name: tokenName,
-    about: description,
-    bot: true,
-  }),
-}, nostrPrivateKey);
+export function createClawnchEvent(
+  privateKeyHex: string,
+  params: { tokenSymbol, tokenName, description, platform, agentWallet }
+): Event
 
-// Post !clawnch (kind 1)
-const clawnchEvent = finalizeEvent({
-  kind: 1,
-  created_at: Math.floor(Date.now() / 1000),
-  tags: [],
-  content: `!clawnch ${tokenSymbol} ${tokenName}\n${description}`,
-}, nostrPrivateKey);
-
-const relay = await Relay.connect('wss://relay.damus.io');
-await relay.publish(profileEvent);
-await relay.publish(clawnchEvent);
+export async function launchAgentOnNostr(
+  privateKeyHex: string,
+  params: { tokenName, tokenSymbol, description, platform, agentWallet, ensName }
+): Promise<NostrPublishResult & { events: Event[] }>
 ```
+
+**Implementation:**
+- Uses nostr-tools v2.7.0 with @noble/secp256k1 for key derivation
+- Publishes to relay.damus.io (configurable via NOSTR_RELAY_URL)
+- Creates profile event (kind 0) with bot flag
+- Creates !clawnch event (kind 1) with platform, wallet, ENS name
+- Updated keychain.ts to derive proper secp256k1 public keys
+- Integrated into launch handler flow
 
 ---
 
-### Gap 10: Indexer Event Handlers
+### Gap 10: Indexer Event Handlers ✅
 
 **File:** `packages/indexer/src/index.ts`
 
-**Solution:** Add event handlers for fee claims and agent registration
+**Current State:** ~~No fee claim tracking~~ FIXED
+
+**Solution:** Added ClankerFeeLocker contract and FeesClaimed handler
 
 ```typescript
-// ponder.config.ts - add ClankerFeeLocker contract
+// ponder.config.ts - added Base mainnet chain and ClankerFeeLocker contract
 ClankerFeeLocker: {
+  chain: 'base',
   abi: ClankerFeeLockerABI,
   address: '0xF3622742b1E446D92e45E22923Ef11C2fcD55D68',
-  network: 'base',
-  startBlock: 12000000,
+  startBlock: 22000000,
 }
 
-// src/index.ts - add handler
+// src/index.ts - handler with running totals
 ponder.on('ClankerFeeLocker:FeesClaimed', async ({ event, context }) => {
-  await context.db.FeeClaim.create({
-    id: event.transaction.hash,
-    data: {
-      token: event.args.token,
-      wallet: event.args.wallet,
-      wethAmount: event.args.wethAmount.toString(),
-      timestamp: event.block.timestamp,
-    },
+  // Store fee claim record
+  await db.insert(feeClaim).values({ ... });
+
+  // Update agent token with running totals
+  await db.update(agentToken).set({
+    totalFeesClaimed: newTotal.toString(),
+    lastClaimAt: timestamp,
   });
 });
 ```
 
+**Implementation:**
+- Created `abis/ClankerFeeLocker.ts` with FeesClaimed event
+- Added `feeClaim` table for individual claim records
+- Added `agentToken` table for token portfolios with fee totals
+- Added Base mainnet chain to ponder.config.ts
+- Handler tracks WETH and token amounts per claim
+- Maintains running totals on agentToken for portfolio views
+
 ---
 
-## Implementation Order
+## Implementation Order ✅ COMPLETE
 
 ```
-Week 1: P1 Critical Path
-├── Day 1-2: Gap 1 (WETH swap)
-├── Day 3: Gap 2 (claim endpoint)
-└── Day 4-5: Gap 3 (drift checking)
+Week 1: P1 Critical Path ✅
+├── Gap 1 (WETH swap) ✅
+├── Gap 2 (claim endpoint) ✅
+└── Gap 3 (drift checking) ✅
 
-Week 2: P2 Production Ready
-├── Day 1: Gap 5 (observation loop)
-├── Day 2: Gap 6 (token balances)
-└── Day 3-5: Integration testing
+Week 2: P2 Production Ready ✅
+├── Gap 5 (observation loop) ✅
+├── Gap 6 (token balances) ✅
+└── Integration testing (ongoing)
 
-Week 3: P3 Polish (if time permits)
-├── Gap 7-8: ENS + ERC-8004
-├── Gap 9: Nostr
-└── Gap 10: Indexer
+Week 3: P3 Essential Integrations ✅
+├── Gap 7: ENS subname registration ✅
+├── Gap 8: ERC-8004 registration ✅
+├── Gap 9: Nostr integration ✅
+└── Gap 10: Indexer fee claims ✅
 ```
+
+**Remaining:** Gap 4 (LP compounding) deferred to Phase 2 by design.
 
 ---
 
