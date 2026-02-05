@@ -3,6 +3,7 @@
 // P3: Now includes ENS, ERC-8004, and Nostr integrations
 
 import { type Address } from 'viem';
+import { privateKeyToAccount } from 'viem/accounts';
 import type { Env } from '../index';
 import {
   generateAgentWallet,
@@ -324,6 +325,143 @@ export async function handleLaunchAgent(
         success: false,
         error: String(error),
         steps,
+      }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+}
+
+/**
+ * Request to import an existing agent wallet
+ */
+export interface ImportAgentRequest {
+  /** User's wallet address (deployer) */
+  userAddress: Address;
+  /** Agent name for identification */
+  agentName: string;
+  /** Agent's private key (to be stored securely) */
+  agentPrivateKey: `0x${string}`;
+  /** Token address if already launched */
+  tokenAddress?: Address;
+  /** ENS name if registered */
+  ensName?: string;
+  /** ERC-8004 ID if registered */
+  erc8004Id?: number;
+  /** Nostr public key if available */
+  nostrPubkey?: string;
+}
+
+/**
+ * Handle POST /import-agent - Import an existing agent wallet
+ *
+ * Use this to register externally-created agent wallets (e.g., from Clawnch direct launch)
+ * so the treasury agent can manage fee claiming and distribution.
+ */
+export async function handleImportAgent(
+  request: Request,
+  env: Env,
+  corsHeaders: Record<string, string>
+): Promise<Response> {
+  let body: ImportAgentRequest;
+
+  try {
+    body = await request.json();
+  } catch {
+    return new Response(
+      JSON.stringify({ success: false, error: 'Invalid JSON body' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  const { userAddress, agentName, agentPrivateKey, tokenAddress, ensName, erc8004Id, nostrPubkey } = body;
+
+  // Validate required fields
+  if (!userAddress || !agentName || !agentPrivateKey) {
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: 'Missing required fields: userAddress, agentName, agentPrivateKey',
+      }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  // Validate private key format
+  if (!agentPrivateKey.startsWith('0x') || agentPrivateKey.length !== 66) {
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: 'Invalid private key format. Must be 0x-prefixed 32-byte hex string.',
+      }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  // Check if agent already exists
+  const existingAgent = await getStoredAgent(env.TREASURY_KV, userAddress, agentName);
+  if (existingAgent) {
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: `Agent "${agentName}" already exists for this user`,
+        existingAgent: {
+          address: existingAgent.address,
+          ensName: existingAgent.ensName,
+          tokenAddress: existingAgent.tokenAddress,
+        },
+      }),
+      { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  try {
+    // Derive address from private key (using static import)
+    const account = privateKeyToAccount(agentPrivateKey);
+
+    // Store the agent
+    await storeAgentKeys(
+      env.TREASURY_KV,
+      userAddress,
+      agentName,
+      {
+        address: account.address,
+        privateKey: agentPrivateKey,
+      },
+      {
+        ensName: ensName || `${agentName}.oikonomos.eth`,
+        erc8004Id,
+        nostrPubkey,
+        tokenAddress,
+      }
+    );
+
+    console.log(`[import-agent] Imported agent ${agentName} for user ${userAddress}`);
+    console.log(`[import-agent] Agent wallet: ${account.address}`);
+    if (tokenAddress) {
+      console.log(`[import-agent] Token: ${tokenAddress}`);
+    }
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message: 'Agent imported successfully',
+        agent: {
+          address: account.address,
+          agentName,
+          ensName: ensName || `${agentName}.oikonomos.eth`,
+          erc8004Id,
+          nostrPubkey,
+          tokenAddress,
+        },
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  } catch (error) {
+    console.error('[import-agent] Error:', error);
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: `Failed to import agent: ${String(error)}`,
       }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

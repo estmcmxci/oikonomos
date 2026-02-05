@@ -10,7 +10,8 @@ import { getFeeAnalytics, getRecentEarnings } from './x402/analytics';
 import { handleScheduledTrigger, handleEventsWebhook, savePolicy, saveAuthorization, deleteAuthorization, type UserAuthorization } from './observation';
 import { handleVerifyReceipt } from './verification/handler'; // OIK-53: Receipt verification
 import { handleCreateSession, handleGetSession, handleRevokeSession } from './session/handler'; // OIK-10: Session keys
-import { handleLaunchAgent, handleListAgents } from './launch/handler'; // Phase 5: Agent launcher
+import { handleLaunchAgent, handleListAgents, handleImportAgent } from './launch/handler'; // Phase 5: Agent launcher
+import { handleClaimFees } from './execute/claimHandler'; // Phase 3: Fee claiming
 
 export interface Env {
   CHAIN_ID: string;
@@ -250,6 +251,11 @@ export default {
         return handleExecute(request, env, CORS_HEADERS);
       }
 
+      // Claim fees endpoint (Phase 3: Fee claiming + distribution)
+      if (url.pathname === '/claim-fees' && request.method === 'POST') {
+        return handleClaimFees(request, env, CORS_HEADERS);
+      }
+
       // Fee analytics endpoint (OIK-40)
       if (url.pathname === '/analytics' && request.method === 'GET') {
         const totals = await getFeeAnalytics(env.TREASURY_KV);
@@ -363,6 +369,11 @@ export default {
       // POST /launch-agent - Create new agent with wallet and optional token
       if (url.pathname === '/launch-agent' && request.method === 'POST') {
         return handleLaunchAgent(request, env, CORS_HEADERS);
+      }
+
+      // POST /import-agent - Import existing agent wallet
+      if (url.pathname === '/import-agent' && request.method === 'POST') {
+        return handleImportAgent(request, env, CORS_HEADERS);
       }
 
       // GET /agents - List user's agents
