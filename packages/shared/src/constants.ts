@@ -28,7 +28,29 @@ export const ADDRESSES = {
   ENS_RESOLVER: '0x8FADE66B79cC9f707aB26799354482EB93a5B7dD',
 } as const;
 
-// Clanker Contract Addresses (Base Sepolia)
+// Uniswap V4 Contract Addresses
+export const UNISWAP_V4_ADDRESSES = {
+  BASE_MAINNET: {
+    POOL_MANAGER: '0x498581ff718922c3f8e6a244956af099b2652b2b' as const,
+    POSITION_DESCRIPTOR: '0x25d093633990dc94bedeed76c8f3cdaa75f3e7d5' as const,
+    POSITION_MANAGER: '0x7c5f5a4bbd8fd6318457752532612bb519429bdc' as const,
+    QUOTER: '0x0d5e0f971ed27fbff6c2837bf313161215320484' as const,
+    STATE_VIEW: '0xa3c0c9b65bad0b08107aa264b0f3db444b867a71' as const,
+    UNIVERSAL_ROUTER: '0x6ff5693b99212da76ad316178a184ab56d299b43' as const,
+    PERMIT2: '0x000000000022D473030F116dDEE9F6B43aC78BA3' as const,
+  },
+  BASE_SEPOLIA: {
+    POOL_MANAGER: '0x05E73354cFDd6745C338b50BcFDfA3Aa6fA03408' as const,
+    POSITION_DESCRIPTOR: null as `0x${string}` | null,
+    POSITION_MANAGER: null as `0x${string}` | null,
+    QUOTER: null as `0x${string}` | null,
+    STATE_VIEW: null as `0x${string}` | null,
+    UNIVERSAL_ROUTER: null as `0x${string}` | null,
+    PERMIT2: '0x000000000022D473030F116dDEE9F6B43aC78BA3' as const,
+  },
+} as const;
+
+// Clanker Contract Addresses
 // Used for meta-treasury management of AI agent tokens
 export const CLANKER_ADDRESSES = {
   BASE_SEPOLIA: {
@@ -44,12 +66,21 @@ export const CLANKER_ADDRESSES = {
     WETH: '0x4200000000000000000000000000000000000006' as const,
   },
   BASE_MAINNET: {
-    // TODO: Add mainnet addresses when available
-    POOL_MANAGER: null as `0x${string}` | null,
-    CLANKER: null as `0x${string}` | null,
-    FEE_LOCKER: null as `0x${string}` | null,
-    CLANKER_HOOK: null as `0x${string}` | null,
+    // Uniswap V4 PoolManager (same as UNISWAP_V4_ADDRESSES)
+    POOL_MANAGER: '0x498581ff718922c3f8e6a244956af099b2652b2b' as const,
+    // Clanker contracts v4.1.0
+    CLANKER_HOOK_DYNAMIC: '0xd60D6B218116cFd801E28F78d011a203D2b068Cc' as const,
+    CLANKER_HOOK_STATIC: '0xb429d62f8f3bFFb98CdB9569533eA23bF0Ba28CC' as const,
+    CLANKER_SNIPER_AUCTION: '0xebB25BB797D82CB78E1bc70406b13233c0854413' as const,
+    CLANKER_SNIPER_UTIL: '0xC5AA2945d52a4096b946891ef8e01668f82eB74E' as const,
+    CLANKER_AIRDROP: '0xf652B3610D75D81871bf96DB50825d9af28391E0' as const,
+    CLANKER_POOL_EXTENSION: '0xaa12bb11E9876FCAFc7c46dBEB985d3fA23832c9' as const,
+    // Fee locker - TODO: Get from Clanker docs
+    FEE_LOCKER: '0xF3622742b1E446D92e45E22923Ef11C2fcD55D68' as const,
+    // Canonical WETH on Base
     WETH: '0x4200000000000000000000000000000000000006' as const,
+    // USDC on Base mainnet
+    USDC: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as const,
   },
 } as const;
 
@@ -61,6 +92,17 @@ export function getClankerAddresses(chainId: number) {
     case 84532: // Base Sepolia
     default:
       return CLANKER_ADDRESSES.BASE_SEPOLIA;
+  }
+}
+
+// Helper to get Uniswap V4 addresses by chain ID
+export function getUniswapV4Addresses(chainId: number) {
+  switch (chainId) {
+    case 8453: // Base Mainnet
+      return UNISWAP_V4_ADDRESSES.BASE_MAINNET;
+    case 84532: // Base Sepolia
+    default:
+      return UNISWAP_V4_ADDRESSES.BASE_SEPOLIA;
   }
 }
 
