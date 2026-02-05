@@ -100,12 +100,33 @@ export async function executeFeeClaim(
 
   try {
     // Check available fees before claiming
-    const wethFees = await publicClient.readContract({
-      address: FEE_LOCKER_ADDRESS,
-      abi: FeeLockerABI,
-      functionName: 'availableWethFees',
-      args: [token, account.address],
-    });
+    // Note: FeeLocker may revert if token has never been traded
+    let wethFees = 0n;
+    try {
+      wethFees = await publicClient.readContract({
+        address: FEE_LOCKER_ADDRESS,
+        abi: FeeLockerABI,
+        functionName: 'availableWethFees',
+        args: [token, account.address],
+      });
+    } catch (checkError: any) {
+      // FeeLocker reverts when token hasn't been traded yet
+      // This is normal for newly launched tokens
+      const errorMsg = String(checkError);
+      if (errorMsg.includes('revert') || errorMsg.includes('execution reverted')) {
+        console.log(`[feeClaim] Token ${token} not yet traded (FeeLocker revert)`);
+        return {
+          token,
+          symbol,
+          wethClaimed: '0',
+          tokensClaimed: '0',
+          txHash: '0x0' as `0x${string}`,
+          success: true,
+          error: 'No fees available - token has not been traded yet',
+        };
+      }
+      throw checkError; // Re-throw unexpected errors
+    }
 
     if (wethFees === 0n) {
       return {
@@ -160,7 +181,10 @@ export async function executeClaimAll(
   agentPrivateKey: `0x${string}`,
   tokens: Address[]
 ): Promise<ClaimAllResult> {
+  console.log('[feeClaim] executeClaimAll START - tokens:', tokens);
+
   if (tokens.length === 0) {
+    console.log('[feeClaim] No tokens to process');
     return {
       totalWethClaimed: '0',
       totalTokensClaimed: 0,
@@ -182,14 +206,27 @@ export async function executeClaimAll(
   });
 
   // Get fees for each token before claiming
+  // Note: FeeLocker may revert for tokens that haven't been traded yet
+  console.log('[feeClaim] About to check fees for each token');
   const feePromises = tokens.map(async (token) => {
-    const wethFees = await publicClient.readContract({
-      address: FEE_LOCKER_ADDRESS,
-      abi: FeeLockerABI,
-      functionName: 'availableWethFees',
-      args: [token, account.address],
-    });
-    return { token, wethFees };
+    console.log(`[feeClaim] Checking token ${token}...`);
+    try {
+      const wethFees = await publicClient.readContract({
+        address: FEE_LOCKER_ADDRESS,
+        abi: FeeLockerABI,
+        functionName: 'availableWethFees',
+        args: [token, account.address],
+      });
+      return { token, wethFees, error: undefined };
+    } catch (error: any) {
+      // FeeLocker reverts when token hasn't been traded yet
+      const errorMsg = String(error);
+      if (errorMsg.includes('revert') || errorMsg.includes('execution reverted')) {
+        console.log(`[feeClaim] Token ${token} not yet traded (FeeLocker revert)`);
+        return { token, wethFees: 0n, error: 'Token not yet traded' };
+      }
+      return { token, wethFees: 0n, error: errorMsg };
+    }
   });
 
   const fees = await Promise.all(feePromises);
@@ -205,7 +242,7 @@ export async function executeClaimAll(
         tokensClaimed: '0',
         txHash: '0x0' as `0x${string}`,
         success: true,
-        error: 'No fees to claim',
+        error: f.error || 'No fees to claim',
       })),
     };
   }
