@@ -1,5 +1,6 @@
 // Phase 5: Agent Launcher Handler
 // Endpoint for launching new AI agents with token creation
+// P3: Now includes ENS, ERC-8004, and Nostr integrations
 
 import { type Address } from 'viem';
 import type { Env } from '../index';
@@ -9,6 +10,15 @@ import {
   storeAgentKeys,
   getStoredAgent,
 } from './keychain';
+import {
+  registerAgentERC8004,
+  registerENSSubname,
+  isSubnameAvailable,
+} from './registration';
+import {
+  launchAgentOnNostr,
+  getNostrPublicKey,
+} from './nostr';
 
 // ERC-8004 Registry on Sepolia
 const ERC8004_REGISTRY = '0x8004A818BFB912233c491871b3d84c89A494BD9e' as const;
@@ -139,42 +149,130 @@ export async function handleLaunchAgent(
 
     // 2. Derive Nostr keys
     const nostrKeys = deriveNostrKeys(agentWallet.privateKey, agentName);
+    // Get proper public key if nostr-tools available
+    let nostrPubkey = nostrKeys.publicKey;
+    try {
+      nostrPubkey = getNostrPublicKey(nostrKeys.privateKey);
+    } catch {
+      // Keep derived key as fallback
+    }
 
     steps.push({
       step: 'Derive Nostr keys',
       status: 'completed',
-      details: `npub: ${nostrKeys.publicKey.slice(0, 16)}...`,
+      details: `npub: ${nostrPubkey.slice(0, 16)}...`,
     });
 
-    // 3. Register ENS subname (placeholder - requires CCIP integration)
+    // 3. Check ENS subname availability
     const ensName = `${agentName}.oikonomos.eth`;
+    const a2aUrl = `https://${agentName}.oikonomos.workers.dev/.well-known/agent-card.json`;
 
-    steps.push({
-      step: 'Register ENS subname',
-      status: 'pending',
-      details: `${ensName} (requires CCIP resolver)`,
+    const ensAvailable = await isSubnameAvailable(env, agentName);
+    if (!ensAvailable) {
+      steps.push({
+        step: 'Check ENS availability',
+        status: 'failed',
+        details: `${ensName} is already registered`,
+      });
+    } else {
+      steps.push({
+        step: 'Check ENS availability',
+        status: 'completed',
+        details: `${ensName} is available`,
+      });
+    }
+
+    // 4. Register in ERC-8004 (creates identity NFT)
+    let erc8004Id: number | undefined;
+    const erc8004Result = await registerAgentERC8004(env, agentWallet.privateKey, {
+      name: tokenName,
+      description,
+      ensName,
+      a2aUrl,
+      imageUrl: body.imageUrl,
     });
 
-    // 4. Register in ERC-8004 (placeholder - requires contract call)
-    steps.push({
-      step: 'Register in ERC-8004',
-      status: 'pending',
-      details: `Registry: ${ERC8004_REGISTRY}`,
+    if (erc8004Result.success) {
+      erc8004Id = erc8004Result.erc8004Id;
+      steps.push({
+        step: 'Register in ERC-8004',
+        status: 'completed',
+        details: `Agent ID: ${erc8004Id}`,
+        txHash: erc8004Result.txHash,
+      });
+    } else {
+      steps.push({
+        step: 'Register in ERC-8004',
+        status: 'failed',
+        details: erc8004Result.error || 'Registration failed',
+      });
+    }
+
+    // 5. Register ENS subname (requires ERC-8004 ID)
+    if (ensAvailable && erc8004Id !== undefined) {
+      const ensResult = await registerENSSubname(env, agentWallet.privateKey, {
+        label: agentName,
+        agentId: BigInt(erc8004Id),
+        a2aUrl,
+      });
+
+      if (ensResult.success) {
+        steps.push({
+          step: 'Register ENS subname',
+          status: 'completed',
+          details: ensResult.ensName,
+          txHash: ensResult.txHash,
+        });
+      } else {
+        steps.push({
+          step: 'Register ENS subname',
+          status: 'failed',
+          details: ensResult.error || 'ENS registration failed',
+        });
+      }
+    } else {
+      steps.push({
+        step: 'Register ENS subname',
+        status: 'pending',
+        details: ensAvailable ? 'Requires ERC-8004 ID' : 'Name unavailable',
+      });
+    }
+
+    // 6. Create Nostr profile + post !clawnch
+    const nostrResult = await launchAgentOnNostr(nostrKeys.privateKey, {
+      tokenName,
+      tokenSymbol,
+      description,
+      imageUrl: body.imageUrl,
+      platform: body.platform || 'clawstr',
+      agentWallet: agentWallet.address,
+      ensName,
     });
 
-    // 5. Create Nostr profile (placeholder - requires Nostr relay connection)
-    steps.push({
-      step: 'Create Nostr profile',
-      status: 'pending',
-      details: 'bot: true profile',
-    });
-
-    // 6. Post !clawnch (placeholder - requires Nostr posting)
-    steps.push({
-      step: 'Post !clawnch',
-      status: 'pending',
-      details: `Platform: ${body.platform || 'clawstr'}`,
-    });
+    if (nostrResult.success) {
+      steps.push({
+        step: 'Create Nostr profile',
+        status: 'completed',
+        details: `Event ID: ${nostrResult.profileEventId?.slice(0, 16)}...`,
+      });
+      steps.push({
+        step: 'Post !clawnch',
+        status: 'completed',
+        details: `Event ID: ${nostrResult.clawnchEventId?.slice(0, 16)}...`,
+      });
+    } else {
+      // Events created but may need manual relay publishing
+      steps.push({
+        step: 'Create Nostr profile',
+        status: nostrResult.profileEventId ? 'completed' : 'failed',
+        details: nostrResult.error || 'Events created, relay publishing pending',
+      });
+      steps.push({
+        step: 'Post !clawnch',
+        status: nostrResult.clawnchEventId ? 'completed' : 'failed',
+        details: `Platform: ${body.platform || 'clawstr'}`,
+      });
+    }
 
     // 7. Store agent keys in KV
     await storeAgentKeys(
@@ -184,7 +282,8 @@ export async function handleLaunchAgent(
       agentWallet,
       {
         ensName,
-        nostrPubkey: nostrKeys.publicKey,
+        erc8004Id,
+        nostrPubkey,
       }
     );
 
@@ -194,20 +293,26 @@ export async function handleLaunchAgent(
       details: 'Securely stored in KV',
     });
 
-    // Return success with pending steps noted
+    // Build response
+    const failedSteps = steps.filter(s => s.status === 'failed');
+    const pendingSteps = steps.filter(s => s.status === 'pending');
+
     const response: LaunchAgentResponse = {
-      success: true,
+      success: failedSteps.length === 0,
       agent: {
         wallet: agentWallet.address,
         ensName,
-        nostrPubkey: nostrKeys.publicKey,
+        erc8004Id,
+        nostrPubkey,
       },
       steps,
     };
 
-    // Add note about pending steps
-    if (steps.some(s => s.status === 'pending')) {
-      response.error = 'Some steps are pending manual completion (ENS, ERC-8004, Nostr)';
+    // Add note about issues
+    if (failedSteps.length > 0) {
+      response.error = `${failedSteps.length} step(s) failed: ${failedSteps.map(s => s.step).join(', ')}`;
+    } else if (pendingSteps.length > 0) {
+      response.error = `${pendingSteps.length} step(s) pending: ${pendingSteps.map(s => s.step).join(', ')}`;
     }
 
     return new Response(JSON.stringify(response), {

@@ -1,6 +1,6 @@
 import { ponder } from 'ponder:registry';
-import { agent, subname, swapReceipt, agentMetrics } from 'ponder:schema';
-import { keccak256, toBytes } from 'viem';
+import { agent, subname, swapReceipt, agentMetrics, feeClaim, agentToken } from 'ponder:schema';
+import { keccak256, toBytes, formatEther } from 'viem';
 
 /**
  * Marketplace ENS Filter (OIK-45)
@@ -306,4 +306,58 @@ ponder.on('OffchainSubnameManager:SubnameRegistered', async ({ event, context })
   });
 
   console.log(`[subname] Registered ${fullName} -> owner: ${event.args.owner}, agentId: ${event.args.agentId}`);
+});
+
+// ============================================================================
+// P3 Gap 10: ClankerFeeLocker Fee Claims (Base Mainnet)
+// ============================================================================
+
+ponder.on('ClankerFeeLocker:FeesClaimed', async ({ event, context }) => {
+  const { db } = context;
+  const claimId = `${event.transaction.hash}-${event.log.logIndex}`;
+
+  // Store the fee claim record
+  await db.insert(feeClaim).values({
+    id: claimId,
+    token: event.args.token,
+    wallet: event.args.wallet,
+    wethAmount: event.args.wethAmount.toString(),
+    tokenAmount: event.args.tokenAmount.toString(),
+    timestamp: BigInt(event.block.timestamp),
+    blockNumber: BigInt(event.block.number),
+    transactionHash: event.transaction.hash,
+    chainId: 8453, // Base mainnet
+  });
+
+  // Update or create agent token record with fee totals
+  const existingToken = await db.find(agentToken, { id: event.args.token.toLowerCase() });
+
+  if (existingToken) {
+    // Update running totals
+    const currentTotal = BigInt(existingToken.totalFeesClaimed);
+    const newTotal = currentTotal + event.args.wethAmount;
+
+    await db
+      .update(agentToken, { id: event.args.token.toLowerCase() })
+      .set({
+        totalFeesClaimed: newTotal.toString(),
+        lastClaimAt: BigInt(event.block.timestamp),
+      });
+  } else {
+    // Create new agent token entry from first claim
+    await db.insert(agentToken).values({
+      id: event.args.token.toLowerCase(),
+      agentWallet: event.args.wallet,
+      tokenAddress: event.args.token,
+      symbol: 'UNKNOWN', // Would need Clawnch API to get symbol
+      name: 'Unknown Token',
+      launchedAt: BigInt(event.block.timestamp), // Approximate from first claim
+      platform: 'unknown',
+      totalFeesClaimed: event.args.wethAmount.toString(),
+      lastClaimAt: BigInt(event.block.timestamp),
+    });
+  }
+
+  const wethFormatted = formatEther(event.args.wethAmount);
+  console.log(`[feeClaim] Claimed ${wethFormatted} WETH for token ${event.args.token} by ${event.args.wallet}`);
 });
