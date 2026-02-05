@@ -1,5 +1,6 @@
 // OIK-33: Suggest Policy Handler
 // Main endpoint handler for /suggest-policy
+// Extended for unified treasury (Phases 1-2): stablecoins + agent tokens + fees
 
 import { createPublicClient, http, erc20Abi, formatUnits, type Address } from 'viem';
 import type { Env } from '../index';
@@ -9,6 +10,14 @@ import { findCompatiblePools, hasReceiptHookPool, type PoolMatch } from './pools
 import { matchPolicy, type PolicyMatch, type RiskProfile } from './matcher';
 import { discoverMarketplaceAgents, formatMatchedAgents, type MarketplaceAgent } from './marketplace';
 import type { Policy, TokenAllocation } from '../policy/templates';
+import {
+  discoverAgentTokens,
+  getAggregateFees,
+  getAgentWallets,
+  type AgentToken,
+  type DiscoveredPortfolio,
+  type PortfolioToken as ClawnchPortfolioToken,
+} from './clawnch';
 
 interface TokenInfo {
   address: Address;
@@ -34,6 +43,10 @@ interface StrategyAgentInfo {
 
 interface SuggestPolicyRequest {
   walletAddress: string;
+  /** Optional: Agent wallets to discover tokens for. If not provided, will query KV for stored agents. */
+  agentWallets?: string[];
+  /** Optional: Include agent tokens from Clawnch (default: true) */
+  includeAgentTokens?: boolean;
 }
 
 interface MatchedAgent {
@@ -75,6 +88,18 @@ interface SuggestPolicyResponse {
     totalTokens: number;
     tokens: PortfolioToken[];
   };
+  // Phase 1: Unified portfolio extension
+  agentTokens?: AgentToken[];
+  unclaimedFees?: {
+    weth: string;
+    wethRaw: string;
+    tokens: Array<{
+      address: string;
+      symbol: string;
+      wethAmount: string;
+      tokenAmount: string;
+    }>;
+  };
   timestamp: number;
 }
 
@@ -109,7 +134,7 @@ export async function handleSuggestPolicy(
     );
   }
 
-  const { walletAddress } = body;
+  const { walletAddress, agentWallets: requestAgentWallets, includeAgentTokens = true } = body;
 
   if (!walletAddress) {
     return new Response(
@@ -119,8 +144,35 @@ export async function handleSuggestPolicy(
   }
 
   try {
-    // 1. Fetch portfolio
+    // 1. Fetch stablecoin/volatile portfolio
     const portfolio = await fetchPortfolio(env, walletAddress as Address, DEFAULT_TOKENS);
+
+    // 1b. Discover agent tokens from Clawnch (Phase 1)
+    let agentTokens: AgentToken[] = [];
+    let unclaimedFees: SuggestPolicyResponse['unclaimedFees'] | undefined;
+
+    if (includeAgentTokens) {
+      // Get agent wallets from request or KV storage
+      const storedAgentWallets = await getAgentWallets(env.TREASURY_KV, walletAddress as Address);
+      const agentWalletsToQuery = requestAgentWallets?.map(w => w as Address) || storedAgentWallets;
+
+      // Discover agent tokens and fees
+      agentTokens = await discoverAgentTokens(env, walletAddress as Address, agentWalletsToQuery);
+
+      if (agentTokens.length > 0) {
+        const fees = await getAggregateFees(env, agentTokens);
+        unclaimedFees = {
+          weth: fees.weth,
+          wethRaw: fees.wethRaw,
+          tokens: fees.tokens.map(t => ({
+            address: t.address,
+            symbol: t.symbol,
+            wethAmount: t.wethAmount,
+            tokenAmount: t.tokenAmount,
+          })),
+        };
+      }
+    }
 
     // 2. Filter tokens with non-zero balance
     const activeTokens = portfolio.filter(t => parseFloat(t.balance) > 0);
@@ -182,6 +234,13 @@ export async function handleSuggestPolicy(
           avgSlippage: hasHookPool ? '< 50 bps' : undefined,
         };
 
+    // Build reasoning with agent token info
+    let extendedReasoning = policyMatch.reasoning;
+    if (agentTokens.length > 0) {
+      const totalFees = unclaimedFees?.weth || '0';
+      extendedReasoning += ` Additionally, found ${agentTokens.length} agent token(s) with ${totalFees} WETH in unclaimed fees.`;
+    }
+
     const response: SuggestPolicyResponse = {
       suggestedPolicy: {
         type: policyMatch.policy.type,
@@ -191,7 +250,7 @@ export async function handleSuggestPolicy(
         maxSlippageBps: policyMatch.policy.maxSlippageBps,
         maxDailyUsd: policyMatch.policy.maxDailyUsd,
       },
-      reasoning: policyMatch.reasoning,
+      reasoning: extendedReasoning,
       confidence: policyMatch.confidence,
       compatiblePools: compatiblePools.map(p => ({
         pair: p.pair,
@@ -210,6 +269,9 @@ export async function handleSuggestPolicy(
         totalTokens: activeTokens.length,
         tokens: activeTokens,
       },
+      // Phase 1: Agent tokens and fees
+      agentTokens: agentTokens.length > 0 ? agentTokens : undefined,
+      unclaimedFees,
       timestamp: Date.now(),
     };
 

@@ -10,6 +10,7 @@ import { getFeeAnalytics, getRecentEarnings } from './x402/analytics';
 import { handleScheduledTrigger, handleEventsWebhook, savePolicy, saveAuthorization, deleteAuthorization, type UserAuthorization } from './observation';
 import { handleVerifyReceipt } from './verification/handler'; // OIK-53: Receipt verification
 import { handleCreateSession, handleGetSession, handleRevokeSession } from './session/handler'; // OIK-10: Session keys
+import { handleLaunchAgent, handleListAgents } from './launch/handler'; // Phase 5: Agent launcher
 
 export interface Env {
   CHAIN_ID: string;
@@ -356,6 +357,17 @@ export default {
         if (userAddress) {
           return handleRevokeSession(userAddress, env, CORS_HEADERS);
         }
+      }
+
+      // Phase 5: Agent launcher endpoints
+      // POST /launch-agent - Create new agent with wallet and optional token
+      if (url.pathname === '/launch-agent' && request.method === 'POST') {
+        return handleLaunchAgent(request, env, CORS_HEADERS);
+      }
+
+      // GET /agents - List user's agents
+      if (url.pathname === '/agents' && request.method === 'GET') {
+        return handleListAgents(request, env, CORS_HEADERS);
       }
 
       // Health check
