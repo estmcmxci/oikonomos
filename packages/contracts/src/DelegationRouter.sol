@@ -14,8 +14,7 @@ import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
  * tokens to strategy providers. Providers can claim fees from ClankerFeeLocker and
  * execute management policies on behalf of users.
  *
- * @dev Part of the Oikonomos meta-treasury manager pivot
- * @see PIVOT_SUMMARY.md
+ * @dev Part of the Oikonomos meta-treasury manager pivot (see PIVOT_SUMMARY.md)
  */
 interface IClankerFeeLocker {
     function claim(address token) external;
