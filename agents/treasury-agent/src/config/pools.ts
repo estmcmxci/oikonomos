@@ -1,147 +1,82 @@
 /**
  * Pool Configuration Registry
  *
- * Maintains a registry of Uniswap v4 pools initialized with our ReceiptHook.
- * Only pools in this registry can be used for agent-executed swaps, ensuring
- * all trades emit ExecutionReceipt events for reputation tracking.
+ * PIVOT NOTE: This file has been updated for the meta-treasury manager pivot.
+ * Previously maintained a registry of custom ReceiptHook pools.
+ * Now prepared for Clanker pool integration where pools are discovered dynamically.
  *
- * @see OIK-39: Pool Discovery and Registry for IntentRouter
+ * Key changes:
+ * - Removed ReceiptHook address (using Clanker's ClankerHook instead)
+ * - Tokens will be discovered via Clawnch API per user's launched tokens
+ * - Pool configuration retrieved from Clanker pool data
+ *
+ * @see PIVOT_SUMMARY.md
+ * @see INTEGRATION_REFACTORING_PLAN.md Phase 2
  */
 
 import type { Address } from 'viem';
 
-export interface PoolConfig {
-  currency0: Address;
-  currency1: Address;
-  fee: number;
-  tickSpacing: number;
-  hooks: Address;
-}
-
-// OIK-50: ReceiptHook deployment on Base Sepolia
-const RECEIPT_HOOK = '0x906E3e24C04f6b6B5b6743BB77d0FCBE4d87C040' as Address;
-
-// OIK-51: Permit-enabled token addresses on Base Sepolia
-export const TOKENS = {
-  USDC: '0x944a6D90b3111884CcCbfcc45B381b7C864D7943' as Address, // MockUSDC (EIP-2612 permit)
-  DAI: '0xCE728786975c72711e810aDCD9BC233A2a55d7C1' as Address,  // MockDAI (EIP-2612 permit)
-  WETH: '0x4200000000000000000000000000000000000006' as Address, // Canonical Base WETH
+// ======== Clanker Contract Addresses (Base Sepolia) ========
+export const CLANKER_CONTRACTS = {
+  PoolManager: '0x05E73354cFDd6745C338b50BcFDfA3Aa6fA03408' as Address,
+  Clanker: '0xE85A59c628F7d27878ACeB4bf3b35733630083a9' as Address,
+  ClankerFeeLocker: '0x42A95190B4088C88Dd904d930c79deC1158bF09D' as Address,
+  ClankerHook: '0xE63b0A59100698f379F9B577441A561bAF9828cc' as Address,
 } as const;
 
-// Legacy Sepolia tokens (for reference)
-// const SEPOLIA_TOKENS = {
-//   USDC: '0x94a9D9AC8a22534E3FaCa9F4e7F2E2cf85d5E4C8',
-//   DAI: '0xFF34B3d4Aee8ddCd6F9AFFFB6Fe49bD371b8a357',
-//   WETH: '0xC558DBdd856501FCd9aaF1E62eae57A9F0629a3c',
-// };
+// ======== Common Token Addresses (Base Sepolia) ========
+export const TOKENS = {
+  WETH: '0x4200000000000000000000000000000000000006' as Address,
+  // Clanker tokens are discovered dynamically via Clawnch API
+} as const;
 
 /**
- * Registry of pools initialized with ReceiptHook on Base Sepolia.
- * OIK-51: Updated with permit-enabled tokens
- * Key format: sorted lowercase addresses joined by '-'
- *
- * To add a new pool:
- * 1. Initialize the pool on-chain with ReceiptHook
- * 2. Add entry here with the pool parameters used during initialization
+ * Clanker pool configuration (discovered from on-chain or API)
  */
-export const SUPPORTED_POOLS: Record<string, PoolConfig> = {
-  // USDC/DAI - 0.05% fee tier (stablecoin pair)
-  // Note: USDC (0x944a...) < DAI (0xCE72...) lexicographically, so USDC is currency0
-  '0x944a6d90b3111884cccbfcc45b381b7c864d7943-0xce728786975c72711e810adcd9bc233a2a55d7c1': {
-    currency0: TOKENS.USDC,
-    currency1: TOKENS.DAI,
-    fee: 500, // 0.05%
-    tickSpacing: 10,
-    hooks: RECEIPT_HOOK,
-  },
-  // WETH/USDC - 0.3% fee tier (volatile pair)
-  // Note: WETH (0x4200...) < USDC (0x944a...) lexicographically
-  '0x4200000000000000000000000000000000000006-0x944a6d90b3111884cccbfcc45b381b7c864d7943': {
-    currency0: TOKENS.WETH,
-    currency1: TOKENS.USDC,
-    fee: 3000, // 0.3%
-    tickSpacing: 60,
-    hooks: RECEIPT_HOOK,
-  },
-};
+export interface ClankerPoolConfig {
+  token: Address;          // The Clanker-launched token
+  tokenSymbol: string;     // Token symbol (e.g., "$ALPHA")
+  poolId: `0x${string}`;   // Uniswap V4 pool ID
+  currency0: Address;      // Sorted token address 0
+  currency1: Address;      // Sorted token address 1
+  fee: number;             // Pool fee in basis points
+  tickSpacing: number;     // Tick spacing
+  hooks: Address;          // ClankerHook address
+  launchedAt: number;      // Timestamp when launched
+  platform: string;        // moltbook, 4claw, clawstr, moltx
+}
 
 /**
  * Sort two token addresses (required by Uniswap v4: currency0 < currency1)
  */
-function sortTokens(tokenA: Address, tokenB: Address): [Address, Address] {
+export function sortTokens(tokenA: Address, tokenB: Address): [Address, Address] {
   return tokenA.toLowerCase() < tokenB.toLowerCase()
     ? [tokenA, tokenB]
     : [tokenB, tokenA];
 }
 
 /**
- * Generate pool registry key from token pair
+ * Check if a token is WETH
  */
-function getPoolKey(tokenA: Address, tokenB: Address): string {
-  const [token0, token1] = sortTokens(tokenA, tokenB);
+export function isWETH(token: Address): boolean {
+  return token.toLowerCase() === TOKENS.WETH.toLowerCase();
+}
+
+/**
+ * Get the Clanker pool key for a token paired with WETH
+ * All Clanker tokens are paired with WETH
+ */
+export function getClankerPoolKey(token: Address): string {
+  const [token0, token1] = sortTokens(token, TOKENS.WETH);
   return `${token0.toLowerCase()}-${token1.toLowerCase()}`;
 }
 
 /**
- * Look up pool configuration for a token pair.
- * Returns null if no pool is configured for the pair.
- *
- * @param tokenA First token address (order doesn't matter)
- * @param tokenB Second token address (order doesn't matter)
- * @returns Pool configuration or null if not found
+ * Default Clanker pool parameters
+ * Clanker uses standard parameters for all launched tokens
  */
-export function getPoolForPair(tokenA: Address, tokenB: Address): PoolConfig | null {
-  const key = getPoolKey(tokenA, tokenB);
-  return SUPPORTED_POOLS[key] || null;
-}
-
-/**
- * Get pool configuration for a token pair, throwing if not configured.
- * Use this when a pool MUST exist for the operation to proceed.
- *
- * @param tokenA First token address (order doesn't matter)
- * @param tokenB Second token address (order doesn't matter)
- * @throws Error if no pool is configured for the pair
- */
-export function requirePoolForPair(tokenA: Address, tokenB: Address): PoolConfig {
-  const pool = getPoolForPair(tokenA, tokenB);
-  if (!pool) {
-    throw new Error(
-      `No pool configured for pair: ${tokenA}/${tokenB}. ` +
-        `Available pairs: ${listSupportedPairs().join(', ')}`
-    );
-  }
-  return pool;
-}
-
-/**
- * List all supported token pairs.
- * Returns human-readable pair descriptions.
- */
-export function listSupportedPairs(): string[] {
-  return Object.entries(SUPPORTED_POOLS).map(([key, config]) => {
-    // Try to resolve token symbols
-    const token0Symbol = getTokenSymbol(config.currency0);
-    const token1Symbol = getTokenSymbol(config.currency1);
-    return `${token0Symbol}/${token1Symbol} (${config.fee / 10000}%)`;
-  });
-}
-
-/**
- * Check if a token pair is supported
- */
-export function isPairSupported(tokenA: Address, tokenB: Address): boolean {
-  return getPoolForPair(tokenA, tokenB) !== null;
-}
-
-/**
- * Get token symbol from address (best effort)
- */
-function getTokenSymbol(address: Address): string {
-  const symbols: Record<string, string> = {
-    [TOKENS.USDC.toLowerCase()]: 'USDC',
-    [TOKENS.DAI.toLowerCase()]: 'DAI',
-    [TOKENS.WETH.toLowerCase()]: 'WETH',
-  };
-  return symbols[address.toLowerCase()] || address.slice(0, 10);
-}
+export const DEFAULT_CLANKER_POOL_PARAMS = {
+  fee: 10000,      // 1% fee (Clanker standard)
+  tickSpacing: 200,
+  hooks: CLANKER_CONTRACTS.ClankerHook,
+} as const;

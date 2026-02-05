@@ -19,6 +19,7 @@
     "typescript": "^5.4.0"
   },
   "dependencies": {
+    "agent0-sdk": "^1.5.2",
     "dotenv": "^17.2.3",
     "tsx": "^4.21.0"
   }

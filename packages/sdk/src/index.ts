@@ -1,10 +1,5 @@
 // Contracts
 export {
-  ReceiptHookABI,
-  decodeReceiptLog,
-  getReceipts,
-  getReceiptsByStrategy,
-  getReceiptsByUser,
   IdentityRegistryABI,
   registerAgent,
   registerAgentWithAddress,
@@ -46,6 +41,22 @@ export {
   calculateSlippageScore,
   type ExecutionReceiptData,
   type ReputationServiceConfig,
+  // Clawnch integration
+  ClawnchService,
+  createClawnchService,
+  type LaunchedToken,
+  type TokenAnalytics,
+  type LaunchParams,
+  type LaunchResult,
+  // Fee Locker integration
+  FeeLockerService,
+  createFeeLockerService,
+  ClankerFeeLockerABI,
+  FEE_LOCKER_ADDRESS,
+  WETH_ADDRESS,
+  type TokenFeeInfo,
+  type AggregateFeeInfo,
+  type ClaimResult,
 } from './services';
 
 // ENS
@@ -64,6 +75,19 @@ export {
   getPublicResolverAddress,
   buildSetTextCalldata,
   type ERC8004Record,
+  // CCIP Subnames
+  validateLabel,
+  getFullSubname,
+  getSubnameNamehash,
+  isSubnameAvailable,
+  getSubnameRecord,
+  registerSubname,
+  computeOikonomosParentNode,
+  SEPOLIA_CCIP_CONFIG,
+  OffchainSubnameManagerABI,
+  type SubnameRegistrationParams,
+  type CCIPConfig,
+  type SubnameRecord,
 } from './ens';
 
 // Validation
