@@ -15,7 +15,6 @@ import {
   type Address,
   type PublicClient,
   type WalletClient,
-  getContract,
   formatEther,
 } from 'viem';
 
@@ -128,7 +127,7 @@ export interface ClaimResult {
 export class FeeLockerService {
   private publicClient: PublicClient;
   private walletClient?: WalletClient;
-  private contract: ReturnType<typeof getContract>;
+  private feeLockerAddress: Address;
   private ethPriceUsd: number = 3000; // Default ETH price, can be updated
 
   /**
@@ -145,11 +144,7 @@ export class FeeLockerService {
   ) {
     this.publicClient = publicClient;
     this.walletClient = walletClient;
-    this.contract = getContract({
-      address: feeLockerAddress,
-      abi: ClankerFeeLockerABI,
-      client: { public: publicClient, wallet: walletClient },
-    });
+    this.feeLockerAddress = feeLockerAddress;
   }
 
   /**
@@ -167,7 +162,12 @@ export class FeeLockerService {
    * @returns WETH fees in wei
    */
   async getAvailableWethFees(token: Address, wallet: Address): Promise<bigint> {
-    return this.contract.read.availableWethFees([token, wallet]) as Promise<bigint>;
+    return this.publicClient.readContract({
+      address: this.feeLockerAddress,
+      abi: ClankerFeeLockerABI,
+      functionName: 'availableWethFees',
+      args: [token, wallet],
+    });
   }
 
   /**
@@ -178,7 +178,12 @@ export class FeeLockerService {
    * @returns Token fees in wei
    */
   async getAvailableTokenFees(token: Address, wallet: Address): Promise<bigint> {
-    return this.contract.read.availableTokenFees([token, wallet]) as Promise<bigint>;
+    return this.publicClient.readContract({
+      address: this.feeLockerAddress,
+      abi: ClankerFeeLockerABI,
+      functionName: 'availableTokenFees',
+      args: [token, wallet],
+    });
   }
 
   /**
@@ -262,12 +267,19 @@ export class FeeLockerService {
    * @throws Error if wallet client not configured
    */
   async claimFees(token: Address): Promise<`0x${string}`> {
-    if (!this.walletClient) {
-      throw new Error('Wallet client required for claiming fees');
+    if (!this.walletClient || !this.walletClient.account) {
+      throw new Error('Wallet client with account required for claiming fees');
     }
 
-    const hash = await this.contract.write.claim([token]);
-    return hash as `0x${string}`;
+    const hash = await this.walletClient.writeContract({
+      address: this.feeLockerAddress,
+      abi: ClankerFeeLockerABI,
+      functionName: 'claim',
+      args: [token],
+      account: this.walletClient.account,
+      chain: this.walletClient.chain,
+    });
+    return hash;
   }
 
   /**
@@ -279,23 +291,28 @@ export class FeeLockerService {
    * @throws Error if wallet client not configured
    */
   async claimAllFees(tokens: Address[]): Promise<ClaimResult> {
-    if (!this.walletClient) {
-      throw new Error('Wallet client required for claiming fees');
+    if (!this.walletClient || !this.walletClient.account) {
+      throw new Error('Wallet client with account required for claiming fees');
     }
 
     // Get current fees before claiming (for reporting)
-    const wallet = this.walletClient.account?.address;
+    const wallet = this.walletClient.account.address;
     let totalWethClaimed: bigint | undefined;
 
-    if (wallet) {
-      const aggregate = await this.getAggregateFees(tokens, wallet);
-      totalWethClaimed = aggregate.totalWethFees;
-    }
+    const aggregate = await this.getAggregateFees(tokens, wallet);
+    totalWethClaimed = aggregate.totalWethFees;
 
-    const hash = await this.contract.write.claimAll([tokens]);
+    const hash = await this.walletClient.writeContract({
+      address: this.feeLockerAddress,
+      abi: ClankerFeeLockerABI,
+      functionName: 'claimAll',
+      args: [tokens],
+      account: this.walletClient.account,
+      chain: this.walletClient.chain,
+    });
 
     return {
-      transactionHash: hash as `0x${string}`,
+      transactionHash: hash,
       tokensClaimed: tokens,
       totalWethClaimed,
     };

@@ -75,6 +75,19 @@ export {
   getPublicResolverAddress,
   buildSetTextCalldata,
   type ERC8004Record,
+  // CCIP Subnames
+  validateLabel,
+  getFullSubname,
+  getSubnameNamehash,
+  isSubnameAvailable,
+  getSubnameRecord,
+  registerSubname,
+  computeOikonomosParentNode,
+  SEPOLIA_CCIP_CONFIG,
+  OffchainSubnameManagerABI,
+  type SubnameRegistrationParams,
+  type CCIPConfig,
+  type SubnameRecord,
 } from './ens';
 
 // Validation
