@@ -80,3 +80,54 @@ export const DEFAULT_CLANKER_POOL_PARAMS = {
   tickSpacing: 200,
   hooks: CLANKER_CONTRACTS.ClankerHook,
 } as const;
+
+// ======== Legacy Compatibility Exports ========
+// These are stubs to maintain compatibility with code that hasn't been updated yet.
+// The actual pool discovery now happens via Clawnch API.
+
+/**
+ * Legacy pool configuration type (for backward compatibility)
+ */
+export interface PoolConfig {
+  poolId: `0x${string}`;
+  currency0: Address;
+  currency1: Address;
+  fee: number;
+  tickSpacing: number;
+  hooks: Address;
+  hasLiquidity: boolean;
+}
+
+/**
+ * Legacy supported pools map (empty - pools are now discovered dynamically)
+ */
+export const SUPPORTED_POOLS: Record<string, PoolConfig> = {};
+
+/**
+ * Get pool configuration for a token pair
+ * Legacy function - now returns a dynamic Clanker pool key
+ *
+ * @throws Error if tokens cannot form a valid pair
+ */
+export function requirePoolForPair(tokenIn: Address, tokenOut: Address): PoolConfig {
+  // For Clanker pools, one token must be WETH
+  const hasWeth = isWETH(tokenIn) || isWETH(tokenOut);
+  if (!hasWeth) {
+    throw new Error(`No pool found for ${tokenIn} <-> ${tokenOut}. Clanker pools require WETH pairing.`);
+  }
+
+  const nonWethToken = isWETH(tokenIn) ? tokenOut : tokenIn;
+  const [currency0, currency1] = sortTokens(tokenIn, tokenOut);
+
+  // Return a synthetic pool config for Clanker pools
+  // The actual poolId would come from Clawnch API in production
+  return {
+    poolId: `0x${getClankerPoolKey(nonWethToken).replace(/-/g, '')}` as `0x${string}`,
+    currency0,
+    currency1,
+    fee: DEFAULT_CLANKER_POOL_PARAMS.fee,
+    tickSpacing: DEFAULT_CLANKER_POOL_PARAMS.tickSpacing,
+    hooks: DEFAULT_CLANKER_POOL_PARAMS.hooks,
+    hasLiquidity: true, // Assume liquidity exists for launched tokens
+  };
+}

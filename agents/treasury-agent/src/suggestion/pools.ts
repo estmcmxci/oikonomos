@@ -35,13 +35,13 @@ const KNOWN_POOLS: Array<{
 }));
 
 // Token symbol mapping for display
+// Note: USDC/DAI addresses removed post-pivot - Clanker pools use WETH pairing
 const TOKEN_SYMBOLS: Record<string, string> = {
   '0x0000000000000000000000000000000000000000': 'ETH',
-  '0x1c7d4b196cb0c7b01d743fbc6116a902379c7238': 'USDC',
-  [TOKENS.USDC.toLowerCase()]: 'USDC',
-  [TOKENS.DAI.toLowerCase()]: 'DAI',
-  '0x7b79995e5f793a07bc00c21412e50ecae098e7f9': 'WETH',
-  [TOKENS.WETH.toLowerCase()]: 'WETH',
+  '0x1c7d4b196cb0c7b01d743fbc6116a902379c7238': 'USDC', // Sepolia USDC
+  '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913': 'USDC', // Base USDC
+  '0x7b79995e5f793a07bc00c21412e50ecae098e7f9': 'WETH', // Sepolia WETH
+  [TOKENS.WETH.toLowerCase()]: 'WETH', // Base WETH
 };
 
 function getTokenSymbol(address: Address): string {
