@@ -51,14 +51,13 @@ export default createConfig({
       startBlock: BASE_SEPOLIA_IDENTITY_REGISTRY_START_BLOCK,
     },
     // OIK-54: CCIP Subname Manager (Sepolia)
-    ...(SEPOLIA_SUBNAME_MANAGER !== '0x0000000000000000000000000000000000000000' ? {
-      OffchainSubnameManager: {
-        chain: 'sepolia',
-        abi: OffchainSubnameManagerABI,
-        address: SEPOLIA_SUBNAME_MANAGER as `0x${string}`,
-        startBlock: SEPOLIA_SUBNAME_MANAGER_START_BLOCK,
-      },
-    } : {}),
+    // Note: Uses placeholder address if not configured - handler will simply not match any events
+    OffchainSubnameManager: {
+      chain: 'sepolia',
+      abi: OffchainSubnameManagerABI,
+      address: SEPOLIA_SUBNAME_MANAGER as `0x${string}`,
+      startBlock: SEPOLIA_SUBNAME_MANAGER_START_BLOCK,
+    },
     // Uniswap V4 PoolManager (Base Sepolia) - for indexing Clanker pool swaps
     PoolManager: {
       chain: 'baseSepolia',

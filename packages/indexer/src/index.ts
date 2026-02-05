@@ -141,7 +141,10 @@ function absBigInt(n: bigint): bigint {
 
 /**
  * Handle Swap events from PoolManager
- * Creates swap receipts and updates agent metrics for registered agents
+ * Creates swap receipts for all swaps on Clanker pools
+ *
+ * Note: Agent metrics are computed via API queries aggregating swap receipts,
+ * rather than real-time updates during indexing (Ponder 0.16 limitation).
  */
 ponder.on('PoolManager:Swap', async ({ event, context }) => {
   const { db } = context;
@@ -162,54 +165,6 @@ ponder.on('PoolManager:Swap', async ({ event, context }) => {
     blockNumber: BigInt(event.block.number),
     transactionHash: event.transaction.hash,
   });
-
-  // Check if sender is a registered agent
-  const agentRecord = await db.query.agent.findFirst({
-    where: (a, { eq }) => eq(a.agentWallet, event.args.sender),
-  });
-
-  if (agentRecord) {
-    // Calculate volume (sum of absolute amounts)
-    const volume = absBigInt(event.args.amount0) + absBigInt(event.args.amount1);
-
-    // Initial score calculation for new entry
-    const initialScore = computeReputationScore(
-      1n,
-      volume,
-      BigInt(event.block.timestamp),
-      BigInt(event.block.timestamp)
-    );
-
-    await db.insert(agentMetrics)
-      .values({
-        id: event.args.sender,
-        totalSwaps: 1n,
-        totalVolume: volume,
-        lastSwapAt: BigInt(event.block.timestamp),
-        score: initialScore,
-      })
-      .onConflictDoUpdate((existing) => {
-        const newTotalSwaps = existing.totalSwaps + 1n;
-        const newTotalVolume = existing.totalVolume + volume;
-        const newLastSwapAt = BigInt(event.block.timestamp);
-
-        const newScore = computeReputationScore(
-          newTotalSwaps,
-          newTotalVolume,
-          newLastSwapAt,
-          BigInt(event.block.timestamp)
-        );
-
-        return {
-          totalSwaps: newTotalSwaps,
-          totalVolume: newTotalVolume,
-          lastSwapAt: newLastSwapAt,
-          score: newScore,
-        };
-      });
-
-    console.log(`[swap] Agent ${agentRecord.ens} executed swap, updated metrics`);
-  }
 });
 
 // ============================================================================
