@@ -17,8 +17,10 @@
     "wrangler": "^3.72.0"
   },
   "dependencies": {
+    "@noble/secp256k1": "^2.1.0",
     "@x402/evm": "^2.2.0",
     "@x402/fetch": "^2.2.0",
+    "nostr-tools": "^2.7.0",
     "viem": "^2.21.0"
   }
 }
