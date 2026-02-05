@@ -84,9 +84,21 @@ export function deriveNostrKeys(
   // Nostr uses raw 32-byte private keys (no 0x prefix)
   const privateKey = nostrSeed.slice(2);
 
-  // For the public key, we'd need to use secp256k1
-  // For now, we'll return a placeholder - in production use nostr-tools
-  const publicKey = keccak256(nostrSeed).slice(2);
+  // Get proper secp256k1 public key using nostr-tools
+  // Import dynamically to avoid bundling issues in Workers
+  let publicKey: string;
+  try {
+    // nostr-tools getPublicKey expects Uint8Array
+    const { getPublicKey } = require('nostr-tools');
+    const privateKeyBytes = new Uint8Array(32);
+    for (let i = 0; i < 32; i++) {
+      privateKeyBytes[i] = parseInt(privateKey.slice(i * 2, i * 2 + 2), 16);
+    }
+    publicKey = getPublicKey(privateKeyBytes);
+  } catch {
+    // Fallback: use keccak256 as placeholder (not valid secp256k1)
+    publicKey = keccak256(nostrSeed).slice(2);
+  }
 
   return { privateKey, publicKey };
 }

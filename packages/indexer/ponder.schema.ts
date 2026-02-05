@@ -88,3 +88,43 @@ export const agentMetrics = onchainTable('agent_metrics', (t) => ({
   scoreIdx: index().on(table.score),
   lastSwapAtIdx: index().on(table.lastSwapAt),
 }));
+
+/**
+ * Fee claims from ClankerFeeLocker
+ * P3 Gap 10: Tracks fee claims for agent tokens
+ */
+export const feeClaim = onchainTable('fee_claim', (t) => ({
+  id: t.text().primaryKey(), // txHash-logIndex
+  token: t.hex().notNull(), // Clanker token address
+  wallet: t.hex().notNull(), // Agent wallet that received fees
+  wethAmount: t.text().notNull(), // WETH fees claimed (as string for precision)
+  tokenAmount: t.text().notNull(), // Token fees claimed (as string for precision)
+  timestamp: t.bigint().notNull(),
+  blockNumber: t.bigint().notNull(),
+  transactionHash: t.hex().notNull(),
+  chainId: t.integer().notNull(),
+}), (table) => ({
+  walletIdx: index().on(table.wallet),
+  tokenIdx: index().on(table.token),
+  timestampIdx: index().on(table.timestamp),
+}));
+
+/**
+ * Agent tokens launched via Clawnch
+ * P3 Gap 10: Tracks agent-launched tokens for portfolio discovery
+ */
+export const agentToken = onchainTable('agent_token', (t) => ({
+  id: t.text().primaryKey(), // Token address
+  agentWallet: t.hex().notNull(), // Agent wallet that launched the token
+  tokenAddress: t.hex().notNull(),
+  symbol: t.text().notNull(),
+  name: t.text().notNull(),
+  launchedAt: t.bigint().notNull(),
+  platform: t.text().notNull(), // moltbook, 4claw, clawstr, moltx
+  totalFeesClaimed: t.text().notNull(), // Running total of WETH fees claimed
+  lastClaimAt: t.bigint(), // Last fee claim timestamp
+}), (table) => ({
+  agentWalletIdx: index().on(table.agentWallet),
+  platformIdx: index().on(table.platform),
+  launchedAtIdx: index().on(table.launchedAt),
+}));
