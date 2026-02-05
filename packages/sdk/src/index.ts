@@ -1,10 +1,5 @@
 // Contracts
 export {
-  ReceiptHookABI,
-  decodeReceiptLog,
-  getReceipts,
-  getReceiptsByStrategy,
-  getReceiptsByUser,
   IdentityRegistryABI,
   registerAgent,
   registerAgentWithAddress,
@@ -46,6 +41,22 @@ export {
   calculateSlippageScore,
   type ExecutionReceiptData,
   type ReputationServiceConfig,
+  // Clawnch integration
+  ClawnchService,
+  createClawnchService,
+  type LaunchedToken,
+  type TokenAnalytics,
+  type LaunchParams,
+  type LaunchResult,
+  // Fee Locker integration
+  FeeLockerService,
+  createFeeLockerService,
+  ClankerFeeLockerABI,
+  FEE_LOCKER_ADDRESS,
+  WETH_ADDRESS,
+  type TokenFeeInfo,
+  type AggregateFeeInfo,
+  type ClaimResult,
 } from './services';
 
 // ENS

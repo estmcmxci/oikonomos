@@ -1,30 +1,30 @@
 import { createConfig } from 'ponder';
 
-import { ReceiptHookABI } from './abis/ReceiptHook';
 import { IdentityRegistryABI } from './abis/IdentityRegistry';
 import { OffchainSubnameManagerABI } from './abis/OffchainSubnameManager';
+import { PoolManagerABI } from './abis/PoolManager';
 
 // Canonical ERC-8004 IdentityRegistry (same address via CREATE2 on all chains)
 const CANONICAL_IDENTITY_REGISTRY = '0x8004A818BFB912233c491871b3d84c89A494BD9e';
 
-// ======== Sepolia (legacy) ========
-const SEPOLIA_RECEIPT_HOOK = '0x41a75f07bA1958EcA78805D8419C87a393764040';
-const SEPOLIA_RECEIPT_HOOK_START_BLOCK = 10176818;
+// ======== Sepolia ========
 const SEPOLIA_IDENTITY_REGISTRY_START_BLOCK = 10165000;
 
-// ======== Base Sepolia (OIK-50: x402 native support) ========
-const BASE_SEPOLIA_RECEIPT_HOOK = '0x906E3e24C04f6b6B5b6743BB77d0FCBE4d87C040';
-const BASE_SEPOLIA_RECEIPT_HOOK_START_BLOCK = 37200452; // OIK-50 deployment block
-const BASE_SEPOLIA_IDENTITY_REGISTRY_START_BLOCK = 37200000; // Approximate
+// ======== Base Sepolia ========
+const BASE_SEPOLIA_IDENTITY_REGISTRY_START_BLOCK = 37200000;
 
 // ======== OIK-54: CCIP Subname Manager (Sepolia) ========
-// NOTE: Update after contract deployment
 const SEPOLIA_SUBNAME_MANAGER = process.env.SUBNAME_MANAGER_ADDRESS || '0x0000000000000000000000000000000000000000';
 const SEPOLIA_SUBNAME_MANAGER_START_BLOCK = Number(process.env.SUBNAME_MANAGER_START_BLOCK || 0);
 
+// ======== Clanker Contracts (Base Sepolia) ========
+// Phase 3: PoolManager for Swap event indexing
+const BASE_SEPOLIA_POOL_MANAGER = '0x05E73354cFDd6745C338b50BcFDfA3Aa6fA03408';
+const BASE_SEPOLIA_POOL_MANAGER_START_BLOCK = Number(process.env.POOL_MANAGER_START_BLOCK || 37200000);
+
 export default createConfig({
   // Note: Schema is passed via CLI --schema flag in package.json scripts
-  // Bumped to v5 for OIK-50: Base Sepolia reindex after E2E test
+  // v7: Pivot - Removed ReceiptHook, added PoolManager for Clanker integration
   chains: {
     sepolia: {
       id: 11155111,
@@ -36,20 +36,6 @@ export default createConfig({
     },
   },
   contracts: {
-    // Sepolia ReceiptHook (legacy)
-    ReceiptHook: {
-      chain: 'sepolia',
-      abi: ReceiptHookABI,
-      address: (process.env.RECEIPT_HOOK_ADDRESS || SEPOLIA_RECEIPT_HOOK) as `0x${string}`,
-      startBlock: Number(process.env.RECEIPT_HOOK_START_BLOCK || SEPOLIA_RECEIPT_HOOK_START_BLOCK),
-    },
-    // Base Sepolia ReceiptHook (OIK-50)
-    ReceiptHookBaseSepolia: {
-      chain: 'baseSepolia',
-      abi: ReceiptHookABI,
-      address: (process.env.BASE_SEPOLIA_RECEIPT_HOOK || BASE_SEPOLIA_RECEIPT_HOOK) as `0x${string}`,
-      startBlock: Number(process.env.BASE_SEPOLIA_RECEIPT_HOOK_START_BLOCK || BASE_SEPOLIA_RECEIPT_HOOK_START_BLOCK),
-    },
     // Canonical ERC-8004 IdentityRegistry (Sepolia)
     IdentityRegistry: {
       chain: 'sepolia',
@@ -65,7 +51,6 @@ export default createConfig({
       startBlock: BASE_SEPOLIA_IDENTITY_REGISTRY_START_BLOCK,
     },
     // OIK-54: CCIP Subname Manager (Sepolia)
-    // Indexes SubnameRegistered events for oikonomos.eth subnames
     ...(SEPOLIA_SUBNAME_MANAGER !== '0x0000000000000000000000000000000000000000' ? {
       OffchainSubnameManager: {
         chain: 'sepolia',
@@ -74,5 +59,12 @@ export default createConfig({
         startBlock: SEPOLIA_SUBNAME_MANAGER_START_BLOCK,
       },
     } : {}),
+    // Uniswap V4 PoolManager (Base Sepolia) - for indexing Clanker pool swaps
+    PoolManager: {
+      chain: 'baseSepolia',
+      abi: PoolManagerABI,
+      address: BASE_SEPOLIA_POOL_MANAGER as `0x${string}`,
+      startBlock: BASE_SEPOLIA_POOL_MANAGER_START_BLOCK,
+    },
   },
 });

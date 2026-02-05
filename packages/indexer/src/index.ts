@@ -1,9 +1,6 @@
 import { ponder } from 'ponder:registry';
-import { executionReceipt, strategyMetrics, agent, subname } from 'ponder:schema';
+import { agent, subname, swapReceipt, agentMetrics } from 'ponder:schema';
 import { keccak256, toBytes } from 'viem';
-
-// Treasury agent webhook URL (configurable via env)
-const TREASURY_AGENT_WEBHOOK_URL = process.env.TREASURY_AGENT_WEBHOOK_URL;
 
 /**
  * Marketplace ENS Filter (OIK-45)
@@ -11,155 +8,19 @@ const TREASURY_AGENT_WEBHOOK_URL = process.env.TREASURY_AGENT_WEBHOOK_URL;
  * Only index agents that belong to our marketplace (*.oikonomos.eth).
  * This ensures the consumer journey only shows relevant strategy agents,
  * not all 249+ agents registered in the canonical ERC-8004 registry.
- *
- * Why ENS suffix filtering:
- * - Quality control: Providers must obtain a subname to participate
- * - Relevance: Only agents built for our rebalancing use case appear
- * - Scalability: Don't store/query irrelevant agents from public registry
- * - Trust: We control subname issuance under oikonomos.eth
  */
 const MARKETPLACE_ENS_SUFFIX = process.env.MARKETPLACE_ENS_SUFFIX || '.oikonomos.eth';
 
-/**
- * Check if an ENS name belongs to our marketplace
- */
 function isMarketplaceAgent(ens: string | null): boolean {
   if (!ens) return false;
   return ens.endsWith(MARKETPLACE_ENS_SUFFIX);
 }
 
-/**
- * Dispatch webhook to treasury agent for ExecutionReceipt events
- * This enables the observation loop to react to on-chain events
- */
-async function dispatchWebhook(
-  eventType: string,
-  eventId: string,
-  data: Record<string, unknown>,
-  chainId: number
-): Promise<void> {
-  if (!TREASURY_AGENT_WEBHOOK_URL) {
-    // Webhook not configured, skip silently
-    return;
-  }
-
-  try {
-    const response = await fetch(`${TREASURY_AGENT_WEBHOOK_URL}/events`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        events: [{ type: eventType, eventId, data }],
-        chainId,
-      }),
-    });
-
-    if (!response.ok) {
-      console.error(`[webhook] Failed to dispatch ${eventType}: ${response.status}`);
-    }
-  } catch (error) {
-    // Don't let webhook failures break indexing
-    console.error(`[webhook] Error dispatching ${eventType}:`, error);
-  }
-}
-
-/**
- * NOTE: Reputation Registry Integration (OIK-12)
- *
- * The Ponder indexer is read-only and cannot make transactions.
- * To submit feedback to the canonical ERC-8004 ReputationRegistry after
- * ExecutionReceipt events, use the SDK's reputationService in a separate
- * service/worker that:
- *
- * 1. Listens to the indexer API for new receipts, OR
- * 2. Subscribes directly to ReceiptHook:ExecutionReceipt events
- *
- * Example using the SDK:
- * ```typescript
- * import { submitReceiptFeedback, type ReputationServiceConfig } from '@oikonomos/sdk';
- *
- * const config: ReputationServiceConfig = {
- *   chainId: 11155111,
- *   walletClient,
- *   publicClient,
- *   resolveAgentId: async (strategyId) => {
- *     // Resolve strategyId -> agentId via ENS agent:erc8004 record
- *     // or query indexer for agent mapping
- *   },
- * };
- *
- * await submitReceiptFeedback(config, receiptData);
- * ```
- *
- * See: packages/sdk/src/services/reputationService.ts
- */
-
-// Helper: Calculate absolute value for BigInt (OIK-8 code review fix)
-function absBigInt(n: bigint): bigint {
-  return n >= 0n ? n : -n;
-}
-
-/**
- * OIK-46: Compute reputation score from strategy metrics
- * Formula:
- * - 40% compliance rate (0-4000 points from complianceRate basis points)
- * - 30% volume tier (log scale, 0-3000 points)
- * - 20% execution count tier (log scale, 0-2000 points)
- * - 10% slippage (inverse, lower = better, 0-1000 points)
- *
- * Returns score in basis points (0-10000 = 0.00-100.00%)
- */
-function computeReputationScore(metrics: {
-  complianceRate: bigint; // basis points (0-10000)
-  totalVolume: bigint; // wei
-  totalExecutions: bigint; // count
-  avgSlippage: bigint; // basis points
-}): bigint {
-  // 40% from compliance (scale 0-10000 to 0-4000)
-  const complianceScore = (metrics.complianceRate * 40n) / 100n;
-
-  // 30% from volume tier (log scale based on ETH value, 1 ETH = 10^18 wei)
-  // Tiers: <1 ETH = 0, 1-10 ETH = 1000, 10-100 ETH = 2000, 100+ ETH = 3000
-  const oneEth = 10n ** 18n;
-  let volumeScore = 0n;
-  if (metrics.totalVolume >= 100n * oneEth) {
-    volumeScore = 3000n;
-  } else if (metrics.totalVolume >= 10n * oneEth) {
-    volumeScore = 2000n;
-  } else if (metrics.totalVolume >= oneEth) {
-    volumeScore = 1000n;
-  }
-
-  // 20% from execution count tier (log scale)
-  // Tiers: <5 = 0, 5-19 = 667, 20-99 = 1333, 100+ = 2000
-  let executionScore = 0n;
-  if (metrics.totalExecutions >= 100n) {
-    executionScore = 2000n;
-  } else if (metrics.totalExecutions >= 20n) {
-    executionScore = 1333n;
-  } else if (metrics.totalExecutions >= 5n) {
-    executionScore = 667n;
-  }
-
-  // 10% from slippage (inverse - lower slippage = higher score)
-  // 0 bps = 1000 pts, 50 bps = 500 pts, 100+ bps = 0 pts
-  let slippageScore = 0n;
-  if (metrics.avgSlippage <= 0n) {
-    slippageScore = 1000n;
-  } else if (metrics.avgSlippage < 100n) {
-    // Linear interpolation: 1000 - (slippage * 10)
-    slippageScore = 1000n - metrics.avgSlippage * 10n;
-  }
-  // 100+ bps = 0 points
-
-  return complianceScore + volumeScore + executionScore + slippageScore;
-}
-
-// IPFS Gateway URL (configurable via env, defaults to public gateway)
+// IPFS Gateway URL
 const IPFS_GATEWAY_URL = process.env.IPFS_GATEWAY_URL || 'https://ipfs.io/ipfs';
 
 /**
- * Compute strategyId from ENS name (OIK-38)
- * strategyId = keccak256(ensName)
+ * Compute strategyId from ENS name
  */
 function computeStrategyId(ensName: string): `0x${string}` {
   return keccak256(toBytes(ensName));
@@ -177,13 +38,11 @@ interface ERC8004Registration {
   name?: string;
   description?: string;
   services?: ERC8004Service[];
-  ens?: string; // Legacy field for backwards compatibility
+  ens?: string;
 }
 
 /**
- * Extract ENS name from ERC-8004 registration metadata (OIK-35, OIK-38)
- * Handles: data URIs (base64), IPFS URIs, and HTTP URLs
- * Extracts ENS from: services array (official) or top-level ens field (legacy)
+ * Extract ENS name from ERC-8004 registration metadata
  */
 async function extractENSFromAgentURI(agentURI: string): Promise<string | null> {
   if (!agentURI) return null;
@@ -191,201 +50,172 @@ async function extractENSFromAgentURI(agentURI: string): Promise<string | null> 
   try {
     let metadata: ERC8004Registration;
 
-    // Handle data URI (base64 encoded JSON)
     if (agentURI.startsWith('data:application/json;base64,')) {
       const base64 = agentURI.replace('data:application/json;base64,', '');
       const json = Buffer.from(base64, 'base64').toString('utf-8');
       metadata = JSON.parse(json);
-    }
-    // Handle IPFS URI
-    else if (agentURI.startsWith('ipfs://')) {
+    } else if (agentURI.startsWith('ipfs://')) {
       const cid = agentURI.replace('ipfs://', '');
       const url = `${IPFS_GATEWAY_URL}/${cid}`;
       const response = await fetch(url, { signal: AbortSignal.timeout(10000) });
-      if (!response.ok) {
-        console.warn(`[metadata] Failed to fetch from IPFS: ${response.status}`);
-        return null;
-      }
+      if (!response.ok) return null;
       metadata = await response.json() as ERC8004Registration;
-    }
-    // Handle HTTP URL
-    else if (agentURI.startsWith('http')) {
+    } else if (agentURI.startsWith('http')) {
       const response = await fetch(agentURI, { signal: AbortSignal.timeout(10000) });
-      if (!response.ok) {
-        console.warn(`[metadata] Failed to fetch from URL: ${response.status}`);
-        return null;
-      }
+      if (!response.ok) return null;
       metadata = await response.json() as ERC8004Registration;
-    }
-    // Assume raw CID
-    else {
+    } else {
       const url = `${IPFS_GATEWAY_URL}/${agentURI}`;
       const response = await fetch(url, { signal: AbortSignal.timeout(10000) });
       if (!response.ok) return null;
       metadata = await response.json() as ERC8004Registration;
     }
 
-    // Extract ENS from services array (official ERC-8004 format)
     if (metadata.services) {
       const ensService = metadata.services.find(s => s.name === 'ENS');
-      if (ensService?.endpoint) {
-        return ensService.endpoint;
-      }
+      if (ensService?.endpoint) return ensService.endpoint;
     }
 
-    // Fall back to legacy top-level ens field
-    if (metadata.ens) {
-      return metadata.ens;
-    }
-
-    return null;
+    return metadata.ens || null;
   } catch (error) {
     console.warn(`[metadata] Error extracting ENS from ${agentURI.substring(0, 50)}...:`, error);
     return null;
   }
 }
 
-// ReceiptHook handlers (shared logic for both chains)
-async function handleExecutionReceipt(
-  event: {
-    args: {
-      strategyId: `0x${string}`;
-      quoteId: `0x${string}`;
-      user: `0x${string}`;
-      router: `0x${string}`;
-      amount0: bigint;
-      amount1: bigint;
-      actualSlippage: bigint;
-      policyCompliant: boolean;
-      timestamp: bigint;
-    };
-    transaction: { hash: `0x${string}` };
-    log: { logIndex: number };
-    block: { number: bigint };
-  },
-  context: { db: any },
-  chainId: number
-) {
+// ============================================================================
+// Uniswap V4 PoolManager Swap Handler (Clanker Integration)
+// ============================================================================
+
+/**
+ * Compute reputation score from swap metrics
+ * Formula:
+ * - 40% from swap count tier (log scale)
+ * - 30% from volume tier (log scale)
+ * - 30% from recency (linear decay over 30 days)
+ */
+function computeReputationScore(
+  totalSwaps: bigint,
+  totalVolume: bigint,
+  lastSwapAt: bigint,
+  currentTimestamp: bigint
+): bigint {
+  // 40% from swap count tier
+  let swapScore = 0n;
+  if (totalSwaps >= 100n) swapScore = 4000n;
+  else if (totalSwaps >= 50n) swapScore = 3000n;
+  else if (totalSwaps >= 20n) swapScore = 2000n;
+  else if (totalSwaps >= 5n) swapScore = 1000n;
+
+  // 30% from volume tier (in ETH equivalent)
+  const oneEth = 10n ** 18n;
+  let volumeScore = 0n;
+  if (totalVolume >= 100n * oneEth) volumeScore = 3000n;
+  else if (totalVolume >= 10n * oneEth) volumeScore = 2000n;
+  else if (totalVolume >= oneEth) volumeScore = 1000n;
+
+  // 30% from recency (full score if swapped in last 7 days, decays to 0 over 30 days)
+  const sevenDays = 7n * 24n * 60n * 60n;
+  const thirtyDays = 30n * 24n * 60n * 60n;
+  const timeSinceLastSwap = currentTimestamp - lastSwapAt;
+
+  let recencyScore = 0n;
+  if (timeSinceLastSwap <= sevenDays) {
+    recencyScore = 3000n;
+  } else if (timeSinceLastSwap <= thirtyDays) {
+    // Linear decay from 3000 to 0
+    const decayPeriod = thirtyDays - sevenDays;
+    const elapsed = timeSinceLastSwap - sevenDays;
+    recencyScore = 3000n - (3000n * elapsed) / decayPeriod;
+  }
+
+  return swapScore + volumeScore + recencyScore;
+}
+
+/**
+ * Helper: absolute value for bigint
+ */
+function absBigInt(n: bigint): bigint {
+  return n >= 0n ? n : -n;
+}
+
+/**
+ * Handle Swap events from PoolManager
+ * Creates swap receipts and updates agent metrics for registered agents
+ */
+ponder.on('PoolManager:Swap', async ({ event, context }) => {
+  const { db } = context;
   const receiptId = `${event.transaction.hash}-${event.log.logIndex}`;
 
-  // Store the receipt
-  await context.db.insert(executionReceipt).values({
+  // Store the swap receipt
+  await db.insert(swapReceipt).values({
     id: receiptId,
-    strategyId: event.args.strategyId,
-    quoteId: event.args.quoteId,
-    user: event.args.user, // The actual user wallet (from hookData)
-    router: event.args.router, // The router contract
+    poolId: event.args.id,
+    sender: event.args.sender,
     amount0: event.args.amount0,
     amount1: event.args.amount1,
-    actualSlippage: event.args.actualSlippage,
-    policyCompliant: event.args.policyCompliant,
-    timestamp: event.args.timestamp,
-    blockNumber: event.block.number,
+    sqrtPriceX96: BigInt(event.args.sqrtPriceX96),
+    liquidity: BigInt(event.args.liquidity),
+    tick: event.args.tick,
+    fee: event.args.fee,
+    timestamp: BigInt(event.block.timestamp),
+    blockNumber: BigInt(event.block.number),
     transactionHash: event.transaction.hash,
   });
 
-  // Update strategy metrics using upsert pattern
-  const strategyIdKey = event.args.strategyId;
-
-  // Volume calculation: sum of absolute values of both amounts
-  // This captures total value moved regardless of swap direction
-  const volume = absBigInt(event.args.amount0) + absBigInt(event.args.amount1);
-
-  // Determine if execution was successful (policyCompliant is a good proxy for now)
-  const isSuccess = event.args.policyCompliant;
-
-  // Compute initial score for first execution
-  const initialComplianceRate = event.args.policyCompliant ? 10000n : 0n;
-  const initialScore = computeReputationScore({
-    complianceRate: initialComplianceRate,
-    totalVolume: volume,
-    totalExecutions: 1n,
-    avgSlippage: event.args.actualSlippage,
+  // Check if sender is a registered agent
+  const agentRecord = await db.query.agent.findFirst({
+    where: (a, { eq }) => eq(a.agentWallet, event.args.sender),
   });
 
-  await context.db
-    .insert(strategyMetrics)
-    .values({
-      id: strategyIdKey,
-      totalExecutions: 1n,
-      totalVolume: volume,
-      // Store raw values for precise calculation on query
-      slippageSum: event.args.actualSlippage,
-      compliantCount: event.args.policyCompliant ? 1n : 0n,
-      successCount: isSuccess ? 1n : 0n,
-      lastExecutionAt: event.args.timestamp,
-      // Legacy computed fields (for backwards compatibility)
-      avgSlippage: event.args.actualSlippage,
-      successRate: isSuccess ? 10000n : 0n,
-      complianceRate: initialComplianceRate,
-      // OIK-46: Computed reputation score
-      score: initialScore,
-    })
-    .onConflictDoUpdate((existing: any) => {
-      const newTotalExecutions = existing.totalExecutions + 1n;
-      const newTotalVolume = existing.totalVolume + volume;
-      const newSlippageSum = existing.slippageSum + event.args.actualSlippage;
-      const newCompliantCount = existing.compliantCount + (event.args.policyCompliant ? 1n : 0n);
-      const newSuccessCount = existing.successCount + (isSuccess ? 1n : 0n);
-      const newAvgSlippage = newSlippageSum / newTotalExecutions;
-      const newComplianceRate = (newCompliantCount * 10000n) / newTotalExecutions;
+  if (agentRecord) {
+    // Calculate volume (sum of absolute amounts)
+    const volume = absBigInt(event.args.amount0) + absBigInt(event.args.amount1);
 
-      // OIK-46: Recompute score with updated metrics
-      const newScore = computeReputationScore({
-        complianceRate: newComplianceRate,
-        totalVolume: newTotalVolume,
-        totalExecutions: newTotalExecutions,
-        avgSlippage: newAvgSlippage,
+    // Initial score calculation for new entry
+    const initialScore = computeReputationScore(
+      1n,
+      volume,
+      BigInt(event.block.timestamp),
+      BigInt(event.block.timestamp)
+    );
+
+    await db.insert(agentMetrics)
+      .values({
+        id: event.args.sender,
+        totalSwaps: 1n,
+        totalVolume: volume,
+        lastSwapAt: BigInt(event.block.timestamp),
+        score: initialScore,
+      })
+      .onConflictDoUpdate((existing) => {
+        const newTotalSwaps = existing.totalSwaps + 1n;
+        const newTotalVolume = existing.totalVolume + volume;
+        const newLastSwapAt = BigInt(event.block.timestamp);
+
+        const newScore = computeReputationScore(
+          newTotalSwaps,
+          newTotalVolume,
+          newLastSwapAt,
+          BigInt(event.block.timestamp)
+        );
+
+        return {
+          totalSwaps: newTotalSwaps,
+          totalVolume: newTotalVolume,
+          lastSwapAt: newLastSwapAt,
+          score: newScore,
+        };
       });
 
-      return {
-        totalExecutions: newTotalExecutions,
-        totalVolume: newTotalVolume,
-        // Store sums (calculate rates on query for precision)
-        slippageSum: newSlippageSum,
-        compliantCount: newCompliantCount,
-        successCount: newSuccessCount,
-        lastExecutionAt: event.args.timestamp,
-        // Legacy computed fields (truncation still occurs, but sums are available for precise calc)
-        avgSlippage: newAvgSlippage,
-        successRate: (newSuccessCount * 10000n) / newTotalExecutions,
-        complianceRate: newComplianceRate,
-        // OIK-46: Updated reputation score
-        score: newScore,
-      };
-    });
-
-  // Dispatch webhook to treasury agent observation loop
-  await dispatchWebhook(
-    'ExecutionReceipt',
-    receiptId,
-    {
-      user: event.args.user, // The actual user wallet
-      router: event.args.router, // The router contract
-      strategyId: event.args.strategyId,
-      quoteId: event.args.quoteId,
-      amount0: event.args.amount0.toString(),
-      amount1: event.args.amount1.toString(),
-      actualSlippage: event.args.actualSlippage.toString(),
-      policyCompliant: event.args.policyCompliant,
-      timestamp: event.args.timestamp.toString(),
-      transactionHash: event.transaction.hash,
-    },
-    chainId
-  );
-}
-
-// Sepolia ReceiptHook handler
-ponder.on('ReceiptHook:ExecutionReceipt', async ({ event, context }) => {
-  await handleExecutionReceipt(event, context, 11155111);
+    console.log(`[swap] Agent ${agentRecord.ens} executed swap, updated metrics`);
+  }
 });
 
-// Base Sepolia ReceiptHook handler (OIK-50)
-ponder.on('ReceiptHookBaseSepolia:ExecutionReceipt', async ({ event, context }) => {
-  await handleExecutionReceipt(event, context, 84532);
-});
-
+// ============================================================================
 // IdentityRegistry handlers (shared logic for both chains)
+// ============================================================================
+
 async function handleRegistered(
   event: {
     args: { agentId: bigint; agentURI: string; owner: `0x${string}` };
@@ -393,16 +223,13 @@ async function handleRegistered(
   },
   context: { db: any }
 ) {
-  // Extract ENS name from metadata (OIK-35, OIK-38)
   const ens = await extractENSFromAgentURI(event.args.agentURI);
 
-  // Only index agents in our marketplace (OIK-45)
   if (!isMarketplaceAgent(ens)) {
     console.log(`[agent] Skipping agent ${event.args.agentId} - not in marketplace (ens: ${ens || 'none'})`);
     return;
   }
 
-  // Compute strategyId from ENS name (OIK-38)
   const strategyId = computeStrategyId(ens!);
 
   await context.db.insert(agent).values({
@@ -428,9 +255,7 @@ async function handleMetadataSet(
     const walletAddress = ('0x' + event.args.metadataValue.slice(2).slice(0, 40)) as `0x${string}`;
 
     const existing = await context.db.find(agent, { id: event.args.agentId.toString() });
-    if (!existing) {
-      return;
-    }
+    if (!existing) return;
 
     await context.db
       .update(agent, { id: event.args.agentId.toString() })
@@ -489,7 +314,7 @@ ponder.on('IdentityRegistry:URIUpdated', async ({ event, context }) => {
   await handleURIUpdated(event, context);
 });
 
-// Base Sepolia IdentityRegistry handlers (OIK-50)
+// Base Sepolia IdentityRegistry handlers
 ponder.on('IdentityRegistryBaseSepolia:Registered', async ({ event, context }) => {
   await handleRegistered(event, context);
 });
@@ -506,10 +331,6 @@ ponder.on('IdentityRegistryBaseSepolia:URIUpdated', async ({ event, context }) =
 // OIK-54: CCIP Subname Registration (oikonomos.eth)
 // ============================================================================
 
-/**
- * Handle SubnameRegistered events from OffchainSubnameManager
- * These events are emitted when a subname is registered via CCIP-Read
- */
 ponder.on('OffchainSubnameManager:SubnameRegistered', async ({ event, context }) => {
   const subnameId = `${event.args.parentNode}-${event.args.labelHash}`;
   const fullName = `${event.args.label}.oikonomos.eth`;
@@ -526,9 +347,8 @@ ponder.on('OffchainSubnameManager:SubnameRegistered', async ({ event, context })
     expiry: event.args.expiry,
     registeredAt: event.block.timestamp,
     transactionHash: event.transaction.hash,
-    chainId: 11155111, // Sepolia
+    chainId: 11155111,
   });
 
-  console.log(`[subname] Registered ${fullName} -> owner: ${event.args.owner}, agentId: ${event.args.agentId}, a2aUrl: ${event.args.a2aUrl}`);
+  console.log(`[subname] Registered ${fullName} -> owner: ${event.args.owner}, agentId: ${event.args.agentId}`);
 });
-

@@ -1,4 +1,5 @@
 export const CHAIN_ID = 11155111; // Sepolia
+export const BASE_SEPOLIA_CHAIN_ID = 84532; // Base Sepolia
 
 export const ADDRESSES = {
   // Uniswap v4
@@ -27,9 +28,51 @@ export const ADDRESSES = {
   ENS_RESOLVER: '0x8FADE66B79cC9f707aB26799354482EB93a5B7dD',
 } as const;
 
+// Clanker Contract Addresses (Base Sepolia)
+// Used for meta-treasury management of AI agent tokens
+export const CLANKER_ADDRESSES = {
+  BASE_SEPOLIA: {
+    // Uniswap V4 PoolManager for Clanker pools
+    POOL_MANAGER: '0x05E73354cFDd6745C338b50BcFDfA3Aa6fA03408' as const,
+    // Clanker token factory
+    CLANKER: '0xE85A59c628F7d27878ACeB4bf3b35733630083a9' as const,
+    // Fee accumulation contract (80% to launcher, 20% to Clawnch)
+    FEE_LOCKER: '0x42A95190B4088C88Dd904d930c79deC1158bF09D' as const,
+    // Uniswap V4 hook for Clanker pools
+    CLANKER_HOOK: '0xE63b0A59100698f379F9B577441A561bAF9828cc' as const,
+    // Canonical WETH on Base
+    WETH: '0x4200000000000000000000000000000000000006' as const,
+  },
+  BASE_MAINNET: {
+    // TODO: Add mainnet addresses when available
+    POOL_MANAGER: null as `0x${string}` | null,
+    CLANKER: null as `0x${string}` | null,
+    FEE_LOCKER: null as `0x${string}` | null,
+    CLANKER_HOOK: null as `0x${string}` | null,
+    WETH: '0x4200000000000000000000000000000000000006' as const,
+  },
+} as const;
+
+// Helper to get Clanker addresses by chain ID
+export function getClankerAddresses(chainId: number) {
+  switch (chainId) {
+    case 8453: // Base Mainnet
+      return CLANKER_ADDRESSES.BASE_MAINNET;
+    case 84532: // Base Sepolia
+    default:
+      return CLANKER_ADDRESSES.BASE_SEPOLIA;
+  }
+}
+
 // Canonical ERC-8004 Registry Addresses (howto8004.com)
+// Deployed via CREATE2 - same address across chains
 export const ERC8004_ADDRESSES = {
   SEPOLIA: {
+    IDENTITY: '0x8004A818BFB912233c491871b3d84c89A494BD9e' as const,
+    REPUTATION: '0x8004B663056A597Dffe9eCcC1965A193B7388713' as const,
+  },
+  BASE_SEPOLIA: {
+    // Same address via CREATE2
     IDENTITY: '0x8004A818BFB912233c491871b3d84c89A494BD9e' as const,
     REPUTATION: '0x8004B663056A597Dffe9eCcC1965A193B7388713' as const,
   },
@@ -42,9 +85,11 @@ export const ERC8004_ADDRESSES = {
 // Helper to get ERC-8004 addresses by chain ID
 export function getERC8004Addresses(chainId: number): { identity: `0x${string}`; reputation: `0x${string}` } {
   switch (chainId) {
-    case 1:
+    case 1: // Mainnet
       return { identity: ERC8004_ADDRESSES.MAINNET.IDENTITY, reputation: ERC8004_ADDRESSES.MAINNET.REPUTATION };
-    case 11155111:
+    case 84532: // Base Sepolia
+      return { identity: ERC8004_ADDRESSES.BASE_SEPOLIA.IDENTITY, reputation: ERC8004_ADDRESSES.BASE_SEPOLIA.REPUTATION };
+    case 11155111: // Sepolia
     default:
       return { identity: ERC8004_ADDRESSES.SEPOLIA.IDENTITY, reputation: ERC8004_ADDRESSES.SEPOLIA.REPUTATION };
   }

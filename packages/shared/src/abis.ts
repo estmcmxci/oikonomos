@@ -1,20 +1,3 @@
-export const ReceiptHookABI = [
-  {
-    type: 'event',
-    name: 'ExecutionReceipt',
-    inputs: [
-      { name: 'strategyId', type: 'bytes32', indexed: true },
-      { name: 'quoteId', type: 'bytes32', indexed: true },
-      { name: 'sender', type: 'address', indexed: true },
-      { name: 'amount0', type: 'int128', indexed: false },
-      { name: 'amount1', type: 'int128', indexed: false },
-      { name: 'actualSlippage', type: 'uint256', indexed: false },
-      { name: 'policyCompliant', type: 'bool', indexed: false },
-      { name: 'timestamp', type: 'uint256', indexed: false },
-    ],
-  },
-] as const;
-
 // Canonical ERC-8004 IdentityRegistry ABI (from howto8004.com)
 // Contract addresses: Sepolia 0x8004A818BFB912233c491871b3d84c89A494BD9e, Mainnet 0x8004A169FB4a3325136EB29fA0ceB6D2e539a432
 export const IdentityRegistryABI = [

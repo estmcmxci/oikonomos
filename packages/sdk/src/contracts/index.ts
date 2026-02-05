@@ -1,12 +1,4 @@
 export {
-  ReceiptHookABI,
-  decodeReceiptLog,
-  getReceipts,
-  getReceiptsByStrategy,
-  getReceiptsByUser,
-} from './receiptHook';
-
-export {
   IdentityRegistryABI,
   registerAgent,
   registerAgentWithAddress,
