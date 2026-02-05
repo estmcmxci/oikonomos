@@ -1,5 +1,6 @@
 // Phase 3: WETH Distribution
 // Distributes claimed WETH according to policy (compound, toStables, hold)
+// Uses Uniswap V4 Universal Router (NOT V3)
 
 import {
   createPublicClient,
@@ -7,22 +8,28 @@ import {
   http,
   formatEther,
   formatUnits,
-  parseEther,
+  encodeFunctionData,
+  encodeAbiParameters,
+  parseAbiParameters,
   type Address,
+  type Hex,
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
-import { base } from 'viem/chains';
+import { base, baseSepolia } from 'viem/chains';
 import type { Env } from '../index';
 import type { UnifiedPolicy } from '../policy/templates';
+import {
+  UNISWAP_V4_ADDRESSES,
+  CLANKER_ADDRESSES,
+  getUniswapV4Addresses,
+} from '../../../../packages/shared/src/constants';
+import { getChain, CHAIN_IDS } from '../config/chain';
 
-// Token addresses on Base
-const WETH_ADDRESS = '0x4200000000000000000000000000000000000006' as const;
-const USDC_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as const;
+// Token addresses on Base mainnet
+const WETH_ADDRESS = CLANKER_ADDRESSES.BASE_MAINNET.WETH;
+const USDC_ADDRESS = CLANKER_ADDRESSES.BASE_MAINNET.USDC;
 
-// IntentRouter for swaps (on Base - use Base Sepolia address as placeholder)
-const INTENT_ROUTER_ADDRESS = '0x87FC6810C2f9851B43570CdC8b655C21210A155d' as const;
-
-// ERC20 ABI for approvals
+// ERC20 ABI for approvals and balance checks
 const ERC20_ABI = [
   {
     name: 'approve',
@@ -41,7 +48,43 @@ const ERC20_ABI = [
     inputs: [{ name: 'account', type: 'address' }],
     outputs: [{ name: '', type: 'uint256' }],
   },
+  {
+    name: 'allowance',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [
+      { name: 'owner', type: 'address' },
+      { name: 'spender', type: 'address' },
+    ],
+    outputs: [{ name: '', type: 'uint256' }],
+  },
 ] as const;
+
+// Uniswap V4 Universal Router ABI (execute function)
+const UNIVERSAL_ROUTER_ABI = [
+  {
+    name: 'execute',
+    type: 'function',
+    stateMutability: 'payable',
+    inputs: [
+      { name: 'commands', type: 'bytes' },
+      { name: 'inputs', type: 'bytes[]' },
+      { name: 'deadline', type: 'uint256' },
+    ],
+    outputs: [],
+  },
+] as const;
+
+// V4 Universal Router Command IDs
+// See: https://docs.uniswap.org/contracts/universal-router/technical-reference
+const Commands = {
+  V4_SWAP: 0x10, // V4 swap command
+  WRAP_ETH: 0x0b, // Wrap ETH to WETH
+  UNWRAP_WETH: 0x0c, // Unwrap WETH to ETH
+  PERMIT2_PERMIT: 0x0a, // Permit2 approval
+  PERMIT2_TRANSFER_FROM: 0x02, // Transfer via Permit2
+  SWEEP: 0x04, // Sweep tokens to recipient
+} as const;
 
 /**
  * Distribution result for WETH
@@ -85,16 +128,18 @@ export async function distributeWeth(
   strategy: NonNullable<UnifiedPolicy['wethStrategy']>
 ): Promise<DistributionResult> {
   const account = privateKeyToAccount(agentPrivateKey);
+  const chainId = parseInt(env.CHAIN_ID || '8453');
+  const chain = chainId === CHAIN_IDS.BASE_MAINNET ? base : baseSepolia;
 
   const publicClient = createPublicClient({
-    chain: base,
-    transport: http(env.RPC_URL?.includes('base') ? env.RPC_URL : 'https://mainnet.base.org'),
+    chain,
+    transport: http(env.RPC_URL || 'https://mainnet.base.org'),
   });
 
   const walletClient = createWalletClient({
     account,
-    chain: base,
-    transport: http(env.RPC_URL?.includes('base') ? env.RPC_URL : 'https://mainnet.base.org'),
+    chain,
+    transport: http(env.RPC_URL || 'https://mainnet.base.org'),
   });
 
   // Calculate distribution amounts
@@ -123,20 +168,20 @@ export async function distributeWeth(
     // TODO: Implement LP add liquidity via Uniswap V4 PositionManager
     // For now, just log the intent
     console.log(`[wethDistribution] Would compound ${formatEther(compoundAmount)} WETH to LP`);
-    result.compounded.error = 'LP compounding not yet implemented';
+    result.compounded.error = 'LP compounding not yet implemented - Phase 2';
     result.compounded.success = false;
   }
 
-  // 2. To Stables - Swap WETH → USDC
+  // 2. To Stables - Swap WETH → USDC via V4 Universal Router
   if (stableAmount > 0n) {
     try {
-      // Get quote and execute swap via IntentRouter
-      const swapResult = await executeWethToUsdcSwap(
+      const swapResult = await executeWethToUsdcSwapV4(
         env,
         publicClient,
         walletClient,
         account.address,
-        stableAmount
+        stableAmount,
+        chainId
       );
 
       result.toStables.txHash = swapResult.txHash;
@@ -158,25 +203,38 @@ export async function distributeWeth(
 }
 
 /**
- * Execute WETH to USDC swap via IntentRouter
+ * Execute WETH to USDC swap via Uniswap V4 Universal Router
+ *
+ * Uses V4's Universal Router with the V4_SWAP command
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function executeWethToUsdcSwap(
+async function executeWethToUsdcSwapV4(
   env: Env,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   publicClient: any,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   walletClient: any,
   sender: Address,
-  wethAmount: bigint
+  wethAmount: bigint,
+  chainId: number
 ): Promise<{
   success: boolean;
   txHash?: `0x${string}`;
   usdcReceived: string;
   error?: string;
 }> {
-  // For MVP, we'll use a simple swap approach
-  // In production, this would go through the IntentRouter with proper quotes
-
   try {
+    const v4Addresses = getUniswapV4Addresses(chainId);
+    const universalRouter = v4Addresses.UNIVERSAL_ROUTER;
+    const permit2 = v4Addresses.PERMIT2;
+
+    if (!universalRouter) {
+      return {
+        success: false,
+        usdcReceived: '0',
+        error: `Universal Router not available on chain ${chainId}`,
+      };
+    }
+
     // 1. Check WETH balance
     const wethBalance = await publicClient.readContract({
       address: WETH_ADDRESS,
@@ -193,27 +251,203 @@ async function executeWethToUsdcSwap(
       };
     }
 
-    // 2. Approve IntentRouter to spend WETH
-    // Note: This is a placeholder - real implementation would use permit2 or check existing allowance
-    console.log(`[wethDistribution] Would approve and swap ${formatEther(wethAmount)} WETH to USDC`);
+    // 2. Approve Permit2 to spend WETH (if needed)
+    const permit2Allowance = await publicClient.readContract({
+      address: WETH_ADDRESS,
+      abi: ERC20_ABI,
+      functionName: 'allowance',
+      args: [sender, permit2],
+    });
 
-    // For now, return a placeholder result
-    // Real implementation would:
-    // - Get quote from strategy-agent
-    // - Build swap transaction
-    // - Execute via IntentRouter
+    if (permit2Allowance < wethAmount) {
+      console.log(`[wethDistribution] Approving Permit2 to spend WETH`);
+      const approveHash = await walletClient.writeContract({
+        address: WETH_ADDRESS,
+        abi: ERC20_ABI,
+        functionName: 'approve',
+        args: [permit2, wethAmount * 2n], // Approve extra for future swaps
+      });
+      await publicClient.waitForTransactionReceipt({ hash: approveHash });
+      console.log(`[wethDistribution] Permit2 approval confirmed: ${approveHash}`);
+    }
+
+    // 3. Get USDC balance before swap
+    const usdcBalanceBefore = await publicClient.readContract({
+      address: USDC_ADDRESS,
+      abi: ERC20_ABI,
+      functionName: 'balanceOf',
+      args: [sender],
+    });
+
+    // 4. Calculate minimum output with 1% slippage
+    // Assuming ~$3000/ETH (should use oracle in production)
+    const estimatedUsdcOut = (wethAmount * 3000n * 1_000_000n) / 10n ** 18n;
+    const minAmountOut = (estimatedUsdcOut * 99n) / 100n;
+
+    console.log(`[wethDistribution] V4 Swap: ${formatEther(wethAmount)} WETH → min ${formatUnits(minAmountOut, 6)} USDC`);
+
+    // 5. Build V4 swap path
+    // For V4, we need to encode the swap path with PoolKey
+    // WETH → USDC direct path
+    const poolKey = buildWethUsdcPoolKey(chainId);
+
+    // 6. Encode Universal Router commands
+    // Command: V4_SWAP (0x10)
+    // Input: encoded V4SwapExactIn params
+    const { commands, inputs } = encodeV4SwapCommand(
+      sender,
+      WETH_ADDRESS,
+      USDC_ADDRESS,
+      wethAmount,
+      minAmountOut,
+      poolKey
+    );
+
+    const deadline = BigInt(Math.floor(Date.now() / 1000) + 1800); // 30 min deadline
+
+    // 7. Execute via Universal Router
+    const txHash = await walletClient.writeContract({
+      address: universalRouter,
+      abi: UNIVERSAL_ROUTER_ABI,
+      functionName: 'execute',
+      args: [commands, inputs, deadline],
+    });
+
+    // 8. Wait for confirmation
+    const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
+
+    if (receipt.status === 'reverted') {
+      return {
+        success: false,
+        txHash,
+        usdcReceived: '0',
+        error: 'V4 swap transaction reverted',
+      };
+    }
+
+    // 9. Get USDC balance after swap to calculate actual received
+    const usdcBalanceAfter = await publicClient.readContract({
+      address: USDC_ADDRESS,
+      abi: ERC20_ABI,
+      functionName: 'balanceOf',
+      args: [sender],
+    });
+
+    const actualUsdcReceived = BigInt(usdcBalanceAfter) - BigInt(usdcBalanceBefore);
+    const usdcReceived = formatUnits(actualUsdcReceived, 6);
+
+    console.log(`[wethDistribution] V4 Swap successful: ${txHash}, received ${usdcReceived} USDC`);
+
     return {
-      success: false,
-      usdcReceived: '0',
-      error: 'Direct swap not yet implemented - use /execute endpoint with proper quote',
+      success: true,
+      txHash,
+      usdcReceived,
     };
   } catch (error) {
+    console.error('[wethDistribution] V4 Swap failed:', error);
     return {
       success: false,
       usdcReceived: '0',
       error: String(error),
     };
   }
+}
+
+/**
+ * Build PoolKey for WETH/USDC pool on V4
+ *
+ * Note: This uses standard Uniswap V4 pool params.
+ * For Clanker-launched tokens, the hook address would be different.
+ */
+function buildWethUsdcPoolKey(chainId: number): {
+  currency0: Address;
+  currency1: Address;
+  fee: number;
+  tickSpacing: number;
+  hooks: Address;
+} {
+  // Sort tokens (V4 requires currency0 < currency1)
+  const [currency0, currency1] = WETH_ADDRESS.toLowerCase() < USDC_ADDRESS.toLowerCase()
+    ? [WETH_ADDRESS, USDC_ADDRESS]
+    : [USDC_ADDRESS, WETH_ADDRESS];
+
+  return {
+    currency0,
+    currency1,
+    fee: 3000, // 0.3% fee tier for WETH/USDC
+    tickSpacing: 60,
+    hooks: '0x0000000000000000000000000000000000000000' as Address, // No hooks for standard pools
+  };
+}
+
+/**
+ * Encode V4 swap command for Universal Router
+ *
+ * Uses V4_SWAP command (0x10) with exactIn swap
+ */
+function encodeV4SwapCommand(
+  recipient: Address,
+  tokenIn: Address,
+  tokenOut: Address,
+  amountIn: bigint,
+  minAmountOut: bigint,
+  poolKey: ReturnType<typeof buildWethUsdcPoolKey>
+): { commands: Hex; inputs: Hex[] } {
+  // V4_SWAP command ID
+  const commands = '0x10' as Hex;
+
+  // Determine swap direction based on token order
+  const zeroForOne = tokenIn.toLowerCase() === poolKey.currency0.toLowerCase();
+
+  // Encode V4 swap params
+  // struct ExactInputSingleParams {
+  //   PoolKey poolKey;
+  //   bool zeroForOne;
+  //   uint128 amountIn;
+  //   uint128 amountOutMinimum;
+  //   uint160 sqrtPriceLimitX96;
+  //   bytes hookData;
+  // }
+  const swapParams = encodeAbiParameters(
+    parseAbiParameters([
+      '(address currency0, address currency1, uint24 fee, int24 tickSpacing, address hooks) poolKey',
+      'bool zeroForOne',
+      'uint128 amountIn',
+      'uint128 amountOutMinimum',
+      'uint160 sqrtPriceLimitX96',
+      'bytes hookData',
+    ]),
+    [
+      {
+        currency0: poolKey.currency0,
+        currency1: poolKey.currency1,
+        fee: poolKey.fee,
+        tickSpacing: poolKey.tickSpacing,
+        hooks: poolKey.hooks,
+      },
+      zeroForOne,
+      amountIn,
+      minAmountOut,
+      0n, // No price limit
+      '0x' as Hex, // No hook data
+    ]
+  );
+
+  // Wrap in Actions format for Universal Router V4_SWAP
+  // The input format is: abi.encode(Actions, params)
+  // For simple exactInputSingle, we encode the action type and params
+  const input = encodeAbiParameters(
+    parseAbiParameters(['bytes actions', 'bytes[] params']),
+    [
+      '0x00' as Hex, // SWAP_EXACT_IN action
+      [swapParams],
+    ]
+  );
+
+  return {
+    commands,
+    inputs: [input],
+  };
 }
 
 /**
