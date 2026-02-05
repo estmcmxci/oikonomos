@@ -8,11 +8,58 @@ This document outlines the testing plan for the Unified Treasury Platform and th
 
 ---
 
+## 🚨 P0: Critical - Migrate to Uniswap V4
+
+### Current Issue
+
+The WETH→USDC swap in `wethDistribution.ts` currently uses **Uniswap V3 SwapRouter**:
+
+```typescript
+// WRONG - V3 SwapRouter
+const SWAP_ROUTER_ADDRESS = '0x2626664c2603336E57B271c5C0b26F421741e481' as const;
+```
+
+### Required Migration
+
+Replace with **Uniswap V4** infrastructure for consistency with the rest of the platform:
+
+**Option A: Use existing IntentRouter**
+```typescript
+// Route through IntentRouter which already handles V4 swaps
+import { executeIntent } from '../execute/handler';
+
+async function executeWethToUsdcSwap(...) {
+  // Build intent for WETH→USDC
+  const intent = buildSwapIntent(WETH, USDC, amount);
+  return executeIntent(env, intent, signature);
+}
+```
+
+**Option B: Direct V4 PoolManager swap**
+```typescript
+// Use V4 PoolManager directly
+const POOL_MANAGER_ADDRESS = '0x...' as const; // V4 PoolManager on Base
+
+// V4 uses PoolKey instead of fee tiers
+const poolKey = {
+  currency0: WETH_ADDRESS,
+  currency1: USDC_ADDRESS,
+  fee: 3000,
+  tickSpacing: 60,
+  hooks: '0x0000000000000000000000000000000000000000',
+};
+```
+
+**Files to Update:**
+- `agents/treasury-agent/src/execute/wethDistribution.ts` - Replace V3 with V4
+
+---
+
 ## Phase 1: E2E Testing
 
 ### Test 1: WETH→USDC Swap on Base Sepolia
 
-**Objective:** Verify Uniswap V3 SwapRouter integration in `wethDistribution.ts`
+**Objective:** Verify **Uniswap V4** swap integration in `wethDistribution.ts`
 
 **Prerequisites:**
 - Agent wallet funded with testnet WETH (0.01 WETH minimum)
