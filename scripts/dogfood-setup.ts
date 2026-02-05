@@ -35,8 +35,8 @@ const AGENTS = [
   { name: 'delta', platform: 'moltx', index: 3 },
 ] as const;
 
-// Funding amount per agent (0.05 ETH)
-const FUNDING_AMOUNT = parseEther('0.05');
+// Funding amount per agent (0.03 ETH)
+const FUNDING_AMOUNT = parseEther('0.03');
 
 // Derive deterministic wallet from deployer key and index
 function deriveWallet(deployerKey: string, index: number): PrivateKeyAccount {
