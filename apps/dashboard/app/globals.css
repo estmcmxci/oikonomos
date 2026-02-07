@@ -127,6 +127,17 @@ body {
   50% { opacity: 0.4; }
 }
 
+/* Timeline deploy animation keyframes */
+@keyframes timelineIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes summaryFlash {
+  0% { background: rgba(0, 212, 170, 0.15); }
+  100% { background: transparent; }
+}
+
 /* Animation utilities */
 .animate-fade-up {
   opacity: 0;

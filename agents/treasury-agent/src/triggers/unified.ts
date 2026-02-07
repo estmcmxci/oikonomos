@@ -1,12 +1,30 @@
 // Phase 4: Unified Trigger System
 // Checks all trigger conditions: stablecoin drift, fee thresholds, token exit conditions
 
-import { createPublicClient, http, parseEther, type Address } from 'viem';
+import { createPublicClient, http, parseEther, formatUnits, type Address } from 'viem';
 import { base } from 'viem/chains';
 import type { Env } from '../index';
-import type { UnifiedPolicy } from '../policy/templates';
+import type { UnifiedPolicy, TokenAllocation } from '../policy/templates';
 import { checkThresholds, calculateThresholds } from './threshold';
 import { discoverAgentTokens, getAgentWallets, type AgentToken } from '../suggestion/clawnch';
+
+// ERC20 ABI for balance checking
+const ERC20_ABI = [
+  {
+    name: 'balanceOf',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [{ name: 'account', type: 'address' }],
+    outputs: [{ name: '', type: 'uint256' }],
+  },
+  {
+    name: 'decimals',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ name: '', type: 'uint8' }],
+  },
+] as const;
 
 // FeeLocker on Base
 const FEE_LOCKER_ADDRESS = '0xF3622742b1E446D92e45E22923Ef11C2fcD55D68' as const;
@@ -137,7 +155,23 @@ export async function checkAllTriggers(
 }
 
 /**
+ * Drift information for a single token
+ */
+interface DriftInfo {
+  token: Address;
+  symbol: string;
+  drift: number;
+  actual: number;
+  target: number;
+  balanceRaw: string;
+  balanceNormalized: string;
+}
+
+/**
  * Check stablecoin drift trigger
+ *
+ * Compares actual token balances against target allocations and returns
+ * tokens that have drifted beyond the threshold.
  */
 async function checkDriftTrigger(
   env: Env,
@@ -145,15 +179,117 @@ async function checkDriftTrigger(
   policy: UnifiedPolicy
 ): Promise<{
   hasDrift: boolean;
-  drifts: Array<{ token: Address; symbol: string; drift: number }>;
+  drifts: DriftInfo[];
 }> {
   if (!policy.stablecoinRebalance?.enabled) {
     return { hasDrift: false, drifts: [] };
   }
 
-  // TODO: Implement actual balance checking
-  // For now, return no drift
-  return { hasDrift: false, drifts: [] };
+  const { tokens, driftThreshold } = policy.stablecoinRebalance;
+
+  if (!tokens || tokens.length === 0) {
+    return { hasDrift: false, drifts: [] };
+  }
+
+  const client = createPublicClient({
+    chain: base,
+    transport: http(env.RPC_URL?.includes('base') ? env.RPC_URL : 'https://mainnet.base.org'),
+  });
+
+  // 1. Get balances for all tokens with decimal normalization
+  const balancePromises = tokens.map(async (token) => {
+    try {
+      const balance = await client.readContract({
+        address: token.address,
+        abi: ERC20_ABI,
+        functionName: 'balanceOf',
+        args: [userAddress],
+      });
+
+      // Get decimals (use provided or fetch from chain)
+      let decimals = token.decimals;
+      if (decimals === undefined) {
+        try {
+          decimals = await client.readContract({
+            address: token.address,
+            abi: ERC20_ABI,
+            functionName: 'decimals',
+          });
+        } catch {
+          decimals = 18; // Default to 18 if fetch fails
+        }
+      }
+
+      // Normalize to 18 decimals for consistent comparison
+      // This allows comparing USDC (6 decimals) with DAI (18 decimals)
+      const normalizedBalance = decimals < 18
+        ? balance * BigInt(10 ** (18 - decimals))
+        : decimals > 18
+          ? balance / BigInt(10 ** (decimals - 18))
+          : balance;
+
+      return {
+        token: token.address,
+        symbol: token.symbol,
+        targetPercentage: token.targetPercentage,
+        balanceRaw: balance,
+        balanceNormalized: normalizedBalance,
+        decimals,
+      };
+    } catch (error) {
+      console.warn(`[drift] Error fetching balance for ${token.symbol}:`, error);
+      return {
+        token: token.address,
+        symbol: token.symbol,
+        targetPercentage: token.targetPercentage,
+        balanceRaw: 0n,
+        balanceNormalized: 0n,
+        decimals: token.decimals || 18,
+      };
+    }
+  });
+
+  const balances = await Promise.all(balancePromises);
+
+  // 2. Calculate total value (normalized)
+  const totalValue = balances.reduce((sum, b) => sum + b.balanceNormalized, 0n);
+
+  if (totalValue === 0n) {
+    console.log(`[drift] No stablecoin balance found for ${userAddress}`);
+    return { hasDrift: false, drifts: [] };
+  }
+
+  // 3. Calculate drift for each token
+  const drifts: DriftInfo[] = [];
+
+  for (const balance of balances) {
+    // Calculate actual percentage (0-100 scale)
+    const actualPercent = Number((balance.balanceNormalized * 10000n) / totalValue) / 100;
+    const targetPercent = balance.targetPercentage;
+    const drift = Math.abs(actualPercent - targetPercent);
+
+    console.log(
+      `[drift] ${balance.symbol}: actual=${actualPercent.toFixed(2)}%, target=${targetPercent}%, drift=${drift.toFixed(2)}%`
+    );
+
+    // Check if drift exceeds threshold
+    if (drift > driftThreshold) {
+      drifts.push({
+        token: balance.token,
+        symbol: balance.symbol,
+        drift,
+        actual: actualPercent,
+        target: targetPercent,
+        balanceRaw: balance.balanceRaw.toString(),
+        balanceNormalized: formatUnits(balance.balanceNormalized, 18),
+      });
+    }
+  }
+
+  return {
+    hasDrift: drifts.length > 0,
+    drifts,
+  };
 }
 
 /**

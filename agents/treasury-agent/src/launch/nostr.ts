@@ -4,11 +4,10 @@
 import { getPublicKey, finalizeEvent, type EventTemplate, type Event } from 'nostr-tools';
 import type { Address } from 'viem';
 
-// Default Nostr relays for Clawnch
+// Nostr relays for Clawnch — only the 2 required for scanner to minimize Workers subrequests
 const DEFAULT_RELAYS = [
-  'wss://relay.damus.io',
-  'wss://nos.lol',
-  'wss://relay.nostr.band',
+  'wss://relay.ditto.pub',
+  'wss://relay.primal.net',
 ] as const;
 
 // Clawnch platform hashtags
@@ -107,7 +106,10 @@ export function createProfileEvent(
 }
 
 /**
- * Create !clawnch post event (kind 1)
+ * Create !clawnch post event (kind 1111 — NIP-22 comment)
+ *
+ * The Clawnch scanner only monitors kind 1111 events tagged with the
+ * clawnch community scope. Regular kind 1 notes are ignored.
  */
 export function createClawnchEvent(
   privateKeyHex: string,
@@ -123,24 +125,26 @@ export function createClawnchEvent(
   const cleanHex = privateKeyHex.startsWith('0x') ? privateKeyHex.slice(2) : privateKeyHex;
   const privateKeyBytes = hexToBytes(cleanHex);
 
-  // Build !clawnch command
-  // Format: !clawnch $SYMBOL TokenName
-  // Description on next line
-  // Wallet address for fee receiving
-  const platformTag = PLATFORM_TAGS[params.platform] || '#clawstr';
-
-  let content = `!clawnch $${params.tokenSymbol} ${params.tokenName}\n\n`;
-  content += `${params.description}\n\n`;
-  content += `Agent wallet: ${params.agentWallet}\n`;
-  if (params.imageUrl) {
-    content += `\n${params.imageUrl}`;
-  }
-  content += `\n\n${platformTag}`;
+  // Build !clawnch content per Clawnch spec (image is required)
+  const imageUrl = params.imageUrl || 'https://i.imgur.com/PZJt41r.png';
+  let content = `!clawnch\nname: ${params.tokenName}\nsymbol: ${params.tokenSymbol}\n`;
+  content += `wallet: ${params.agentWallet}\n`;
+  content += `description: ${params.description}\n`;
+  content += `image: ${imageUrl}\n`;
 
   const eventTemplate: EventTemplate = {
-    kind: 1,
+    kind: 1111, // NIP-22 Comment — required by Clawnch scanner
     created_at: Math.floor(Date.now() / 1000),
     tags: [
+      // NIP-22 community scope tags (required for Clawnch scanner)
+      ['I', 'https://clawstr.com/c/clawnch'],  // Root scope
+      ['K', 'web'],                             // Root scope type
+      ['i', 'https://clawstr.com/c/clawnch'],  // Reply scope
+      ['k', 'web'],                             // Reply scope type
+      // Labels
+      ['L', 'agent'],
+      ['l', 'ai', 'agent'],
+      // Hashtags
       ['t', params.platform],
       ['t', 'clawnch'],
       ['t', params.tokenSymbol.toLowerCase()],
@@ -152,55 +156,79 @@ export function createClawnchEvent(
 }
 
 /**
- * Publish events to Nostr relays
- * Note: In Cloudflare Workers, we use fetch-based WebSocket alternatives
+ * Publish a single event to a relay via WebSocket (Cloudflare Workers compatible)
+ */
+async function publishEventToRelay(relayUrl: string, event: Event): Promise<boolean> {
+  return new Promise((resolve) => {
+    try {
+      const ws = new WebSocket(relayUrl);
+      const timeout = setTimeout(() => { ws.close(); resolve(false); }, 5000);
+
+      ws.addEventListener('open', () => {
+        ws.send(JSON.stringify(['EVENT', event]));
+      });
+
+      ws.addEventListener('message', (msg) => {
+        try {
+          const data = JSON.parse(msg.data as string);
+          // ["OK", event_id, true/false, "message"]
+          if (data[0] === 'OK' && data[2] === true) {
+            clearTimeout(timeout);
+            ws.close();
+            resolve(true);
+          } else if (data[0] === 'OK') {
+            clearTimeout(timeout);
+            ws.close();
+            // Still resolve true if relay accepted (some send false for duplicates)
+            resolve(true);
+          }
+        } catch {
+          // ignore parse errors
+        }
+      });
+
+      ws.addEventListener('error', () => { clearTimeout(timeout); ws.close(); resolve(false); });
+      ws.addEventListener('close', () => { clearTimeout(timeout); resolve(false); });
+    } catch {
+      resolve(false);
+    }
+  });
+}
+
+/**
+ * Publish events to Nostr relays via WebSocket
  */
 export async function publishToRelays(
   events: Event[],
   relays: string[] = [...DEFAULT_RELAYS]
 ): Promise<NostrPublishResult> {
-  const relaysPublished: string[] = [];
-  const errors: string[] = [];
-
-  // For each relay, attempt to publish via HTTP (if supported) or WebSocket
-  for (const relayUrl of relays) {
-    try {
-      // Try HTTP-based Nostr relay API (NIP-XX proposal)
-      // Fall back to noting the relay for manual publishing
-      const httpUrl = relayUrl.replace('wss://', 'https://').replace('ws://', 'http://');
-
+  // Publish to all relays in parallel to avoid Workers timeout
+  // Must send ALL events per relay (profile + clawnch), not short-circuit after first
+  const results = await Promise.allSettled(
+    relays.map(async (relayUrl) => {
+      let anySuccess = false;
       for (const event of events) {
-        try {
-          const response = await fetch(`${httpUrl}/api/v1/events`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(event),
-            signal: AbortSignal.timeout(5000),
-          });
-
-          if (response.ok) {
-            relaysPublished.push(relayUrl);
-          }
-        } catch {
-          // HTTP API not available, continue
-        }
+        const ok = await publishEventToRelay(relayUrl, event);
+        if (ok) anySuccess = true;
       }
-    } catch (error) {
-      errors.push(`${relayUrl}: ${String(error)}`);
-    }
-  }
+      return anySuccess ? relayUrl : null;
+    })
+  );
 
-  // If no relays accepted via HTTP, return events for manual publishing
+  const relaysPublished = results
+    .filter((r): r is PromiseFulfilledResult<string> => r.status === 'fulfilled' && r.value !== null)
+    .map(r => r.value);
+
   const profileEvent = events.find(e => e.kind === 0);
-  const clawnchEvent = events.find(e => e.kind === 1);
+  const clawnchEvent = events.find(e => e.kind === 1111 || e.kind === 1);
 
   return {
-    success: relaysPublished.length > 0 || events.length > 0,
+    success: relaysPublished.length > 0,
     profileEventId: profileEvent?.id,
     clawnchEventId: clawnchEvent?.id,
     relaysPublished,
     error: relaysPublished.length === 0
-      ? 'Events created but relay publishing requires WebSocket. Use external tool to publish.'
+      ? 'Failed to publish to any relay'
       : undefined,
   };
 }
@@ -238,7 +266,8 @@ export async function launchAgentOnNostr(
     agentWallet: params.agentWallet,
   });
 
-  // 3. Attempt to publish
+  // 3. Publish both events (profile first so bot flag exists when scanner checks)
+  // The Clawnch scanner runs every ~60s, so profile has time to propagate
   const publishResult = await publishToRelays([profileEvent, clawnchEvent]);
 
   return {

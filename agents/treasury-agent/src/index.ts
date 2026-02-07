@@ -10,8 +10,12 @@ import { getFeeAnalytics, getRecentEarnings } from './x402/analytics';
 import { handleScheduledTrigger, handleEventsWebhook, savePolicy, saveAuthorization, deleteAuthorization, type UserAuthorization } from './observation';
 import { handleVerifyReceipt } from './verification/handler'; // OIK-53: Receipt verification
 import { handleCreateSession, handleGetSession, handleRevokeSession } from './session/handler'; // OIK-10: Session keys
-import { handleLaunchAgent, handleListAgents, handleImportAgent } from './launch/handler'; // Phase 5: Agent launcher
+import { handleLaunchAgent, handleListAgents, handleImportAgent, handleLaunchPortfolio, handleRegisterENS, handleGenerateWallets, handlePollToken } from './launch/handler'; // Phase 5: Agent launcher
 import { handleClaimFees } from './execute/claimHandler'; // Phase 3: Fee claiming
+import { handleFeeStatus, handleUpdateDistribution } from './execute/feeStatus'; // Fee status & distribution settings
+import { withdrawToDeployer, withdrawEthToDeployer } from './execute/wethDistribution'; // OIK-69: WETH/ETH withdrawal
+import { findUserAgentByType, getAgentPrivateKey, getStoredAgent } from './launch/keychain'; // OIK-69: Agent lookup
+import { parseEther, type Address } from 'viem'; // OIK-69: Address type + amount parsing
 
 export interface Env {
   CHAIN_ID: string;
@@ -24,11 +28,13 @@ export interface Env {
   INDEXER_URL?: string; // OIK-34: Indexer URL for marketplace discovery
   QUOTER_V4?: string; // OIK-36: Uniswap V4 Quoter address
   POOL_MANAGER?: string; // Uniswap V4 PoolManager address
+  DELEGATION_ROUTER?: string; // DelegationRouter contract address (Base Sepolia)
   AGENT_WALLET?: string; // OIK-40: Agent wallet address for x402 fee collection
   TREASURY_KV: KVNamespace; // KV namespace for state and policy storage
   // OIK-10: Pimlico bundler config for session key execution
   PIMLICO_API_KEY?: string;
   PIMLICO_BUNDLER_URL?: string;
+  CCIP_SIGNER_KEY?: string; // Deployer key for CCIP ENS signing (trustedSigner on OffchainSubnameManager)
 }
 
 const CORS_HEADERS = {
@@ -256,6 +262,16 @@ export default {
         return handleClaimFees(request, env, CORS_HEADERS);
       }
 
+      // Fee status endpoint — combined view of claimable fees, balances, distribution settings
+      if (url.pathname === '/fee-status' && request.method === 'GET') {
+        return handleFeeStatus(request, env, CORS_HEADERS);
+      }
+
+      // Update distribution mode/schedule for all user agents
+      if (url.pathname === '/update-distribution' && request.method === 'POST') {
+        return handleUpdateDistribution(request, env, CORS_HEADERS);
+      }
+
       // Fee analytics endpoint (OIK-40)
       if (url.pathname === '/analytics' && request.method === 'GET') {
         const totals = await getFeeAnalytics(env.TREASURY_KV);
@@ -286,22 +302,53 @@ export default {
         );
       }
 
-      // Withdrawal info endpoint (OIK-49)
+      // Withdraw WETH service fee endpoint (OIK-69)
       if (url.pathname === '/withdraw' && request.method === 'POST') {
-        // x402 fees are paid directly to the agent wallet, no withdrawal needed
-        return new Response(
-          JSON.stringify({
-            success: false,
-            message: 'No withdrawal needed - x402 pays fees directly to agent wallet',
-            details: {
-              paymentMethod: 'x402',
-              description: 'The x402 protocol facilitates micropayments where consumers pay fees directly to the agent wallet address at execution time. There is no escrow or accumulated balance to withdraw.',
-              agentWallet: env.AGENT_WALLET || 'Not configured',
-              checkBalance: 'Use a block explorer or wallet to check your USDC balance on Base Sepolia',
-            },
-          }),
-          { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
-        );
+        const body = await request.json() as { userAddress?: string; agentName?: string; amount?: string; type?: 'eth' | 'weth' };
+        const userAddress = body.userAddress as Address | undefined;
+        const withdrawType = body.type ?? 'weth';
+        if (!userAddress) {
+          return new Response(
+            JSON.stringify({ success: false, error: 'userAddress is required' }),
+            { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // Find agent to withdraw from — use agentName if provided, otherwise default to treasury
+        let targetAgent;
+        if (body.agentName) {
+          targetAgent = await getStoredAgent(env.TREASURY_KV, userAddress as Address, body.agentName);
+        } else {
+          targetAgent = await findUserAgentByType(env.TREASURY_KV, userAddress as Address, 'treasury');
+        }
+        if (!targetAgent) {
+          return new Response(
+            JSON.stringify({ success: false, error: body.agentName ? `Agent "${body.agentName}" not found` : 'No treasury agent found for this user' }),
+            { status: 404, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // Get agent private key
+        const agentKey = await getAgentPrivateKey(env.TREASURY_KV, userAddress as Address, targetAgent.agentName);
+        if (!agentKey) {
+          return new Response(
+            JSON.stringify({ success: false, error: 'Could not retrieve agent key' }),
+            { status: 500, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // Parse optional amount — accept decimal ETH strings (e.g. "0.001") or raw wei
+        const requestedAmount = body.amount
+          ? (body.amount.includes('.') ? parseEther(body.amount) : BigInt(body.amount))
+          : undefined;
+
+        const result = withdrawType === 'eth'
+          ? await withdrawEthToDeployer(env, agentKey, targetAgent.address, userAddress as Address, requestedAmount)
+          : await withdrawToDeployer(env, agentKey, targetAgent.address, userAddress as Address, requestedAmount);
+        return new Response(JSON.stringify(result), {
+          status: result.success ? 200 : 400,
+          headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+        });
       }
 
       // Capabilities endpoint (OIK-34: Dynamic marketplace capabilities)
@@ -371,6 +418,26 @@ export default {
         return handleLaunchAgent(request, env, CORS_HEADERS);
       }
 
+      // POST /generate-wallets - Derive wallet addresses (no on-chain writes)
+      if (url.pathname === '/generate-wallets' && request.method === 'POST') {
+        return handleGenerateWallets(request, env, CORS_HEADERS);
+      }
+
+      // POST /launch-portfolio - Deploy treasury + DeFi agent pair
+      if (url.pathname === '/launch-portfolio' && request.method === 'POST') {
+        return handleLaunchPortfolio(request, env, CORS_HEADERS);
+      }
+
+      // POST /poll-token - Discover Clawnch-deployed token and update KV
+      if (url.pathname === '/poll-token' && request.method === 'POST') {
+        return handlePollToken(request, env, CORS_HEADERS);
+      }
+
+      // POST /register-ens - Register ENS subname for an existing agent (follow-up to launch-portfolio)
+      if (url.pathname === '/register-ens' && request.method === 'POST') {
+        return handleRegisterENS(request, env, CORS_HEADERS);
+      }
+
       // POST /import-agent - Import existing agent wallet
       if (url.pathname === '/import-agent' && request.method === 'POST') {
         return handleImportAgent(request, env, CORS_HEADERS);
@@ -387,6 +454,14 @@ export default {
           JSON.stringify({ status: 'ok', timestamp: Date.now() }),
           { headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
         );
+      }
+
+      // Manual cron trigger for E2E testing
+      if (url.pathname === '/trigger-cron' && request.method === 'POST') {
+        const result = await handleScheduledTrigger(env, env.TREASURY_KV);
+        return new Response(JSON.stringify(result), {
+          headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+        });
       }
 
       return new Response('Not Found', { status: 404, headers: CORS_HEADERS });

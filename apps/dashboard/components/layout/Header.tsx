@@ -23,10 +23,18 @@ export function Header({ showNav = true, showWallet = false }: HeaderProps) {
             <ul className="flex gap-8 list-none">
               <li>
                 <Link
-                  href="/discover"
+                  href="/launch"
                   className="font-mono text-xs font-normal text-text-secondary uppercase tracking-widest no-underline hover:text-accent-blue transition-colors"
                 >
-                  Agents
+                  Launch
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/keychain"
+                  className="font-mono text-xs font-normal text-text-secondary uppercase tracking-widest no-underline hover:text-accent-blue transition-colors"
+                >
+                  Keychain
                 </Link>
               </li>
               <li>

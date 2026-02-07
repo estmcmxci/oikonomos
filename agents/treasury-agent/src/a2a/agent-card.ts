@@ -21,7 +21,7 @@ export function handleAgentCard(env: Env, corsHeaders: Record<string, string>): 
   // Build ERC-8004 compliant services array
   const services: ERC8004Service[] = [
     { type: 'A2A', url: '/.well-known/agent-card.json' },
-    { type: 'ENS', value: 'treasury.oikonomos.eth' },
+    { type: 'ENS', value: 'treasury.oikonomosapp.eth' },
     { type: 'web', url: 'https://oikonomos.app' },
   ];
 

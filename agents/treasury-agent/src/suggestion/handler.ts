@@ -3,8 +3,12 @@
 // Extended for unified treasury (Phases 1-2): stablecoins + agent tokens + fees
 
 import { createPublicClient, http, erc20Abi, formatUnits, type Address } from 'viem';
+import { sepolia } from 'viem/chains';
 import type { Env } from '../index';
 import { getChain } from '../config/chain';
+
+// Sepolia RPC for portfolio discovery (stablecoins are on Eth Sepolia)
+const SEPOLIA_RPC = 'https://sepolia.drpc.org';
 import { classifyToken, analyzeComposition, type PortfolioComposition } from './classifier';
 import { findCompatiblePools, hasReceiptHookPool, type PoolMatch } from './pools';
 import { matchPolicy, type PolicyMatch, type RiskProfile } from './matcher';
@@ -292,9 +296,10 @@ async function fetchPortfolio(
   userAddress: Address,
   tokens: TokenInfo[]
 ): Promise<PortfolioToken[]> {
+  // Use Eth Sepolia for portfolio discovery (stablecoins are on Sepolia)
   const client = createPublicClient({
-    chain: getChain(env),
-    transport: http(env.RPC_URL),
+    chain: sepolia,
+    transport: http(SEPOLIA_RPC),
   });
 
   // Fetch all token balances in parallel

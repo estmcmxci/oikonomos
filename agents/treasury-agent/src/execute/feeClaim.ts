@@ -314,3 +314,83 @@ export async function getAgentPrivateKey(
     return null;
   }
 }
+
+// Minimal DelegationRouter ABI for executeManagement
+const DelegationRouterManagementABI = [
+  {
+    name: 'executeManagement',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'user', type: 'address' },
+      {
+        name: 'params',
+        type: 'tuple',
+        components: [
+          { name: 'compound', type: 'uint8' },
+          { name: 'toStables', type: 'uint8' },
+          { name: 'hold', type: 'uint8' },
+          { name: 'maxSlippage', type: 'uint16' },
+        ],
+      },
+    ],
+    outputs: [],
+  },
+] as const;
+
+/**
+ * Call DelegationRouter.executeManagement() for on-chain audit trail.
+ *
+ * This is best-effort — the direct claim + off-chain 85/15 split is the
+ * primary mechanism. If executeManagement reverts (e.g., TooSoon, no
+ * delegation), we log and continue.
+ */
+export async function executeManagementOnChain(
+  env: Env,
+  treasuryPrivateKey: `0x${string}`,
+  defiAgentAddress: Address
+): Promise<{ success: boolean; txHash?: string; error?: string }> {
+  const delegationRouter = env.DELEGATION_ROUTER as Address | undefined;
+  if (!delegationRouter) {
+    return { success: false, error: 'DELEGATION_ROUTER not configured' };
+  }
+
+  try {
+    const account = privateKeyToAccount(treasuryPrivateKey);
+    const rpcUrl = env.RPC_URL || 'https://mainnet.base.org';
+
+    const publicClient = createPublicClient({
+      chain: base,
+      transport: http(rpcUrl),
+    });
+
+    const walletClient = createWalletClient({
+      account,
+      chain: base,
+      transport: http(rpcUrl),
+    });
+
+    const txHash = await walletClient.writeContract({
+      address: delegationRouter,
+      abi: DelegationRouterManagementABI,
+      functionName: 'executeManagement',
+      args: [
+        defiAgentAddress,
+        { compound: 0, toStables: 0, hold: 100, maxSlippage: 0 },
+      ],
+    });
+
+    const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
+
+    if (receipt.status === 'reverted') {
+      return { success: false, txHash, error: 'Transaction reverted' };
+    }
+
+    console.log(`[executeManagement] Audit trail for ${defiAgentAddress}: ${txHash}`);
+    return { success: true, txHash };
+  } catch (error) {
+    // Best-effort — log and continue
+    console.warn(`[executeManagement] Failed for ${defiAgentAddress}:`, error);
+    return { success: false, error: String(error) };
+  }
+}

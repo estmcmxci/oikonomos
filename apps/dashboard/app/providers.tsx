@@ -5,6 +5,7 @@ import { WagmiProvider } from 'wagmi'
 import { RainbowKitProvider, darkTheme } from '@rainbow-me/rainbowkit'
 import { useState } from 'react'
 import { config } from '@/lib/wagmi'
+import { LaunchProvider } from '@/lib/launch-context'
 
 import '@rainbow-me/rainbowkit/styles.css'
 
@@ -22,7 +23,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
             fontStack: 'system',
           })}
         >
-          {children}
+          <LaunchProvider>
+            {children}
+          </LaunchProvider>
         </RainbowKitProvider>
       </QueryClientProvider>
     </WagmiProvider>

@@ -8,6 +8,7 @@ import {
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import type { Env } from '../index';
+import { getNostrPublicKey } from './nostr';
 
 /**
  * Agent wallet with keys
@@ -20,15 +21,71 @@ export interface AgentWallet {
 /**
  * Stored agent data
  */
+export interface DistributionSchedule {
+  type: 'weekly' | 'biweekly' | 'monthly' | 'custom';
+  customDays?: number;
+}
+
 export interface StoredAgent {
   address: Address;
   encryptedKey: string;
   agentName: string;
+  agentType?: string;
   ensName: string;
   erc8004Id?: number;
   nostrPubkey?: string;
   tokenAddress?: Address;
+  tokenSymbol?: string;
+  delegatedTo?: Address;
+  delegatedToEns?: string;
+  delegationTxHash?: string;
+  feeSplit?: number; // 0-100, deployer percentage
+  distributionMode?: 'auto' | 'manual'; // default: 'auto'
+  distributionSchedule?: DistributionSchedule;
+  lastDistributionTime?: number; // epoch ms
+  nextDistributionTime?: number; // computed
   createdAt: number;
+}
+
+/**
+ * Get the interval in milliseconds for a distribution schedule
+ */
+export function getScheduleIntervalMs(schedule: DistributionSchedule): number {
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  switch (schedule.type) {
+    case 'weekly':
+      return 7 * DAY_MS;
+    case 'biweekly':
+      return 14 * DAY_MS;
+    case 'monthly':
+      return 30 * DAY_MS;
+    case 'custom':
+      return (schedule.customDays ?? 7) * DAY_MS;
+  }
+}
+
+/**
+ * Compute next distribution time from last distribution and schedule
+ */
+export function computeNextDistributionTime(
+  lastTime: number,
+  schedule: DistributionSchedule
+): number {
+  return lastTime + getScheduleIntervalMs(schedule);
+}
+
+/**
+ * Check if distribution is due based on last time and schedule
+ */
+export function isDueForDistribution(
+  lastTime: number | undefined,
+  schedule: DistributionSchedule | undefined
+): boolean {
+  // If no schedule set, always distribute (backward compat — every cron tick)
+  if (!schedule) return true;
+  // If never distributed before, it's due
+  if (!lastTime) return true;
+  return Date.now() >= computeNextDistributionTime(lastTime, schedule);
 }
 
 /**
@@ -84,17 +141,10 @@ export function deriveNostrKeys(
   // Nostr uses raw 32-byte private keys (no 0x prefix)
   const privateKey = nostrSeed.slice(2);
 
-  // Get proper secp256k1 public key using nostr-tools
-  // Import dynamically to avoid bundling issues in Workers
+  // Get proper secp256k1 public key using nostr-tools via nostr.ts helper
   let publicKey: string;
   try {
-    // nostr-tools getPublicKey expects Uint8Array
-    const { getPublicKey } = require('nostr-tools');
-    const privateKeyBytes = new Uint8Array(32);
-    for (let i = 0; i < 32; i++) {
-      privateKeyBytes[i] = parseInt(privateKey.slice(i * 2, i * 2 + 2), 16);
-    }
-    publicKey = getPublicKey(privateKeyBytes);
+    publicKey = getNostrPublicKey(privateKey);
   } catch {
     // Fallback: use keccak256 as placeholder (not valid secp256k1)
     publicKey = keccak256(nostrSeed).slice(2);
@@ -119,6 +169,12 @@ export async function storeAgentKeys(
     erc8004Id?: number;
     nostrPubkey?: string;
     tokenAddress?: Address;
+    tokenSymbol?: string;
+    agentType?: string;
+    delegatedTo?: Address;
+    delegatedToEns?: string;
+    delegationTxHash?: string;
+    feeSplit?: number;
   }
 ): Promise<void> {
   const key = `agent:${userAddress.toLowerCase()}:${agentName}`;
@@ -128,10 +184,16 @@ export async function storeAgentKeys(
     // In production: encrypt this with user's public key
     encryptedKey: wallet.privateKey,
     agentName,
-    ensName: metadata?.ensName || `${agentName}.oikonomos.eth`,
+    agentType: metadata?.agentType,
+    ensName: metadata?.ensName || `${agentName}.oikonomosapp.eth`,
     erc8004Id: metadata?.erc8004Id,
     nostrPubkey: metadata?.nostrPubkey,
     tokenAddress: metadata?.tokenAddress,
+    tokenSymbol: metadata?.tokenSymbol,
+    delegatedTo: metadata?.delegatedTo,
+    delegatedToEns: metadata?.delegatedToEns,
+    delegationTxHash: metadata?.delegationTxHash,
+    feeSplit: metadata?.feeSplit,
     createdAt: Date.now(),
   };
 
@@ -158,6 +220,29 @@ export async function getStoredAgent(
     return JSON.parse(data) as StoredAgent;
   } catch {
     return null;
+  }
+}
+
+/**
+ * Update specific fields on a stored agent (read-modify-write).
+ */
+export async function updateStoredAgent(
+  kv: KVNamespace,
+  userAddress: Address,
+  agentName: string,
+  updates: Partial<Omit<StoredAgent, 'address' | 'encryptedKey' | 'agentName' | 'createdAt'>>
+): Promise<boolean> {
+  const key = `agent:${userAddress.toLowerCase()}:${agentName}`;
+  const data = await kv.get(key);
+  if (!data) return false;
+
+  try {
+    const agent = JSON.parse(data) as StoredAgent;
+    const updated = { ...agent, ...updates };
+    await kv.put(key, JSON.stringify(updated));
+    return true;
+  } catch {
+    return false;
   }
 }
 
@@ -246,4 +331,138 @@ export async function listUserAgentDetails(
   }
 
   return agents;
+}
+
+/**
+ * Find a user's agent by type (e.g. 'treasury', 'defi', 'portfolio').
+ * Returns the first matching agent, or null if none found.
+ */
+export async function findUserAgentByType(
+  kv: KVNamespace,
+  userAddress: Address,
+  agentType: string
+): Promise<StoredAgent | null> {
+  const agents = await listUserAgentDetails(kv, userAddress);
+  return agents.find(a => a.agentType === agentType) ?? null;
+}
+
+/**
+ * Delegation index entry — links a delegated agent back to its owner
+ */
+export interface DelegationIndexEntry {
+  userAddress: Address;
+  agentName: string;
+}
+
+/**
+ * Add an agent to the delegation index for a given treasury address.
+ * The cron uses this index to discover all agents delegated to the treasury.
+ */
+export async function addDelegationIndex(
+  kv: KVNamespace,
+  treasuryAddress: Address,
+  userAddress: Address,
+  agentName: string
+): Promise<void> {
+  const key = `delegationIndex:${treasuryAddress.toLowerCase()}`;
+  const existing = await kv.get(key);
+
+  let entries: DelegationIndexEntry[] = [];
+  if (existing) {
+    try {
+      entries = JSON.parse(existing) as DelegationIndexEntry[];
+    } catch {
+      entries = [];
+    }
+  }
+
+  // Avoid duplicates
+  const alreadyExists = entries.some(
+    e => e.userAddress.toLowerCase() === userAddress.toLowerCase() && e.agentName === agentName
+  );
+  if (!alreadyExists) {
+    entries.push({ userAddress, agentName });
+    await kv.put(key, JSON.stringify(entries));
+  }
+}
+
+/**
+ * Get all agents delegated to a given treasury address.
+ * Used by the cron to discover which agents to claim fees for.
+ */
+export async function getDelegationIndex(
+  kv: KVNamespace,
+  treasuryAddress: Address
+): Promise<DelegationIndexEntry[]> {
+  const key = `delegationIndex:${treasuryAddress.toLowerCase()}`;
+  const data = await kv.get(key);
+
+  if (!data) return [];
+
+  try {
+    return JSON.parse(data) as DelegationIndexEntry[];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Treasury agent entry — registered via /launch-portfolio so the cron can iterate all treasuries.
+ */
+export interface TreasuryAgentEntry {
+  treasuryAddress: Address;
+  userAddress: Address;
+  agentName: string;
+  createdAt: number;
+}
+
+/**
+ * Add a treasury agent to the global index.
+ * The cron iterates this list to process delegated fee claims for every treasury.
+ */
+export async function addTreasuryAgentToGlobalIndex(
+  kv: KVNamespace,
+  treasuryAddress: Address,
+  userAddress: Address,
+  agentName: string
+): Promise<void> {
+  const key = 'treasuryAgents:all';
+  const existing = await kv.get(key);
+
+  let entries: TreasuryAgentEntry[] = [];
+  if (existing) {
+    try {
+      entries = JSON.parse(existing) as TreasuryAgentEntry[];
+    } catch {
+      entries = [];
+    }
+  }
+
+  // Deduplicate by treasury address
+  const alreadyExists = entries.some(
+    e => e.treasuryAddress.toLowerCase() === treasuryAddress.toLowerCase()
+  );
+  if (!alreadyExists) {
+    entries.push({ treasuryAddress, userAddress, agentName, createdAt: Date.now() });
+    await kv.put(key, JSON.stringify(entries));
+  }
+}
+
+/**
+ * Get all registered treasury agents.
+ * Used by the cron to discover all portfolio treasuries for delegated fee claims.
+ */
+export async function getAllTreasuryAgents(
+  kv: KVNamespace
+): Promise<TreasuryAgentEntry[]> {
+  const key = 'treasuryAgents:all';
+  const data = await kv.get(key);
+
+  if (!data) return [];
+
+  try {
+    return JSON.parse(data) as TreasuryAgentEntry[];
+  } catch {
+    return [];
+  }
 }

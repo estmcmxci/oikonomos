@@ -35,6 +35,17 @@ const FeeLockerABI = [
   },
 ] as const;
 
+// ERC20 ABI for balance checking
+const ERC20_ABI = [
+  {
+    name: 'balanceOf',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [{ name: 'account', type: 'address' }],
+    outputs: [{ name: '', type: 'uint256' }],
+  },
+] as const;
+
 /**
  * Agent token discovered from Clawnch with fee information
  */
@@ -121,7 +132,12 @@ export async function discoverAgentTokens(
   userWallet: Address,
   agentWallets: Address[]
 ): Promise<AgentToken[]> {
-  const walletsToQuery = agentWallets.length > 0 ? agentWallets : [userWallet];
+  // Only query with agent wallets - NOT the deployer address
+  // Deployer creates agent wallets, agent wallets launch tokens
+  if (agentWallets.length === 0) {
+    return []; // No agent wallets registered yet
+  }
+  const walletsToQuery = agentWallets;
   const allTokens: AgentToken[] = [];
 
   // Create Base mainnet client for FeeLocker queries
@@ -149,15 +165,16 @@ export async function discoverAgentTokens(
       const data = await response.json() as ClawnchLaunch[] | { launches: ClawnchLaunch[] };
       const launches: ClawnchLaunch[] = Array.isArray(data) ? data : data.launches || [];
 
-      // 2. For each token, get fees from FeeLocker
+      // 2. For each token, get fees from FeeLocker and token balance
       for (const launch of launches) {
         const tokenAddress = launch.contractAddress as Address;
         const agentWallet = (launch.agentWallet || wallet) as Address;
 
-        // Get unclaimed fees
-        const [wethFees, tokenFees] = await Promise.all([
+        // Get unclaimed fees and token balance in parallel
+        const [wethFees, tokenFees, tokenBalance] = await Promise.all([
           getAvailableWethFees(baseClient, tokenAddress, agentWallet),
           getAvailableTokenFees(baseClient, tokenAddress, agentWallet),
+          getTokenBalance(baseClient, tokenAddress, agentWallet),
         ]);
 
         // Get analytics (optional)
@@ -169,7 +186,7 @@ export async function discoverAgentTokens(
           name: launch.name,
           agentWallet,
           platform: (launch.source || launch.platform || 'moltbook') as AgentToken['platform'],
-          balance: '0', // TODO: Get actual balance from chain
+          balance: formatEther(tokenBalance),
           unclaimedWethFees: formatEther(wethFees),
           unclaimedTokenFees: formatEther(tokenFees),
           priceChange24h: analytics?.priceChange24h,
@@ -247,6 +264,26 @@ export async function saveAgentWallets(
 }
 
 // Helper functions
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function getTokenBalance(
+  client: any,
+  token: Address,
+  wallet: Address
+): Promise<bigint> {
+  try {
+    const result = await client.readContract({
+      address: token,
+      abi: ERC20_ABI,
+      functionName: 'balanceOf',
+      args: [wallet],
+    });
+    return result as bigint;
+  } catch (error) {
+    console.warn(`[clawnch] Error getting balance for ${token}:`, error);
+    return 0n;
+  }
+}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function getAvailableWethFees(
