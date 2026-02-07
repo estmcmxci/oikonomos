@@ -76,14 +76,14 @@ function LaunchForm() {
   }
 
   return (
-    <div className="max-w-xl mx-auto py-12 opacity-0 animate-fade-up delay-300">
-      <div className="bg-bg-card border border-border-subtle backdrop-blur-xl p-8">
+    <div className="max-w-xl mx-auto py-8 md:py-12 opacity-0 animate-fade-up delay-300">
+      <div className="bg-bg-card border border-border-subtle backdrop-blur-xl p-5 md:p-8">
         <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-accent-blue/40 to-transparent" />
 
-        <h2 className="font-display text-2xl font-bold tracking-tight mb-1">
+        <h2 className="font-display text-xl md:text-2xl font-bold tracking-tight mb-1">
           Configure Agent
         </h2>
-        <p className="font-display text-sm font-light text-text-secondary mb-8">
+        <p className="font-display text-sm font-light text-text-secondary mb-6 md:mb-8">
           Two API calls create a treasury + DeFi agent pair with wallets, ENS subnames, and on-chain identity.
         </p>
 
@@ -282,11 +282,11 @@ function FundingStep() {
   if (!walletInfo) return null
 
   return (
-    <div className="max-w-xl mx-auto py-12 opacity-0 animate-fade-up delay-300">
-      <div className="bg-bg-card border border-border-subtle backdrop-blur-xl p-8">
+    <div className="max-w-xl mx-auto py-8 md:py-12 opacity-0 animate-fade-up delay-300">
+      <div className="bg-bg-card border border-border-subtle backdrop-blur-xl p-5 md:p-8">
         <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-accent-cyan/40 to-transparent" />
 
-        <h2 className="font-display text-2xl font-bold tracking-tight mb-1">
+        <h2 className="font-display text-xl md:text-2xl font-bold tracking-tight mb-1">
           Fund Agent Wallets
         </h2>
         <p className="font-display text-sm font-light text-text-secondary mb-6">
@@ -295,7 +295,7 @@ function FundingStep() {
 
         {/* Chain switch banner */}
         {isWrongChain && (
-          <div className="mb-6 p-4 bg-amber-500/10 border border-amber-500/20 flex items-center justify-between">
+          <div className="mb-6 p-3 md:p-4 bg-amber-500/10 border border-amber-500/20 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div>
               <p className="font-mono text-sm text-amber-400">Wrong network</p>
               <p className="font-mono text-[0.625rem] text-text-tertiary mt-1">
@@ -304,7 +304,7 @@ function FundingStep() {
             </div>
             <button
               onClick={() => switchChain({ chainId: BASE_SEPOLIA_CHAIN_ID })}
-              className="btn-primary text-sm px-4 py-2"
+              className="btn-primary text-sm px-4 py-2 shrink-0"
             >
               Switch Chain
             </button>
@@ -383,9 +383,9 @@ function WalletFundCard({
   const isInProgress = isSending || isConfirming
 
   return (
-    <div className={`p-5 border transition-colors ${isFunded ? 'bg-accent-cyan/5 border-accent-cyan/20' : 'bg-bg-base/50 border-border-subtle'}`}>
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
+    <div className={`p-4 md:p-5 border transition-colors ${isFunded ? 'bg-accent-cyan/5 border-accent-cyan/20' : 'bg-bg-base/50 border-border-subtle'}`}>
+      <div className="flex items-center justify-between mb-3 gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           {isFunded ? (
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#00D4AA" strokeWidth="2">
               <path d="M20 6L9 17l-5-5"/>
@@ -399,7 +399,7 @@ function WalletFundCard({
             {label}
           </span>
         </div>
-        <span className="font-mono text-[0.625rem] text-text-tertiary">
+        <span className="font-mono text-[0.625rem] text-text-tertiary truncate">
           {name}.oikonomosapp.eth
         </span>
       </div>
@@ -428,7 +428,7 @@ function WalletFundCard({
       </div>
 
       {/* Balance */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
         <span className="font-mono text-[0.625rem] text-text-tertiary">
           Balance: {formatEther(balance)} ETH
         </span>
@@ -512,10 +512,10 @@ function LaunchProgress() {
     : -1
 
   return (
-    <div className="max-w-xl mx-auto py-12 opacity-0 animate-fade-up delay-300">
-      <div className="bg-bg-card border border-border-subtle backdrop-blur-xl p-8">
+    <div className="max-w-xl mx-auto py-8 md:py-12 opacity-0 animate-fade-up delay-300">
+      <div className="bg-bg-card border border-border-subtle backdrop-blur-xl p-5 md:p-8">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="font-display text-2xl font-bold tracking-tight">
+          <h2 className="font-display text-xl md:text-2xl font-bold tracking-tight">
             {deployComplete ? 'Deployment Complete' : 'Deploying...'}
           </h2>
           <span className="font-mono text-xs text-text-tertiary">{elapsed}s</span>
@@ -662,8 +662,8 @@ function TokenDiscoveryStep() {
   }
 
   return (
-    <div className="max-w-xl mx-auto py-12 opacity-0 animate-fade-up delay-300">
-      <div className="bg-bg-card border border-border-subtle backdrop-blur-xl p-8">
+    <div className="max-w-xl mx-auto py-8 md:py-12 opacity-0 animate-fade-up delay-300">
+      <div className="bg-bg-card border border-border-subtle backdrop-blur-xl p-5 md:p-8">
         <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-accent-blue/40 to-transparent" />
 
         {isDiscoveringToken ? (
@@ -980,8 +980,8 @@ function ENSProgress() {
   }, [state.isRegisteringENS])
 
   return (
-    <div className="max-w-xl mx-auto py-12 opacity-0 animate-fade-up delay-300">
-      <div className="bg-bg-card border border-border-subtle backdrop-blur-xl p-8 text-center">
+    <div className="max-w-xl mx-auto py-8 md:py-12 opacity-0 animate-fade-up delay-300">
+      <div className="bg-bg-card border border-border-subtle backdrop-blur-xl p-5 md:p-8 text-center">
         {state.isRegisteringENS ? (
           <>
             <div className="w-12 h-12 mx-auto mb-6 border-2 border-accent-blue border-t-transparent rounded-full animate-spin" />
@@ -1050,8 +1050,8 @@ function LaunchResult() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto py-12 opacity-0 animate-fade-up delay-300">
-      <div className="bg-bg-card border border-border-subtle backdrop-blur-xl p-8">
+    <div className="max-w-3xl mx-auto py-8 md:py-12 opacity-0 animate-fade-up delay-300">
+      <div className="bg-bg-card border border-border-subtle backdrop-blur-xl p-5 md:p-8">
         <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-accent-cyan/40 to-transparent" />
 
         <div className="flex items-center gap-3 mb-8">
