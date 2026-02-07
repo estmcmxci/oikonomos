@@ -20,6 +20,7 @@ export const metadata: Metadata = {
   title: 'Oikonomos | Agent Keychain & Portfolio Manager',
   description: 'Agent keychain for DeFi — launch agents with wallets, ENS identity, and autonomous V4 fee management.',
   metadataBase: new URL('https://oikonomos.vercel.app'),
+  icons: { icon: '/icon.svg' },
   openGraph: {
     title: 'Oikonomos — Agent Keychain & Portfolio Manager',
     description: 'Launch AI agents with deterministic wallets, ENS identity, and autonomous Uniswap V4 fee management.',
