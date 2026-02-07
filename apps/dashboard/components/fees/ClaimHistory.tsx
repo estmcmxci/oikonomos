@@ -71,57 +71,85 @@ function ClaimRow({ claim }: { claim: ClaimHistoryEntry }) {
   const deployed = parseFloat(claim.deployerAmount)
 
   return (
-    <div className="flex items-center justify-between py-2 px-3 border border-border-subtle/30 bg-white/[0.01] hover:bg-accent-blue/[0.03] transition-colors">
-      <div className="flex items-center gap-3">
-        {/* Date */}
-        <div className="font-mono text-[0.6875rem] text-text-tertiary tabular-nums min-w-[90px]">
-          {dateStr} {timeStr}
+    <div className="py-2 px-3 border border-border-subtle/30 bg-white/[0.01] hover:bg-accent-blue/[0.03] transition-colors">
+      {/* Desktop layout */}
+      <div className="hidden sm:flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="font-mono text-[0.6875rem] text-text-tertiary tabular-nums min-w-[90px]">
+            {dateStr} {timeStr}
+          </div>
+          <span className="font-mono text-[0.75rem] text-text-secondary">
+            {claim.agentName}
+          </span>
+          <span className={`font-mono text-[0.5625rem] px-1.5 py-px border ${
+            claim.mode === 'manual'
+              ? 'text-amber-400 border-amber-400/20'
+              : 'text-accent-cyan border-accent-cyan/20'
+          }`}>
+            {claim.mode.toUpperCase()}
+          </span>
         </div>
-
-        {/* Agent */}
-        <span className="font-mono text-[0.75rem] text-text-secondary">
-          {claim.agentName}
-        </span>
-
-        {/* Mode badge */}
-        <span className={`font-mono text-[0.5625rem] px-1.5 py-px border ${
-          claim.mode === 'manual'
-            ? 'text-amber-400 border-amber-400/20'
-            : 'text-accent-cyan border-accent-cyan/20'
-        }`}>
-          {claim.mode.toUpperCase()}
-        </span>
+        <div className="flex items-center gap-4">
+          <div className="text-right">
+            <div className="font-mono text-[0.75rem] text-text-primary tabular-nums">
+              {claimed === 0 ? '0' : claimed.toFixed(6)} WETH
+            </div>
+            {deployed > 0 && (
+              <div className="font-mono text-[0.5625rem] text-accent-cyan tabular-nums">
+                {deployed.toFixed(6)} distributed
+              </div>
+            )}
+          </div>
+          {(claim.claimTxHash || claim.distributionTxHash) && (
+            <a
+              href={`${BASESCAN_TX}${claim.distributionTxHash || claim.claimTxHash}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-text-tertiary hover:text-accent-blue transition-colors shrink-0"
+              title="View on BaseScan"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" />
+                <polyline points="15 3 21 3 21 9" />
+                <line x1="10" y1="14" x2="21" y2="3" />
+              </svg>
+            </a>
+          )}
+        </div>
       </div>
 
-      <div className="flex items-center gap-4">
-        {/* Amounts */}
-        <div className="text-right">
+      {/* Mobile layout */}
+      <div className="sm:hidden space-y-1.5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-[0.75rem] text-text-secondary">{claim.agentName}</span>
+            <span className={`font-mono text-[0.5625rem] px-1.5 py-px border ${
+              claim.mode === 'manual' ? 'text-amber-400 border-amber-400/20' : 'text-accent-cyan border-accent-cyan/20'
+            }`}>
+              {claim.mode.toUpperCase()}
+            </span>
+          </div>
+          {(claim.claimTxHash || claim.distributionTxHash) && (
+            <a
+              href={`${BASESCAN_TX}${claim.distributionTxHash || claim.claimTxHash}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-text-tertiary hover:text-accent-blue transition-colors shrink-0"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" />
+                <polyline points="15 3 21 3 21 9" />
+                <line x1="10" y1="14" x2="21" y2="3" />
+              </svg>
+            </a>
+          )}
+        </div>
+        <div className="flex items-center justify-between">
+          <div className="font-mono text-[0.625rem] text-text-tertiary tabular-nums">{dateStr} {timeStr}</div>
           <div className="font-mono text-[0.75rem] text-text-primary tabular-nums">
             {claimed === 0 ? '0' : claimed.toFixed(6)} WETH
           </div>
-          {deployed > 0 && (
-            <div className="font-mono text-[0.5625rem] text-accent-cyan tabular-nums">
-              {deployed.toFixed(6)} distributed
-            </div>
-          )}
         </div>
-
-        {/* Tx link */}
-        {(claim.claimTxHash || claim.distributionTxHash) && (
-          <a
-            href={`${BASESCAN_TX}${claim.distributionTxHash || claim.claimTxHash}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-text-tertiary hover:text-accent-blue transition-colors shrink-0"
-            title="View on BaseScan"
-          >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" />
-              <polyline points="15 3 21 3 21 9" />
-              <line x1="10" y1="14" x2="21" y2="3" />
-            </svg>
-          </a>
-        )}
       </div>
     </div>
   )

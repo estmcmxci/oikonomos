@@ -86,18 +86,18 @@ export default function KeychainPage() {
     <div className="container">
       <Header showNav showWallet />
 
-      <section className="py-12 opacity-0 animate-fade-up delay-300">
-        <div className="flex items-end justify-between mb-8">
+      <section className="py-8 md:py-12 opacity-0 animate-fade-up delay-300">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6 md:mb-8">
           <div>
             <div className="font-mono text-[0.625rem] font-medium text-accent-cyan uppercase tracking-[0.2em] mb-2">
               Agent Keychain
             </div>
-            <h1 className="font-display text-3xl md:text-4xl font-bold tracking-tight">
+            <h1 className="font-display text-2xl md:text-4xl font-bold tracking-tight">
               Your Deployed Agents
             </h1>
           </div>
           {isConnected && (
-            <Link href="/launch" className="btn-primary text-sm px-5 py-3">
+            <Link href="/launch" className="btn-primary text-sm px-4 py-2.5 md:px-5 md:py-3 self-start sm:self-auto">
               Deploy New
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M12 5v14M5 12h14" />
@@ -216,7 +216,7 @@ function UnifiedDashboard({
         totalDistributed={feeData?.totalDistributed ?? '0'}
       />
 
-      {/* Main table */}
+      {/* Main table / card list */}
       <div className="bg-bg-card border border-border-subtle backdrop-blur-xl relative overflow-hidden">
         <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-accent-blue/40 to-transparent" />
 
@@ -250,7 +250,8 @@ function UnifiedDashboard({
           </div>
         </div>
 
-        <table className="w-full">
+        {/* Desktop table — hidden on mobile */}
+        <table className="w-full hidden md:table">
           <thead>
             <tr className="border-b border-border-subtle/50">
               <ColHeader label="Pair" />
@@ -290,6 +291,35 @@ function UnifiedDashboard({
             })}
           </tbody>
         </table>
+
+        {/* Mobile card list — hidden on desktop */}
+        <div className="md:hidden divide-y divide-border-subtle/30">
+          {pagedPairs.map((pair, i) => {
+            const feeInfo = pair.defi ? feeByAddress.get(pair.defi.address.toLowerCase()) : undefined
+            const claimable = parseFloat(feeInfo?.claimableWeth ?? '0')
+            const isOpen = openPanel.row === pair.baseName
+            const activePanel = isOpen ? openPanel.type : null
+
+            return (
+              <MobilePairCard
+                key={pair.baseName}
+                pair={pair}
+                claimable={claimable}
+                activePanel={activePanel}
+                onTogglePanel={(type) => togglePanel(pair.baseName, type)}
+                onClaim={handleClaim}
+                claiming={claiming}
+                onWithdraw={handleWithdraw}
+                withdrawing={withdrawing}
+                currentMode={primaryFee?.distributionMode ?? 'auto'}
+                currentSchedule={primaryFee?.distributionSchedule}
+                feeSplit={primaryFee?.feeSplit ?? 85}
+                onSaveSchedule={handleSaveSchedule}
+                saving={saving}
+              />
+            )
+          })}
+        </div>
       </div>
 
       {/* Claim history */}
@@ -903,6 +933,167 @@ function SchedulePanel({
           {saving ? 'Saving...' : 'Save'}
         </button>
       </div>
+    </div>
+  )
+}
+
+// ── Mobile Pair Card ─────────────────────────────────────────────────
+
+function MobilePairCard({
+  pair,
+  claimable,
+  activePanel,
+  onTogglePanel,
+  onClaim,
+  claiming,
+  onWithdraw,
+  withdrawing,
+  currentMode,
+  currentSchedule,
+  feeSplit,
+  onSaveSchedule,
+  saving,
+}: {
+  pair: AgentPair
+  claimable: number
+  activePanel: PanelType
+  onTogglePanel: (type: PanelType) => void
+  onClaim: () => void
+  claiming: boolean
+  onWithdraw: (agentName: string, amount?: string, type?: 'eth' | 'weth') => Promise<{ amount: string; success: boolean; error?: string }>
+  withdrawing: boolean
+  currentMode: 'auto' | 'manual'
+  currentSchedule?: DistributionSchedule
+  feeSplit: number
+  onSaveSchedule: (mode: 'auto' | 'manual', schedule?: DistributionSchedule) => Promise<void>
+  saving: boolean
+}) {
+  return (
+    <div className="p-4 space-y-3">
+      {/* Header row: name + dots */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="flex items-center -space-x-1">
+            {pair.treasury && <div className="w-2 h-2 rounded-full bg-accent-cyan" />}
+            {pair.defi && <div className="w-2 h-2 rounded-full bg-accent-blue" />}
+          </div>
+          <span className="font-mono text-[0.875rem] text-text-primary font-medium">
+            {pair.baseName}
+          </span>
+        </div>
+        {pair.defi?.tokenSymbol && (
+          pair.defi.tokenAddress ? (
+            <a
+              href={`https://clanker.world/clanker/${pair.defi.tokenAddress}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-mono text-[0.8125rem] text-[#FF007A] hover:underline"
+            >
+              ${pair.defi.tokenSymbol}
+            </a>
+          ) : (
+            <span className="font-mono text-[0.8125rem] text-[#FF007A]">
+              ${pair.defi.tokenSymbol}
+            </span>
+          )
+        )}
+      </div>
+
+      {/* ENS */}
+      {pair.defi?.ensName && (
+        <a
+          href={`https://sepolia.app.ens.domains/${pair.defi.ensName}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-mono text-[0.75rem] text-accent-blue hover:underline block truncate"
+        >
+          {pair.defi.ensName}
+        </a>
+      )}
+
+      {/* Stats row */}
+      <div className="flex items-center gap-4">
+        <div>
+          <div className="font-mono text-[0.5rem] text-text-tertiary uppercase tracking-widest">Claimable</div>
+          <span className={`font-mono text-[0.8125rem] tabular-nums ${claimable > 0 ? 'text-accent-cyan font-medium' : 'text-text-tertiary'}`}>
+            {claimable === 0 ? '0' : claimable < 0.0001 ? '<0.0001' : claimable.toFixed(4)}
+          </span>
+        </div>
+        <div>
+          <div className="font-mono text-[0.5rem] text-text-tertiary uppercase tracking-widest">Balance</div>
+          {pair.defi ? <BalanceBadge address={pair.defi.address} /> : <Dash />}
+        </div>
+        <div>
+          <div className="font-mono text-[0.5rem] text-text-tertiary uppercase tracking-widest">Schedule</div>
+          <span className="font-mono text-[0.6875rem] text-text-secondary">
+            {currentMode === 'auto' ? 'Auto' : 'Manual'}
+          </span>
+        </div>
+      </div>
+
+      {/* Action buttons */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <button
+          onClick={() => onTogglePanel('deposit')}
+          className={`font-mono text-[0.6875rem] px-2.5 py-1 border transition-colors ${
+            activePanel === 'deposit'
+              ? 'bg-accent-blue/15 border-accent-blue/40 text-accent-blue'
+              : 'border-border-subtle text-text-secondary hover:text-text-primary hover:border-accent-blue/30'
+          }`}
+        >
+          Deposit
+        </button>
+        <button
+          onClick={() => onTogglePanel('withdraw')}
+          className={`font-mono text-[0.6875rem] px-2.5 py-1 border transition-colors ${
+            activePanel === 'withdraw'
+              ? 'bg-amber-400/15 border-amber-400/40 text-amber-400'
+              : 'border-border-subtle text-text-secondary hover:text-text-primary hover:border-amber-400/30'
+          }`}
+        >
+          Withdraw
+        </button>
+        <button
+          onClick={() => onTogglePanel('schedule')}
+          className={`font-mono text-[0.6875rem] px-2.5 py-1 border transition-colors ${
+            activePanel === 'schedule'
+              ? 'bg-accent-cyan/15 border-accent-cyan/40 text-accent-cyan'
+              : 'border-border-subtle text-text-secondary hover:text-text-primary hover:border-accent-cyan/30'
+          }`}
+        >
+          Schedule
+        </button>
+        {claimable > 0 && (
+          <button
+            onClick={onClaim}
+            disabled={claiming}
+            className="font-mono text-[0.6875rem] px-2.5 py-1 bg-accent-cyan/10 border border-accent-cyan/30 text-accent-cyan hover:bg-accent-cyan/20 transition-colors disabled:opacity-50"
+          >
+            {claiming ? '...' : 'Claim'}
+          </button>
+        )}
+      </div>
+
+      {/* Expanded panels */}
+      {activePanel === 'deposit' && (
+        <DepositPanel pair={pair} onClose={() => onTogglePanel(null)} />
+      )}
+      {activePanel === 'withdraw' && (
+        <WithdrawPanel pair={pair} onWithdraw={onWithdraw} withdrawing={withdrawing} onClose={() => onTogglePanel(null)} />
+      )}
+      {activePanel === 'schedule' && (
+        <SchedulePanel
+          currentMode={currentMode}
+          currentSchedule={currentSchedule}
+          feeSplit={feeSplit}
+          onSave={onSaveSchedule}
+          saving={saving}
+          onClaim={onClaim}
+          claiming={claiming}
+          claimable={claimable}
+          onClose={() => onTogglePanel(null)}
+        />
+      )}
     </div>
   )
 }

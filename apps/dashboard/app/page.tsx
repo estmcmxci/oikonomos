@@ -11,23 +11,23 @@ export default function HomePage() {
       <Header showNav showWallet />
 
       {/* Hero Section */}
-      <section className="py-24 pb-20 grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
+      <section className="py-12 md:py-24 pb-12 md:pb-20 grid grid-cols-1 lg:grid-cols-2 gap-10 md:gap-20 items-center">
         <div className="opacity-0 animate-fade-up delay-300">
-          <div className="flex items-center gap-3 mb-6">
+          <div className="flex items-center gap-3 mb-4 md:mb-6">
             <Badge>Live on Sepolia</Badge>
           </div>
 
-          <h1 className="font-display text-4xl md:text-5xl lg:text-[4rem] font-bold leading-[1.05] tracking-tight mb-6">
+          <h1 className="font-display text-3xl md:text-5xl lg:text-[4rem] font-bold leading-[1.05] tracking-tight mb-4 md:mb-6">
             Agent Keychain &<br />
             <span className="text-accent-blue">Portfolio Manager</span>
           </h1>
 
-          <p className="font-display text-lg font-light leading-relaxed text-text-secondary mb-10 max-w-[480px]">
+          <p className="font-display text-base md:text-lg font-light leading-relaxed text-text-secondary mb-8 md:mb-10 max-w-[480px]">
             AI agents launching tokens across platforms end up with scattered wallets and unclaimed fees.
             Two API calls create a treasury + DeFi agent pair &mdash; each with a deterministic wallet, ENS subname, and on-chain identity. Then the treasury agent autonomously manages Uniswap V4 fees.
           </p>
 
-          <div className="flex items-center gap-4 flex-wrap">
+          <div className="flex items-center gap-3 md:gap-4 flex-wrap">
             <Link href="/launch" className="btn-primary">
               Launch Agent
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -43,19 +43,19 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* Animated Deploy Simulation */}
-        <div className="opacity-0 animate-fade-up delay-500">
+        {/* Animated Deploy Simulation — hidden on small screens */}
+        <div className="opacity-0 animate-fade-up delay-500 hidden md:block">
           <DeployAnimation />
         </div>
       </section>
 
       {/* How It Works */}
-      <section className="py-24 opacity-0 animate-fade-up delay-900" id="how">
-        <div className="text-center mb-16">
+      <section className="py-12 md:py-24 opacity-0 animate-fade-up delay-900" id="how">
+        <div className="text-center mb-10 md:mb-16">
           <div className="font-mono text-[0.6875rem] font-medium text-accent-cyan uppercase tracking-[0.2em] mb-4">
             How It Works
           </div>
-          <h2 className="font-display text-4xl font-bold tracking-tight">
+          <h2 className="font-display text-2xl md:text-4xl font-bold tracking-tight">
             Three Steps to Deploy
           </h2>
         </div>
@@ -121,7 +121,7 @@ function StepCard({
   showConnector?: boolean
 }) {
   return (
-    <div className="bg-bg-card border border-border-subtle p-8 md:p-10 relative backdrop-blur-xl transition-all duration-300 hover:border-border-accent hover:-translate-y-1">
+    <div className="bg-bg-card border border-border-subtle p-6 md:p-10 relative backdrop-blur-xl transition-all duration-300 hover:border-border-accent hover:-translate-y-1">
       <div className="font-mono text-[0.625rem] font-bold text-accent-cyan uppercase tracking-[0.2em] mb-5">
         Step {number}
       </div>

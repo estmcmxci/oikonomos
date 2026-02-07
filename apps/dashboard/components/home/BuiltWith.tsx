@@ -52,11 +52,11 @@ const partners = [
 
 export function BuiltWith() {
   return (
-    <section className="py-16 border-t border-border-subtle opacity-0 animate-fade-up delay-1100">
-      <div className="font-mono text-[0.625rem] font-medium text-text-tertiary uppercase tracking-[0.2em] text-center mb-8">
+    <section className="py-10 md:py-16 border-t border-border-subtle opacity-0 animate-fade-up delay-1100">
+      <div className="font-mono text-[0.625rem] font-medium text-text-tertiary uppercase tracking-[0.2em] text-center mb-6 md:mb-8">
         Built With
       </div>
-      <div className="flex justify-center items-center gap-12 flex-wrap">
+      <div className="flex justify-center items-center gap-3 md:gap-12 flex-wrap">
         {partners.map((partner) => (
           <a
             key={partner.name}
