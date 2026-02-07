@@ -8,18 +8,14 @@ export function Footer() {
           © 2026 Oikonomos. Built for ETHGlobal.
         </span>
         <div className="flex gap-6">
-          <Link
-            href="#"
-            className="font-mono text-xs text-text-tertiary no-underline hover:text-accent-blue transition-colors"
-          >
-            Documentation
-          </Link>
-          <Link
-            href="#"
+          <a
+            href="https://github.com/estmcmxci/oikonomos"
+            target="_blank"
+            rel="noopener noreferrer"
             className="font-mono text-xs text-text-tertiary no-underline hover:text-accent-blue transition-colors"
           >
             GitHub
-          </Link>
+          </a>
         </div>
       </div>
     </footer>

@@ -39,15 +39,9 @@ export function Header({ showNav = true, showWallet = false }: HeaderProps) {
               </li>
               <li>
                 <a
-                  href="#docs"
-                  className="font-mono text-xs font-normal text-text-secondary uppercase tracking-widest no-underline hover:text-accent-blue transition-colors"
-                >
-                  Docs
-                </a>
-              </li>
-              <li>
-                <a
-                  href="#github"
+                  href="https://github.com/estmcmxci/oikonomos"
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="font-mono text-xs font-normal text-text-secondary uppercase tracking-widest no-underline hover:text-accent-blue transition-colors"
                 >
                   GitHub
