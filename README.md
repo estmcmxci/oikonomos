@@ -112,7 +112,6 @@ The keychain is stored in Cloudflare KV, keyed by `agent:{userAddress}:{agentNam
 
 ## How It Works
 
-![Agent Keychain Dashboard](docs/keychain-dashboard.png)
 
 ### 1. Connect Wallet
 User connects their EOA to the dashboard. This address becomes the "deployer" — the owner of all agents and the recipient of fee distributions.
