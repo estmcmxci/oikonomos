@@ -18,7 +18,19 @@ const jetbrainsMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: 'Oikonomos | Agent Keychain & Portfolio Manager',
-  description: 'Two API calls create a treasury + DeFi agent pair with deterministic wallets, ENS subnames, and on-chain identities. The treasury agent autonomously manages Uniswap V4 fees.',
+  description: 'Agent keychain for DeFi — launch agents with wallets, ENS identity, and autonomous V4 fee management.',
+  metadataBase: new URL('https://oikonomos.vercel.app'),
+  openGraph: {
+    title: 'Oikonomos — Agent Keychain & Portfolio Manager',
+    description: 'Launch AI agents with deterministic wallets, ENS identity, and autonomous Uniswap V4 fee management.',
+    siteName: 'Oikonomos',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Oikonomos — Agent Keychain & Portfolio Manager',
+    description: 'Launch AI agents with deterministic wallets, ENS identity, and autonomous Uniswap V4 fee management.',
+  },
 }
 
 export default function RootLayout({
