@@ -25,9 +25,18 @@ import {
 } from '../../../../packages/shared/src/constants';
 import { getChain, CHAIN_IDS } from '../config/chain';
 
-// Token addresses on Base mainnet
-const WETH_ADDRESS = CLANKER_ADDRESSES.BASE_MAINNET.WETH;
-const USDC_ADDRESS = CLANKER_ADDRESSES.BASE_MAINNET.USDC;
+// Token addresses (same WETH on both networks)
+const WETH_ADDRESS = '0x4200000000000000000000000000000000000006' as Address;
+
+// USDC differs per network
+const USDC_ADDRESSES = {
+  [CHAIN_IDS.BASE_MAINNET]: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as Address,
+  [CHAIN_IDS.BASE_SEPOLIA]: '0x036CbD53842c5426634e7929541eC2318f3dCF7e' as Address,
+} as const;
+
+function getUsdcAddress(chainId: number): Address {
+  return USDC_ADDRESSES[chainId as keyof typeof USDC_ADDRESSES] || USDC_ADDRESSES[CHAIN_IDS.BASE_MAINNET];
+}
 
 // ERC20 ABI for approvals and balance checks
 const ERC20_ABI = [
@@ -84,6 +93,20 @@ const Commands = {
   PERMIT2_PERMIT: 0x0a, // Permit2 approval
   PERMIT2_TRANSFER_FROM: 0x02, // Transfer via Permit2
   SWEEP: 0x04, // Sweep tokens to recipient
+} as const;
+
+// V4 Router Actions (for V4_SWAP command)
+// See: https://docs.uniswap.org/contracts/v4/quickstart/swap
+const Actions = {
+  SWAP_EXACT_IN_SINGLE: 0x06,
+  SWAP_EXACT_IN: 0x07,
+  SWAP_EXACT_OUT_SINGLE: 0x08,
+  SWAP_EXACT_OUT: 0x09,
+  SETTLE_ALL: 0x0c,
+  SETTLE: 0x0b,
+  TAKE_ALL: 0x01,
+  TAKE: 0x00,
+  TAKE_PORTION: 0x02,
 } as const;
 
 /**
@@ -236,12 +259,15 @@ async function executeWethToUsdcSwapV4(
     }
 
     // 1. Check WETH balance
-    const wethBalance = await publicClient.readContract({
+    console.log(`[wethDistribution] Checking WETH balance for ${sender} at ${WETH_ADDRESS}`);
+    const wethBalanceRaw = await publicClient.readContract({
       address: WETH_ADDRESS,
       abi: ERC20_ABI,
       functionName: 'balanceOf',
       args: [sender],
     });
+    const wethBalance = BigInt(wethBalanceRaw);
+    console.log(`[wethDistribution] WETH balance: ${wethBalance} (${formatEther(wethBalance)})`);
 
     if (wethBalance < wethAmount) {
       return {
@@ -272,8 +298,9 @@ async function executeWethToUsdcSwapV4(
     }
 
     // 3. Get USDC balance before swap
+    const usdcAddress = getUsdcAddress(chainId);
     const usdcBalanceBefore = await publicClient.readContract({
-      address: USDC_ADDRESS,
+      address: usdcAddress,
       abi: ERC20_ABI,
       functionName: 'balanceOf',
       args: [sender],
@@ -297,7 +324,7 @@ async function executeWethToUsdcSwapV4(
     const { commands, inputs } = encodeV4SwapCommand(
       sender,
       WETH_ADDRESS,
-      USDC_ADDRESS,
+      usdcAddress,
       wethAmount,
       minAmountOut,
       poolKey
@@ -327,7 +354,7 @@ async function executeWethToUsdcSwapV4(
 
     // 9. Get USDC balance after swap to calculate actual received
     const usdcBalanceAfter = await publicClient.readContract({
-      address: USDC_ADDRESS,
+      address: usdcAddress,
       abi: ERC20_ABI,
       functionName: 'balanceOf',
       args: [sender],
@@ -366,10 +393,12 @@ function buildWethUsdcPoolKey(chainId: number): {
   tickSpacing: number;
   hooks: Address;
 } {
+  const usdcAddress = getUsdcAddress(chainId);
+
   // Sort tokens (V4 requires currency0 < currency1)
-  const [currency0, currency1] = WETH_ADDRESS.toLowerCase() < USDC_ADDRESS.toLowerCase()
-    ? [WETH_ADDRESS, USDC_ADDRESS]
-    : [USDC_ADDRESS, WETH_ADDRESS];
+  const [currency0, currency1] = WETH_ADDRESS.toLowerCase() < usdcAddress.toLowerCase()
+    ? [WETH_ADDRESS, usdcAddress]
+    : [usdcAddress, WETH_ADDRESS];
 
   return {
     currency0,
@@ -384,6 +413,8 @@ function buildWethUsdcPoolKey(chainId: number): {
  * Encode V4 swap command for Universal Router
  *
  * Uses V4_SWAP command (0x10) with exactIn swap
+ * Format: abi.encode(actions, params[])
+ * Actions: SWAP_EXACT_IN_SINGLE + SETTLE_ALL + TAKE_ALL
  */
 function encodeV4SwapCommand(
   recipient: Address,
@@ -399,22 +430,21 @@ function encodeV4SwapCommand(
   // Determine swap direction based on token order
   const zeroForOne = tokenIn.toLowerCase() === poolKey.currency0.toLowerCase();
 
-  // Encode V4 swap params
-  // struct ExactInputSingleParams {
-  //   PoolKey poolKey;
-  //   bool zeroForOne;
-  //   uint128 amountIn;
-  //   uint128 amountOutMinimum;
-  //   uint160 sqrtPriceLimitX96;
-  //   bytes hookData;
-  // }
+  // Determine currency order for settle/take based on swap direction
+  const currencyIn = zeroForOne ? poolKey.currency0 : poolKey.currency1;
+  const currencyOut = zeroForOne ? poolKey.currency1 : poolKey.currency0;
+
+  // Actions: SWAP_EXACT_IN_SINGLE (0x06) + SETTLE_ALL (0x0c) + TAKE_ALL (0x01)
+  // Encoded as abi.encodePacked(uint8, uint8, uint8)
+  const actionsHex = `0x${Actions.SWAP_EXACT_IN_SINGLE.toString(16).padStart(2, '0')}${Actions.SETTLE_ALL.toString(16).padStart(2, '0')}${Actions.TAKE_ALL.toString(16).padStart(2, '0')}` as Hex;
+
+  // Param 0: ExactInputSingleParams for SWAP_EXACT_IN_SINGLE
   const swapParams = encodeAbiParameters(
     parseAbiParameters([
       '(address currency0, address currency1, uint24 fee, int24 tickSpacing, address hooks) poolKey',
       'bool zeroForOne',
       'uint128 amountIn',
       'uint128 amountOutMinimum',
-      'uint160 sqrtPriceLimitX96',
       'bytes hookData',
     ]),
     [
@@ -428,19 +458,30 @@ function encodeV4SwapCommand(
       zeroForOne,
       amountIn,
       minAmountOut,
-      0n, // No price limit
       '0x' as Hex, // No hook data
     ]
   );
 
-  // Wrap in Actions format for Universal Router V4_SWAP
-  // The input format is: abi.encode(Actions, params)
-  // For simple exactInputSingle, we encode the action type and params
+  // Param 1: SETTLE_ALL params (currency, maxAmount)
+  // SETTLE_ALL settles the input currency - pays what's owed to the pool
+  const settleParams = encodeAbiParameters(
+    parseAbiParameters(['address currency', 'uint256 maxAmount']),
+    [currencyIn, amountIn]
+  );
+
+  // Param 2: TAKE_ALL params (currency, minAmount)
+  // TAKE_ALL takes the output currency - receives from the pool
+  const takeParams = encodeAbiParameters(
+    parseAbiParameters(['address currency', 'uint256 minAmount']),
+    [currencyOut, minAmountOut]
+  );
+
+  // Encode the full V4_SWAP input: abi.encode(bytes actions, bytes[] params)
   const input = encodeAbiParameters(
     parseAbiParameters(['bytes actions', 'bytes[] params']),
     [
-      '0x00' as Hex, // SWAP_EXACT_IN action
-      [swapParams],
+      actionsHex,
+      [swapParams, settleParams, takeParams],
     ]
   );
 
@@ -475,4 +516,249 @@ export function validateStrategy(
   strategy: NonNullable<UnifiedPolicy['wethStrategy']>
 ): boolean {
   return strategy.compound + strategy.toStables + strategy.hold === 100;
+}
+
+// ERC-20 transfer ABI
+const ERC20_TRANSFER_ABI = [
+  {
+    name: 'transfer',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'to', type: 'address' },
+      { name: 'amount', type: 'uint256' },
+    ],
+    outputs: [{ name: '', type: 'bool' }],
+  },
+] as const;
+
+/**
+ * Result of distributing WETH to deployer with 85/15 split
+ */
+export interface DeployerDistributionResult {
+  deployerAmount: string;
+  serviceFee: string;
+  txHash?: string;
+  serviceFeeTxHash?: string;
+  success: boolean;
+  error?: string;
+}
+
+/**
+ * Distribute claimed WETH with 85/15 deployer split.
+ *
+ * The on-chain DelegationRouter caps providerFeeBps at 1000 (10%),
+ * so the full 85/15 split is done off-chain via WETH ERC-20 transfers:
+ * - 85% to the deployer (user who launched the agent)
+ * - 15% kept as treasury agent service fee
+ */
+export async function distributeToDeployer(
+  env: Env,
+  agentPrivateKey: `0x${string}`,
+  wethAmount: bigint,
+  deployerAddress: Address,
+  treasuryAddress: Address,
+  feeSplitPct: number = 85
+): Promise<DeployerDistributionResult> {
+  const deployerAmount = (wethAmount * BigInt(feeSplitPct)) / 100n;
+  const serviceFee = wethAmount - deployerAmount;
+
+  if (deployerAmount === 0n) {
+    return {
+      deployerAmount: '0',
+      serviceFee: formatEther(serviceFee),
+      success: true,
+    };
+  }
+
+  const account = privateKeyToAccount(agentPrivateKey);
+  const chainId = parseInt(env.CHAIN_ID || '8453');
+  const chain = chainId === CHAIN_IDS.BASE_MAINNET ? base : baseSepolia;
+  const rpcUrl = env.RPC_URL || 'https://mainnet.base.org';
+
+  const walletClient = createWalletClient({
+    account,
+    chain,
+    transport: http(rpcUrl),
+  });
+
+  const publicClient = createPublicClient({
+    chain,
+    transport: http(rpcUrl),
+  });
+
+  try {
+    // 1. Transfer 85% WETH to deployer
+    const deployerTxHash = await walletClient.writeContract({
+      address: WETH_ADDRESS,
+      abi: ERC20_TRANSFER_ABI,
+      functionName: 'transfer',
+      args: [deployerAddress, deployerAmount],
+    });
+
+    await publicClient.waitForTransactionReceipt({ hash: deployerTxHash });
+    console.log(`[distributeToDeployer] Sent ${formatEther(deployerAmount)} WETH to deployer ${deployerAddress}: ${deployerTxHash}`);
+
+    // 2. Transfer 15% WETH to treasury agent (service fee)
+    let serviceFeeTxHash: string | undefined;
+    if (serviceFee > 0n) {
+      const feeTxHash = await walletClient.writeContract({
+        address: WETH_ADDRESS,
+        abi: ERC20_TRANSFER_ABI,
+        functionName: 'transfer',
+        args: [treasuryAddress, serviceFee],
+      });
+
+      await publicClient.waitForTransactionReceipt({ hash: feeTxHash });
+      serviceFeeTxHash = feeTxHash;
+      console.log(`[distributeToDeployer] Sent ${formatEther(serviceFee)} WETH service fee to treasury ${treasuryAddress}: ${feeTxHash}`);
+    }
+
+    return {
+      deployerAmount: formatEther(deployerAmount),
+      serviceFee: formatEther(serviceFee),
+      txHash: deployerTxHash,
+      serviceFeeTxHash,
+      success: true,
+    };
+  } catch (error) {
+    console.error('[distributeToDeployer] Error:', error);
+    return {
+      deployerAmount: formatEther(deployerAmount),
+      serviceFee: formatEther(serviceFee),
+      success: false,
+      error: String(error),
+    };
+  }
+}
+
+/**
+ * Withdraw accumulated WETH service fee to the deployer on demand.
+ *
+ * The cron sends 85% of claimed WETH to the deployer automatically.
+ * The remaining 15% accumulates in the agent wallet as a service fee.
+ * This function lets deployers drain that accumulated balance.
+ */
+/**
+ * Withdraw native ETH from agent wallet to deployer.
+ */
+export async function withdrawEthToDeployer(
+  env: Env,
+  agentPrivateKey: `0x${string}`,
+  agentAddress: Address,
+  deployerAddress: Address,
+  requestedAmount?: bigint
+): Promise<{ txHash?: string; amount: string; success: boolean; error?: string }> {
+  const account = privateKeyToAccount(agentPrivateKey);
+  const chainId = parseInt(env.CHAIN_ID || '8453');
+  const chain = chainId === CHAIN_IDS.BASE_MAINNET ? base : baseSepolia;
+  const rpcUrl = env.RPC_URL || 'https://mainnet.base.org';
+
+  const publicClient = createPublicClient({
+    chain,
+    transport: http(rpcUrl),
+  });
+
+  const walletClient = createWalletClient({
+    account,
+    chain,
+    transport: http(rpcUrl),
+  });
+
+  try {
+    const balance = await publicClient.getBalance({ address: agentAddress });
+
+    if (balance === 0n) {
+      return { amount: '0', success: false, error: 'No ETH balance to withdraw' };
+    }
+
+    // Reserve gas for the transfer (~21000 gas * 0.1 gwei = small buffer)
+    const gasBuffer = 100_000n * 1_000_000_000n; // 0.0001 ETH buffer for gas
+    const available = balance > gasBuffer ? balance - gasBuffer : 0n;
+
+    if (available === 0n) {
+      return { amount: '0', success: false, error: `ETH balance too low to cover gas (${formatEther(balance)} ETH)` };
+    }
+
+    const transferAmount = requestedAmount ? (requestedAmount > available ? available : requestedAmount) : available;
+
+    const txHash = await walletClient.sendTransaction({
+      to: deployerAddress,
+      value: transferAmount,
+    });
+
+    await publicClient.waitForTransactionReceipt({ hash: txHash });
+    console.log(`[withdrawEthToDeployer] Sent ${formatEther(transferAmount)} ETH to ${deployerAddress}: ${txHash}`);
+
+    return { txHash, amount: formatEther(transferAmount), success: true };
+  } catch (error) {
+    console.error('[withdrawEthToDeployer] Error:', error);
+    return { amount: '0', success: false, error: String(error) };
+  }
+}
+
+export async function withdrawToDeployer(
+  env: Env,
+  agentPrivateKey: `0x${string}`,
+  agentAddress: Address,
+  deployerAddress: Address,
+  requestedAmount?: bigint
+): Promise<{ txHash?: string; amount: string; success: boolean; error?: string }> {
+  const account = privateKeyToAccount(agentPrivateKey);
+  const chainId = parseInt(env.CHAIN_ID || '8453');
+  const chain = chainId === CHAIN_IDS.BASE_MAINNET ? base : baseSepolia;
+  const rpcUrl = env.RPC_URL || 'https://mainnet.base.org';
+
+  const publicClient = createPublicClient({
+    chain,
+    transport: http(rpcUrl),
+  });
+
+  const walletClient = createWalletClient({
+    account,
+    chain,
+    transport: http(rpcUrl),
+  });
+
+  try {
+    // 1. Read WETH balance of the treasury agent
+    const balanceRaw = await publicClient.readContract({
+      address: WETH_ADDRESS,
+      abi: ERC20_ABI,
+      functionName: 'balanceOf',
+      args: [agentAddress],
+    });
+    const balance = BigInt(balanceRaw);
+
+    if (balance === 0n) {
+      return { amount: '0', success: false, error: 'No WETH balance to withdraw' };
+    }
+
+    // 2. Determine transfer amount
+    const transferAmount = requestedAmount ?? balance;
+
+    if (transferAmount > balance) {
+      return {
+        amount: '0',
+        success: false,
+        error: `Insufficient WETH balance: have ${formatEther(balance)}, requested ${formatEther(transferAmount)}`,
+      };
+    }
+
+    // 3. Transfer WETH to deployer
+    const txHash = await walletClient.writeContract({
+      address: WETH_ADDRESS,
+      abi: ERC20_TRANSFER_ABI,
+      functionName: 'transfer',
+      args: [deployerAddress, transferAmount],
+    });
+
+    await publicClient.waitForTransactionReceipt({ hash: txHash });
+    console.log(`[withdrawToDeployer] Sent ${formatEther(transferAmount)} WETH to ${deployerAddress}: ${txHash}`);
+
+    return { txHash, amount: formatEther(transferAmount), success: true };
+  } catch (error) {
+    console.error('[withdrawToDeployer] Error:', error);
+    return { amount: '0', success: false, error: String(error) };
+  }
 }

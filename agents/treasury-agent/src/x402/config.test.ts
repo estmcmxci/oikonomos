@@ -9,9 +9,9 @@ import {
 
 describe('x402 config', () => {
   describe('constants', () => {
-    it('should have valid network in CAIP-2 format', () => {
-      expect(NETWORK).toMatch(/^eip155:\d+$/);
-      expect(NETWORK).toBe('eip155:11155111'); // Sepolia
+    it('should have valid network identifier', () => {
+      // x402 SDK uses human-readable network names (base-sepolia, base, polygon, etc.)
+      expect(NETWORK).toBe('base-sepolia');
     });
 
     it('should have valid USDC payment token address', () => {

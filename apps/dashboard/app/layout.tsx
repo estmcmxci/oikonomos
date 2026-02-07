@@ -17,8 +17,8 @@ const jetbrainsMono = JetBrains_Mono({
 })
 
 export const metadata: Metadata = {
-  title: 'Oikonomos | Autonomous DeFi Strategy Agents',
-  description: 'Discover verified agents, delegate trading authority with cryptographic constraints, and verify every execution on-chain.',
+  title: 'Oikonomos | Agent Keychain & Portfolio Manager',
+  description: 'Two API calls create a treasury + DeFi agent pair with deterministic wallets, ENS subnames, and on-chain identities. The treasury agent autonomously manages Uniswap V4 fees.',
 }
 
 export default function RootLayout({

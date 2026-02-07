@@ -12,6 +12,7 @@ import {
   hexToBytes,
   keccak256,
   parseAbiParameters,
+  toHex,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import type { Env, DecodedRequest, CCIPReadRequest } from "./types";
@@ -22,8 +23,6 @@ import type { Env, DecodedRequest, CCIPReadRequest } from "./types";
 
 /**
  * ABI schema for decoding OffchainLookup callData
- * Extended to include agentId and a2aUrl for Oikonomos
- *
  * Matches the encoding in OffchainSubnameManager.sol:
  * abi.encode(
  *   parentNode,      // bytes32
@@ -44,7 +43,7 @@ const REQUEST_SCHEMA = parseAbiParameters(
 
 /**
  * ABI schema for the message that gets signed
- * Extended to include agentId and a2aUrlHash (hashed to keep signature size manageable)
+ * Matches _verifySignature in OffchainSubnameManager.sol
  */
 const MESSAGE_SCHEMA = parseAbiParameters(
   "bytes32 parentNode,bytes32 labelHash,address subnameOwner,uint256 agentId,bytes32 a2aUrlHash,uint64 expiry,address requester,uint256 chainId,address contractAddress"
@@ -178,10 +177,10 @@ export async function buildCCIPReadResponse(
   contractAddress: `0x${string}`,
   env: Env
 ): Promise<{ data?: Hex; error?: Response }> {
-  // Hash the a2aUrl to keep signature size manageable (matches contract)
-  const a2aUrlHash = keccak256(new TextEncoder().encode(a2aUrl));
+  // Compute a2aUrlHash = keccak256(a2aUrl)
+  const a2aUrlHash = keccak256(toHex(a2aUrl));
 
-  // Create message hash that will be signed (includes agentId and a2aUrlHash)
+  // Create message hash that will be signed
   const messageHash = keccak256(
     encodeAbiParameters(MESSAGE_SCHEMA, [
       parentNode,
@@ -337,13 +336,6 @@ export async function handleCCIPReadRequest(
     }
   }
 
-  // Validate a2aUrl format
-  if (!a2aUrl || !a2aUrl.startsWith("https://")) {
-    return jsonResponse(400, {
-      error: "a2aUrl must be a valid HTTPS URL",
-    });
-  }
-
   // Approve the registration
   const expiry = desiredExpiry;
 
@@ -370,9 +362,7 @@ export async function handleCCIPReadRequest(
     meta: {
       label,
       subnameOwner,
-      agentId: agentId.toString(),
-      a2aUrl,
-      fullName: `${label}.oikonomos.eth`,
+      fullName: `${label}.oikonomosapp.eth`,
     },
   });
 }

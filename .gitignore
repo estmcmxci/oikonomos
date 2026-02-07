@@ -45,3 +45,26 @@ pnpm-debug.log*
 
 # Test coverage
 coverage/
+
+# Claude Code / local planning
+.claude/
+
+# Playwright MCP screenshots
+.playwright-mcp/
+
+# Archive (old code/docs)
+archive/
+
+# Reference documentation
+context/
+diagrams/
+
+# Root screenshots (not docs/)
+/*.png
+!docs/*.png
+
+# Dev-only test scripts
+scripts/test-*.ts
+
+# TypeScript build info
+*.tsbuildinfo

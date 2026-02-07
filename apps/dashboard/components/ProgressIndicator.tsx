@@ -46,15 +46,10 @@ export function ProgressIndicator({ steps, currentStep }: ProgressIndicatorProps
   )
 }
 
-export const consumerSteps: Step[] = [
-  { number: 1, label: 'Connect' },
-  { number: 2, label: 'Analyze' },
-  { number: 3, label: 'Discover' },
-  { number: 4, label: 'Configure' },
-  { number: 5, label: 'Authorize' },
-]
-
-export const providerSteps: Step[] = [
-  { number: 1, label: 'Identity' },
-  { number: 2, label: 'ENS' },
+export const launchSteps: Step[] = [
+  { number: 1, label: 'Configure' },
+  { number: 2, label: 'Fund' },
+  { number: 3, label: 'Deploy' },
+  { number: 4, label: 'ENS' },
+  { number: 5, label: 'Complete' },
 ]

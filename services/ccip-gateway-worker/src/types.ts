@@ -24,7 +24,6 @@ export interface Env {
 
 /**
  * Decoded request parameters from OffchainLookup callData
- * Extended to include agentId and a2aUrl for Oikonomos
  */
 export interface DecodedRequest {
   parentNode: `0x${string}`;

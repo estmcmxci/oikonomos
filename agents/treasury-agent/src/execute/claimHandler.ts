@@ -8,6 +8,8 @@ import { distributeWeth, type DistributionResult } from './wethDistribution';
 import { getAgentWallets, discoverAgentTokens } from '../suggestion/clawnch';
 import type { UnifiedPolicy } from '../policy/templates';
 import { saveLastClaimTime } from '../triggers/unified';
+import { recordClaim } from './claimHistory';
+import { listUserAgentDetails, updateStoredAgent, computeNextDistributionTime } from '../launch/keychain';
 
 /**
  * Request body for /claim-fees endpoint
@@ -207,6 +209,24 @@ async function executeClaimWithKey(
   // Determine overall success
   const claimSuccess = claimResult.claims.some(c => c.success);
   const distributionSuccess = !distributionResult || distributionResult.toStables.success;
+
+  // Record claim history
+  if (claimSuccess && claimResult.totalWethClaimed !== '0') {
+    const now = Date.now();
+    for (const claim of claimResult.claims.filter(c => c.success && c.wethClaimed !== '0')) {
+      await recordClaim(env.TREASURY_KV, userAddress, {
+        agentName: 'manual',
+        tokenAddress: claim.token,
+        wethClaimed: claim.wethClaimed,
+        deployerAmount: distributionResult?.totalDistributed ?? '0',
+        serviceFee: '0',
+        claimTxHash: claim.txHash !== ('0x0' as `0x${string}`) ? claim.txHash : undefined,
+        distributionTxHash: distributionResult?.toStables.txHash,
+        timestamp: now,
+        mode: 'manual',
+      });
+    }
+  }
 
   return {
     success: claimSuccess,

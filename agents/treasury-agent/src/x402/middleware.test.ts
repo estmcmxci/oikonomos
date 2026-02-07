@@ -4,7 +4,7 @@ import {
   create402Response,
   extractPaymentPayload,
 } from './middleware';
-import { NETWORK, PAYMENT_TIMEOUT_SECONDS } from './config';
+import { NETWORK, PAYMENT_TIMEOUT_SECONDS, PAYMENT_TOKEN } from './config';
 import type { Address } from 'viem';
 
 describe('x402 middleware', () => {
@@ -25,7 +25,7 @@ describe('x402 middleware', () => {
       expect(requirement.payTo).toBe(testPayTo);
       expect(requirement.resource).toBe('/execute?quoteId=test123');
       expect(requirement.description).toBe('Test execution fee');
-      expect(requirement.asset).toBe('USDC');
+      expect(requirement.asset).toBe(PAYMENT_TOKEN); // Token address
       expect(requirement.maxTimeoutSeconds).toBe(PAYMENT_TIMEOUT_SECONDS);
     });
   });
@@ -56,12 +56,17 @@ describe('x402 middleware', () => {
 
       const response = create402Response(requirement, {});
       const body = (await response.json()) as {
+        x402Version: number;
         error: string;
-        paymentRequirements: typeof requirement;
+        accepts: Array<typeof requirement>;
       };
 
       expect(body.error).toBe('Payment Required');
-      expect(body.paymentRequirements).toEqual(requirement);
+      expect(body.x402Version).toBe(1);
+      expect(body.accepts).toHaveLength(1);
+      expect(body.accepts[0].scheme).toBe(requirement.scheme);
+      expect(body.accepts[0].network).toBe(requirement.network);
+      expect(body.accepts[0].asset).toBe(requirement.asset);
     });
   });
 

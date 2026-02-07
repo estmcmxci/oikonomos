@@ -40,12 +40,12 @@ export const UNISWAP_V4_ADDRESSES = {
     PERMIT2: '0x000000000022D473030F116dDEE9F6B43aC78BA3' as const,
   },
   BASE_SEPOLIA: {
-    POOL_MANAGER: '0x05E73354cFDd6745C338b50BcFDfA3Aa6fA03408' as const,
+    POOL_MANAGER: '0x7da1d65f8b249183667cde74c5cbd46dd38aa829' as const,
     POSITION_DESCRIPTOR: null as `0x${string}` | null,
-    POSITION_MANAGER: null as `0x${string}` | null,
-    QUOTER: null as `0x${string}` | null,
-    STATE_VIEW: null as `0x${string}` | null,
-    UNIVERSAL_ROUTER: null as `0x${string}` | null,
+    POSITION_MANAGER: '0xcDbe7b1eD817eF0005ECe6a3e576fBAE2EA5EAFE' as const,
+    QUOTER: '0xb3cb4484d3f7e6e23d0ea847bc9270b63a59adc3' as const,
+    STATE_VIEW: '0x571291b572ed32ce6751a2cb2486ebee8defb9b4' as const,
+    UNIVERSAL_ROUTER: '0x95273d871c8156636e114b63797d78D7E1720d81' as const,
     PERMIT2: '0x000000000022D473030F116dDEE9F6B43aC78BA3' as const,
   },
 } as const;
@@ -153,16 +153,16 @@ export const ENS_RECORDS = {
 // OIK-54: CCIP Subname Configuration
 export const CCIP_CONFIG = {
   sepolia: {
-    managerAddress: '0x89E3740C8b81D90e146c62B6C6451b85Ec8E6E78' as `0x${string}`,
+    managerAddress: '0xa7a1c040A70EB0BB4698BDE8193c56Ac594a95FF' as `0x${string}`,
     gatewayUrl: 'https://oikonomos-ccip-gateway.estmcmxci.workers.dev',
-    parentName: 'oikonomos.eth',
-    // namehash("oikonomos.eth") = 0xbc23131a7dcd8ca1a9bda07c71c3c3ebbeea050103df1f3fa7ab131e604872c5
-    parentNode: '0xbc23131a7dcd8ca1a9bda07c71c3c3ebbeea050103df1f3fa7ab131e604872c5' as `0x${string}`,
+    parentName: 'oikonomosapp.eth',
+    // namehash("oikonomosapp.eth") = 0x6c34d411c8237450d6595c190f68d59f87081d9f18b6116c57242e7d39df2cad
+    parentNode: '0x6c34d411c8237450d6595c190f68d59f87081d9f18b6116c57242e7d39df2cad' as `0x${string}`,
   },
   mainnet: {
     managerAddress: null as `0x${string}` | null, // TBD
     gatewayUrl: null as string | null,
-    parentName: 'oikonomos.eth',
+    parentName: 'oikonomosapp.eth',
     parentNode: null as `0x${string}` | null,
   },
 } as const;
