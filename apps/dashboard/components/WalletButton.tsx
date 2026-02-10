@@ -1,8 +1,16 @@
 'use client'
 
 import { ConnectButton } from '@rainbow-me/rainbowkit'
+import { useAccount, useEnsName } from 'wagmi'
+import { sepolia } from 'wagmi/chains'
 
 export function WalletButton() {
+  const { address } = useAccount()
+  const { data: ensName } = useEnsName({
+    address,
+    chainId: sepolia.id,
+  })
+
   return (
     <ConnectButton.Custom>
       {({
@@ -79,7 +87,7 @@ export function WalletButton() {
                   >
                     <div className="w-2 h-2 bg-accent-cyan rounded-full animate-pulse-dot" />
                     <span className="font-mono text-xs text-text-secondary">
-                      {account.displayName}
+                      {ensName || account.displayName}
                     </span>
                   </button>
                 </div>
