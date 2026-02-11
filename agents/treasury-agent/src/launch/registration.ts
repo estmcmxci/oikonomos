@@ -510,7 +510,7 @@ export async function registerENSSubname(
             abi: ENSResolverABI,
             functionName: 'setText',
             args: [subnameNode, key, value],
-            gas: 100000n,
+            gas: 200000n,
             nonce: startNonce + i,
           });
           sentTxHashes.push(setTextTx);

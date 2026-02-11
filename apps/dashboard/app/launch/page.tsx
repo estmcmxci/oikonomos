@@ -50,7 +50,7 @@ function LaunchForm() {
   const [tokenName, setTokenName] = useState('')
   const [tokenSymbol, setTokenSymbol] = useState('')
   const [tokenDescription, setTokenDescription] = useState('')
-  const [platform, setPlatform] = useState<FormData['platform']>('clawstr')
+  const [platform, setPlatform] = useState<FormData['platform']>('4claw')
   const [feeSplit, setFeeSplit] = useState(80)
   const [nameError, setNameError] = useState('')
 
@@ -165,9 +165,9 @@ function LaunchForm() {
               onChange={(e) => setPlatform(e.target.value as FormData['platform'])}
               className="w-full bg-bg-base border border-border-subtle px-4 py-3 font-mono text-sm text-text-primary focus:outline-none focus:border-accent-blue transition-colors appearance-none"
             >
-              <option value="clawstr">Clawstr (default)</option>
+              <option value="4claw">4Claw (default)</option>
               <option value="moltbook">Moltbook</option>
-              <option value="4claw">4Claw</option>
+              <option value="clawstr">Clawstr</option>
               <option value="moltx">MoltX</option>
             </select>
           </div>

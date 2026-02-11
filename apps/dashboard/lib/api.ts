@@ -135,6 +135,43 @@ export async function pollToken(
   return res.json()
 }
 
+// ── Retry Nostr Types ─────────────────────────────────────────────
+
+export interface RetryNostrResponse {
+  success: boolean
+  alreadyDeployed?: boolean
+  tokenAddress?: Address
+  tokenSymbol?: string
+  profileEventId?: string
+  clawnchEventId?: string
+  relaysPublished?: string[]
+  message?: string
+  error?: string
+}
+
+export async function retryNostr(
+  userAddress: Address,
+  agentName: string,
+  tokenName?: string,
+  tokenDescription?: string,
+): Promise<RetryNostrResponse> {
+  const res = await fetch(`${TREASURY_AGENT_URL}/retry-nostr`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      userAddress,
+      agentName,
+      ...(tokenName && { tokenName }),
+      ...(tokenDescription && { tokenDescription }),
+    }),
+  })
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText)
+    throw new Error(`Retry Nostr failed (${res.status}): ${text}`)
+  }
+  return res.json()
+}
+
 // ── List Agents Types ─────────────────────────────────────────────
 
 export interface AgentInfo {
