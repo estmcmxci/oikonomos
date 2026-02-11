@@ -1,0 +1,43 @@
+flowchart TD
+    A([User connects wallet]) --> B[Configure agent pair]
+    B --> |name, token symbol,<br/>fee split| C[/POST /generate-wallets/]
+    C --> |deterministic derivation:<br/>keccak256 user + name + salt| D[Preview Treasury + DeFi<br/>wallet addresses]
+    D --> E{Fund both wallets<br/>on Base Sepolia}
+    E --> |0.01 ETH each| F[/POST /launch-portfolio/]
+
+    F --> G[Deploy Treasury Agent]
+    F --> H[Deploy DeFi Agent]
+
+    G --> G1[Register ERC-8004 identity]
+    G1 --> G2[Register ENS subname<br/>treasury.oikonomosapp.eth]
+    G2 --> G3[Store in KV + global index]
+
+    H --> H1[Register ERC-8004 identity]
+    H1 --> H2[Publish Nostr profile<br/>kind 0]
+    H2 --> H3[Launch token via Clawnch<br/>kind 1111]
+    H3 --> H4[/POST /poll-token/]
+    H4 --> |token discovered| H5[Sign EIP-712 delegation<br/>DeFi → Treasury]
+    H5 --> H6[/POST /register-ens/]
+    H6 --> |CCIP-Read round-trip| H7[Register ENS subname<br/>+ text records]
+
+    G3 --> K([Agent Keychain Dashboard])
+    H7 --> K
+
+    K --> L{Distribution mode?}
+    L --> |Auto| M[Cron every 5 min]
+    L --> |Manual| N[User clicks Claim]
+
+    M --> O[FeeLocker.claimAll]
+    N --> O
+    O --> P[Split WETH]
+    P --> |85%| Q([Deployer wallet])
+    P --> |15%| R([Treasury agent wallet])
+
+    style A fill:#1a1a2e,stroke:#00d4aa,color:#fff
+    style K fill:#1a1a2e,stroke:#00d4aa,color:#fff
+    style Q fill:#1a1a2e,stroke:#00d4aa,color:#fff
+    style R fill:#1a1a2e,stroke:#4a9eff,color:#fff
+    style E fill:#1a1a2e,stroke:#ff6b6b,color:#fff
+    style F fill:#0d1b2a,stroke:#4a9eff,color:#fff
+    style G fill:#0d1b2a,stroke:#4a9eff,color:#fff
+    style H fill:#0d1b2a,stroke:#4a9eff,color:#fff
