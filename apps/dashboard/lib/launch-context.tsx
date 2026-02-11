@@ -241,7 +241,7 @@ const LaunchContext = createContext<LaunchContextValue | null>(null)
 // ── Provider ────────────────────────────────────────────────────────
 
 const TOKEN_POLL_INTERVAL = 10000 // 10s between polls
-const TOKEN_POLL_MAX_ATTEMPTS = 18 // 3 minutes max
+const TOKEN_POLL_MAX_ATTEMPTS = 30 // 5 minutes max
 
 export function LaunchProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(launchReducer, initialState)
