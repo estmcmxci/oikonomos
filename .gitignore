@@ -68,3 +68,5 @@ scripts/test-*.ts
 
 # TypeScript build info
 *.tsbuildinfo
+.vercel
+.env*.local
