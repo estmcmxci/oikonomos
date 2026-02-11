@@ -640,9 +640,15 @@ function StepRow({
 
 function TokenDiscoveryStep() {
   const { state, registerDeFiENS, dispatch } = useLaunch()
-  const { isDiscoveringToken, tokenPollAttempt, tokenInfo, hasDeferredENS, formData } = state
+  const { isDiscoveringToken, tokenPollAttempt, tokenInfo, hasDeferredENS, formData, portfolioResult } = state
   const maxAttempts = 18
   const elapsedSecs = tokenPollAttempt * 10
+
+  // Extract proof data from completed launch steps
+  const platformStep = portfolioResult?.steps?.find((s) => s.step.toLowerCase().includes('clawnch'))
+  const platformPostUrl = platformStep?.details?.startsWith('http') ? platformStep.details : null
+  const defiAgentAddress = portfolioResult?.defiAgent?.address
+  const completedSteps = portfolioResult?.steps?.filter((s) => s.status === 'completed' && s.txHash) ?? []
 
   const defiEnsName = formData ? `${formData.agentName}.oikonomosapp.eth` : ''
 
@@ -683,9 +689,50 @@ function TokenDiscoveryStep() {
                 style={{ width: `${Math.min((tokenPollAttempt / maxAttempts) * 100, 100)}%` }}
               />
             </div>
-            <div className="flex justify-between font-mono text-[0.625rem] text-text-tertiary">
+            <div className="flex justify-between font-mono text-[0.625rem] text-text-tertiary mb-6">
               <span>Attempt {tokenPollAttempt}/{maxAttempts}</span>
               <span>~{elapsedSecs}s elapsed</span>
+            </div>
+
+            {/* Proof: what already happened */}
+            <div className="text-left space-y-2">
+              {platformPostUrl && (
+                <a
+                  href={platformPostUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2.5 p-2.5 bg-accent-cyan/5 border border-accent-cyan/20 hover:bg-accent-cyan/10 transition-colors"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#00D4AA" strokeWidth="2"><path d="M20 6L9 17l-5-5"/></svg>
+                  <span className="font-mono text-[0.6875rem] text-accent-cyan flex-1">!clawnch posted to 4claw</span>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#00D4AA" strokeWidth="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                </a>
+              )}
+              {completedSteps.map(({ step, txHash }) => (
+                <a
+                  key={txHash}
+                  href={explorerUrl(txHash!, step)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2.5 p-2.5 bg-bg-base/30 border border-border-subtle/30 hover:bg-bg-base/50 transition-colors"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#00D4AA" strokeWidth="2"><path d="M20 6L9 17l-5-5"/></svg>
+                  <span className="font-mono text-[0.6875rem] text-text-secondary flex-1">{step}</span>
+                  <span className="font-mono text-[0.5625rem] text-accent-blue">{txHash!.slice(0, 6)}...{txHash!.slice(-4)}</span>
+                </a>
+              ))}
+              {defiAgentAddress && (
+                <a
+                  href={`https://basescan.org/address/${defiAgentAddress}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2.5 p-2.5 bg-bg-base/30 border border-border-subtle/30 hover:bg-bg-base/50 transition-colors"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-text-tertiary"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 8v8M8 12h8"/></svg>
+                  <span className="font-mono text-[0.6875rem] text-text-secondary flex-1">Agent wallet</span>
+                  <span className="font-mono text-[0.5625rem] text-accent-blue">{defiAgentAddress.slice(0, 6)}...{defiAgentAddress.slice(-4)}</span>
+                </a>
+              )}
             </div>
           </div>
         ) : tokenInfo && hasDeferredENS ? (
@@ -979,48 +1026,121 @@ function ENSProgress() {
     return () => clearInterval(t)
   }, [state.isRegisteringENS])
 
+  // Extract proof data from earlier steps
+  const platformStep = state.portfolioResult?.steps?.find((s) => s.step.toLowerCase().includes('clawnch'))
+  const platformPostUrl = platformStep?.details?.startsWith('http') ? platformStep.details : null
+  const defiAgentAddress = state.portfolioResult?.defiAgent?.address
+  const completedSteps = state.portfolioResult?.steps?.filter((s) => s.status === 'completed' && s.txHash) ?? []
+  const ensName = state.formData ? `${state.formData.agentName}.oikonomosapp.eth` : ''
+
+  const proofRows = (
+    <div className="text-left space-y-2 mt-6">
+      {platformPostUrl && (
+        <a
+          href={platformPostUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-2.5 p-2.5 bg-accent-cyan/5 border border-accent-cyan/20 hover:bg-accent-cyan/10 transition-colors"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#00D4AA" strokeWidth="2"><path d="M20 6L9 17l-5-5"/></svg>
+          <span className="font-mono text-[0.6875rem] text-accent-cyan flex-1">!clawnch posted to 4claw</span>
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#00D4AA" strokeWidth="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        </a>
+      )}
+      {completedSteps.map(({ step, txHash }) => (
+        <a
+          key={txHash}
+          href={explorerUrl(txHash!, step)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-2.5 p-2.5 bg-bg-base/30 border border-border-subtle/30 hover:bg-bg-base/50 transition-colors"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#00D4AA" strokeWidth="2"><path d="M20 6L9 17l-5-5"/></svg>
+          <span className="font-mono text-[0.6875rem] text-text-secondary flex-1">{step}</span>
+          <span className="font-mono text-[0.5625rem] text-accent-blue">{txHash!.slice(0, 6)}...{txHash!.slice(-4)}</span>
+        </a>
+      ))}
+      {defiAgentAddress && (
+        <a
+          href={`https://basescan.org/address/${defiAgentAddress}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-2.5 p-2.5 bg-bg-base/30 border border-border-subtle/30 hover:bg-bg-base/50 transition-colors"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-text-tertiary"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 8v8M8 12h8"/></svg>
+          <span className="font-mono text-[0.6875rem] text-text-secondary flex-1">Agent wallet</span>
+          <span className="font-mono text-[0.5625rem] text-accent-blue">{defiAgentAddress.slice(0, 6)}...{defiAgentAddress.slice(-4)}</span>
+        </a>
+      )}
+    </div>
+  )
+
   return (
     <div className="max-w-xl mx-auto py-8 md:py-12 opacity-0 animate-fade-up delay-300">
-      <div className="bg-bg-card border border-border-subtle backdrop-blur-xl p-5 md:p-8 text-center">
+      <div className="bg-bg-card border border-border-subtle backdrop-blur-xl p-5 md:p-8">
         {state.isRegisteringENS ? (
-          <>
-            <div className="w-12 h-12 mx-auto mb-6 border-2 border-accent-blue border-t-transparent rounded-full animate-spin" />
-            <h2 className="font-display text-xl font-bold tracking-tight mb-2">
-              Registering DeFi ENS Subname
-            </h2>
-            <p className="font-display text-sm font-light text-text-secondary mb-4">
-              Registering subname via CCIP and writing text records on Sepolia...
-            </p>
-            <p className="font-mono text-xs text-text-tertiary">
-              {elapsed}s — this may take up to 60s (multiple on-chain transactions)
-            </p>
-          </>
+          <div>
+            <div className="text-center">
+              <div className="w-12 h-12 mx-auto mb-6 border-2 border-accent-blue border-t-transparent rounded-full animate-spin" />
+              <h2 className="font-display text-xl font-bold tracking-tight mb-2">
+                Registering DeFi ENS Subname
+              </h2>
+              <p className="font-display text-sm font-light text-text-secondary mb-1">
+                Registering <span className="font-mono text-accent-blue">{ensName}</span> via CCIP and writing text records on Sepolia...
+              </p>
+              <p className="font-mono text-xs text-text-tertiary">
+                {elapsed}s — this may take up to 60s (multiple on-chain transactions)
+              </p>
+            </div>
+            {proofRows}
+          </div>
         ) : state.ensError ? (
-          <>
-            <div className="w-12 h-12 mx-auto mb-6 flex items-center justify-center bg-red-500/10 border border-red-500/20 rounded-full">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2">
-                <path d="M18 6L6 18M6 6l12 12"/>
-              </svg>
+          <div>
+            <div className="text-center">
+              <div className="w-12 h-12 mx-auto mb-6 flex items-center justify-center bg-red-500/10 border border-red-500/20 rounded-full">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2">
+                  <path d="M18 6L6 18M6 6l12 12"/>
+                </svg>
+              </div>
+              <h2 className="font-display text-xl font-bold tracking-tight mb-2">
+                ENS Registration Failed
+              </h2>
+              <p className="font-mono text-sm text-red-400">{state.ensError}</p>
             </div>
-            <h2 className="font-display text-xl font-bold tracking-tight mb-2">
-              ENS Registration Failed
-            </h2>
-            <p className="font-mono text-sm text-red-400">{state.ensError}</p>
-          </>
+            {proofRows}
+          </div>
         ) : (
-          <>
-            <div className="w-12 h-12 mx-auto mb-6 flex items-center justify-center bg-accent-cyan/10 border border-accent-cyan/20 rounded-full">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#00D4AA" strokeWidth="2">
-                <path d="M20 6L9 17l-5-5"/>
-              </svg>
+          <div>
+            <div className="text-center">
+              <div className="w-12 h-12 mx-auto mb-6 flex items-center justify-center bg-accent-cyan/10 border border-accent-cyan/20 rounded-full">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#00D4AA" strokeWidth="2">
+                  <path d="M20 6L9 17l-5-5"/>
+                </svg>
+              </div>
+              <h2 className="font-display text-xl font-bold tracking-tight mb-2">
+                ENS Registered
+              </h2>
+              {state.ensResult?.ensName && (
+                <p className="font-mono text-sm text-accent-cyan">{state.ensResult.ensName}</p>
+              )}
             </div>
-            <h2 className="font-display text-xl font-bold tracking-tight mb-2">
-              ENS Registered
-            </h2>
-            {state.ensResult?.ensName && (
-              <p className="font-mono text-sm text-accent-cyan">{state.ensResult.ensName}</p>
+            {/* ENS tx proof */}
+            {state.ensResult?.txHash && (
+              <div className="text-left mt-6">
+                <a
+                  href={`https://sepolia.etherscan.io/tx/${state.ensResult.txHash}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2.5 p-2.5 bg-accent-cyan/5 border border-accent-cyan/20 hover:bg-accent-cyan/10 transition-colors"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#00D4AA" strokeWidth="2"><path d="M20 6L9 17l-5-5"/></svg>
+                  <span className="font-mono text-[0.6875rem] text-accent-cyan flex-1">ENS registration tx</span>
+                  <span className="font-mono text-[0.5625rem] text-accent-blue">{state.ensResult.txHash.slice(0, 6)}...{state.ensResult.txHash.slice(-4)}</span>
+                </a>
+              </div>
             )}
-          </>
+            {proofRows}
+          </div>
         )}
       </div>
     </div>

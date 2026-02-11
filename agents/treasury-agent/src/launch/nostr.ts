@@ -257,7 +257,9 @@ export function buildClawnchContent(params: {
   let content = `!clawnch\nname: ${params.tokenName}\nsymbol: ${params.tokenSymbol}\n`;
   content += `wallet: ${params.agentWallet}\n`;
   content += `description: ${params.description}\n`;
-  content += `image: ${imageUrl}`;
+  content += `image: ${imageUrl}\n`;
+  content += `website: https://oikonomos.vercel.app\n`;
+  content += `twitter: @estmcmxci`;
   return content;
 }
 
