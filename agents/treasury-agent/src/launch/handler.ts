@@ -269,17 +269,22 @@ export async function handleLaunchAgent(
 
     // ── Phase 3: Token deploy via Clawnch/Nostr ──
 
-    // 5. Create Nostr profile + post !clawnch
+    // 5. Create Nostr profile + post !clawnch to Moltbook
+    const launchPlatform = body.platform || '4claw';
     const nostrResult = await launchAgentOnNostr(nostrKeys.privateKey, {
       tokenName,
       tokenSymbol,
       description,
       imageUrl: body.imageUrl,
-      platform: body.platform || 'clawstr',
+      platform: launchPlatform,
       agentWallet: agentWallet.address,
       ensName,
+      moltbookApiKey: env.MOLTBOOK_API_KEY,
+      fourClawApiKey: env.FOURCLAW_API_KEY,
     });
 
+    const platformLabel = launchPlatform === '4claw' ? '4claw' : 'Moltbook';
+    const platformResult = nostrResult.fourClaw || nostrResult.moltbook;
     if (nostrResult.success) {
       steps.push({
         step: 'Create Nostr profile',
@@ -287,9 +292,9 @@ export async function handleLaunchAgent(
         details: `Event ID: ${nostrResult.profileEventId?.slice(0, 16)}...`,
       });
       steps.push({
-        step: 'Post !clawnch',
+        step: `Post !clawnch to ${platformLabel}`,
         status: 'completed',
-        details: `Event ID: ${nostrResult.clawnchEventId?.slice(0, 16)}...`,
+        details: platformResult?.postUrl || nostrResult.clawnchEventId?.slice(0, 16) || 'posted',
       });
     } else {
       steps.push({
@@ -298,9 +303,9 @@ export async function handleLaunchAgent(
         details: nostrResult.error || 'Events created, relay publishing pending',
       });
       steps.push({
-        step: 'Post !clawnch',
+        step: `Post !clawnch to ${platformLabel}`,
         status: nostrResult.clawnchEventId ? 'completed' : 'failed',
-        details: `Platform: ${body.platform || 'clawstr'}`,
+        details: platformResult?.error || `Platform: ${launchPlatform}`,
       });
     }
 
@@ -781,10 +786,11 @@ export async function fundAgentWallet(
 }
 
 /**
- * Poll Clawnch API for a newly deployed token by symbol.
+ * Poll Clanker search API for a newly deployed token by symbol.
  *
- * Clawnch token deployment is async — the Nostr event fires, then the Clawnch bot
- * picks it up and deploys the contract. We poll to discover the token address.
+ * Token deployment is async — the !clawnch post fires, then the Clawnch scanner
+ * triggers Clanker to deploy the contract. We poll Clanker's search API to
+ * discover the token address (no 50-item window limit like clawn.ch/api/launches).
  */
 export async function pollClawnchForToken(
   tokenSymbol: string,
@@ -796,33 +802,33 @@ export async function pollClawnchForToken(
 
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
-      const response = await fetch('https://clawn.ch/api/launches', {
+      const response = await fetch(`https://clanker.world/api/tokens/search?q=${encodeURIComponent(symbolUpper)}`, {
         headers: { Accept: 'application/json' },
         signal: AbortSignal.timeout(10000),
       });
 
       if (!response.ok) {
-        console.warn(`[launch] Clawnch poll attempt ${attempt + 1} failed: ${response.status}`);
+        console.warn(`[launch] Clanker search attempt ${attempt + 1} failed: ${response.status}`);
         continue;
       }
 
-      const data = await response.json() as
-        | Array<{ contractAddress: string; symbol: string }>
-        | { launches: Array<{ contractAddress: string; symbol: string }> };
+      const body = await response.json() as {
+        data?: Array<{ contract_address: string; symbol: string }>;
+      };
 
-      const launches = Array.isArray(data) ? data : data.launches || [];
+      const tokens = body.data || [];
 
-      // Filter by symbol (wallet filter is known broken — see MEMORY.md)
-      const match = launches.find(
-        (l) => l.symbol?.toUpperCase() === symbolUpper
+      // Exact symbol match
+      const match = tokens.find(
+        (t) => t.symbol?.toUpperCase() === symbolUpper
       );
 
-      if (match?.contractAddress) {
-        console.log(`[launch] Found token ${symbolUpper} at ${match.contractAddress}`);
-        return match.contractAddress as Address;
+      if (match?.contract_address) {
+        console.log(`[launch] Found token ${symbolUpper} at ${match.contract_address}`);
+        return match.contract_address as Address;
       }
     } catch (error) {
-      console.warn(`[launch] Clawnch poll attempt ${attempt + 1} error:`, error);
+      console.warn(`[launch] Clanker search attempt ${attempt + 1} error:`, error);
     }
 
     // Wait before retrying (except on last attempt)
@@ -1069,21 +1075,26 @@ export async function handleLaunchPortfolio(
       steps.push({ step: 'Register DeFi ERC-8004', status: 'failed', details: erc8004Result.error || 'Registration failed' });
     }
 
-    // 2d. Nostr profile + !clawnch
+    // 2d. Nostr profile + !clawnch via 4claw (or Moltbook fallback)
+    const portfolioPlatform = body.platform || '4claw';
     const nostrKeys = deriveNostrKeys(defiWallet.privateKey, agentName);
     const nostrResult = await launchAgentOnNostr(nostrKeys.privateKey, {
       tokenName,
       tokenSymbol,
       description: tokenDescription,
       imageUrl: body.imageUrl,
-      platform: body.platform || 'clawstr',
+      platform: portfolioPlatform,
       agentWallet: defiWallet.address,
       ensName: defiEnsName,
+      moltbookApiKey: env.MOLTBOOK_API_KEY,
+      fourClawApiKey: env.FOURCLAW_API_KEY,
     });
+    const portfolioPlatformLabel = portfolioPlatform === '4claw' ? '4claw' : 'Moltbook';
+    const portfolioPlatformResult = nostrResult.fourClaw || nostrResult.moltbook;
     if (nostrResult.success) {
-      steps.push({ step: 'Post Nostr !clawnch', status: 'completed', details: `Event: ${nostrResult.clawnchEventId?.slice(0, 16)}...` });
+      steps.push({ step: `Post !clawnch to ${portfolioPlatformLabel}`, status: 'completed', details: portfolioPlatformResult?.postUrl || `Event: ${nostrResult.clawnchEventId?.slice(0, 16)}...` });
     } else {
-      steps.push({ step: 'Post Nostr !clawnch', status: 'failed', details: nostrResult.error || 'Nostr launch failed' });
+      steps.push({ step: `Post !clawnch to ${portfolioPlatformLabel}`, status: 'failed', details: portfolioPlatformResult?.error || nostrResult.error || `${portfolioPlatformLabel} launch failed` });
     }
 
     // 2e. Poll for token address (single quick check — cron handles late discovery)
@@ -1514,4 +1525,97 @@ export async function handleRegisterENS(
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// POST /retry-nostr — Re-publish Nostr events for an existing agent
+// Used when mobile browser killed the launch request before Nostr step completed
+// ════════════════════════════════════════════════════════════════════════════
+
+export async function handleRetryNostr(
+  request: Request,
+  env: Env,
+  corsHeaders: Record<string, string>
+): Promise<Response> {
+  const body = await request.json() as {
+    userAddress?: string;
+    agentName?: string;
+    tokenName?: string;
+    tokenDescription?: string;
+    platform?: 'moltbook' | '4claw' | 'clawstr' | 'moltx';
+    imageUrl?: string;
+  };
+
+  if (!body.userAddress || !body.agentName) {
+    return new Response(JSON.stringify({ success: false, error: 'Missing userAddress or agentName' }), {
+      status: 400,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
+  const userAddress = body.userAddress as Address;
+  const agentName = body.agentName;
+
+  // Look up the DeFi agent from KV
+  const agent = await getStoredAgent(env.TREASURY_KV, userAddress, agentName);
+  if (!agent) {
+    return new Response(JSON.stringify({ success: false, error: `Agent "${agentName}" not found for ${userAddress}` }), {
+      status: 404,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
+  // If token is already deployed, no need to retry
+  if (agent.tokenAddress) {
+    return new Response(JSON.stringify({
+      success: true,
+      alreadyDeployed: true,
+      tokenAddress: agent.tokenAddress,
+      tokenSymbol: agent.tokenSymbol,
+      message: 'Token is already deployed — no retry needed',
+    }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
+  if (!agent.tokenSymbol) {
+    return new Response(JSON.stringify({ success: false, error: 'Agent has no tokenSymbol — cannot create !clawnch event' }), {
+      status: 400,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
+  // Derive Nostr keys from the stored agent private key
+  const nostrKeys = deriveNostrKeys(agent.encryptedKey as `0x${string}`, agentName);
+
+  // Re-publish profile + !clawnch via 4claw (or Moltbook fallback)
+  const retryPlatform = body.platform || '4claw';
+  const nostrResult = await launchAgentOnNostr(nostrKeys.privateKey, {
+    tokenName: body.tokenName || agent.tokenSymbol,
+    tokenSymbol: agent.tokenSymbol,
+    description: body.tokenDescription || `${agent.tokenSymbol} agent token`,
+    imageUrl: body.imageUrl,
+    platform: retryPlatform,
+    agentWallet: agent.address,
+    ensName: agent.ensName,
+    moltbookApiKey: env.MOLTBOOK_API_KEY,
+    fourClawApiKey: env.FOURCLAW_API_KEY,
+  });
+
+  const retryPlatformLabel = retryPlatform === '4claw' ? '4claw' : 'Moltbook';
+  return new Response(JSON.stringify({
+    success: nostrResult.success,
+    profileEventId: nostrResult.profileEventId,
+    clawnchEventId: nostrResult.clawnchEventId,
+    moltbook: nostrResult.moltbook,
+    fourClaw: nostrResult.fourClaw,
+    relaysPublished: nostrResult.relaysPublished,
+    error: nostrResult.error,
+    message: nostrResult.success
+      ? `Posted to ${retryPlatformLabel} — token should appear on Clawnch within ~60s`
+      : `Failed to publish to ${retryPlatformLabel}`,
+  }), {
+    status: nostrResult.success ? 200 : 502,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
 }

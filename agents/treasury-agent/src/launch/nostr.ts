@@ -1,22 +1,22 @@
-// P3 Gap 9: Nostr Integration
+// P3 Gap 9: Nostr + Moltbook Integration
 // Creates bot profiles and posts !clawnch commands for token launches
+// Primary: Moltbook HTTP API (m/clawnch submolt) — Clawnch scanner auto-deploys
+// Secondary: Nostr relays (profile events only)
 
 import { getPublicKey, finalizeEvent, type EventTemplate, type Event } from 'nostr-tools';
 import type { Address } from 'viem';
 
-// Nostr relays for Clawnch — only the 2 required for scanner to minimize Workers subrequests
+// Nostr relays — still used for profile events
 const DEFAULT_RELAYS = [
   'wss://relay.ditto.pub',
   'wss://relay.primal.net',
 ] as const;
 
-// Clawnch platform hashtags
-const PLATFORM_TAGS: Record<string, string> = {
-  moltbook: '#moltbook',
-  '4claw': '#4claw',
-  clawstr: '#clawstr',
-  moltx: '#moltx',
-};
+// Moltbook API for creating posts in m/clawnch submolt
+const MOLTBOOK_API_URL = 'https://www.moltbook.com/api/v1/posts';
+
+// 4claw.org API for creating threads on /crypto board
+const FOURCLAW_API_URL = 'https://www.4claw.org/api/v1/boards/crypto/threads';
 
 /**
  * Nostr keys derived from agent private key
@@ -234,7 +234,158 @@ export async function publishToRelays(
 }
 
 /**
- * Create and publish Nostr profile + !clawnch in one call
+ * Result of publishing to Moltbook
+ */
+export interface MoltbookPublishResult {
+  success: boolean;
+  postId?: string;
+  postUrl?: string;
+  error?: string;
+}
+
+/**
+ * Build the !clawnch post content string (shared between Nostr and Moltbook)
+ */
+export function buildClawnchContent(params: {
+  tokenName: string;
+  tokenSymbol: string;
+  description: string;
+  imageUrl?: string;
+  agentWallet: Address;
+}): string {
+  const imageUrl = params.imageUrl || 'https://i.imgur.com/PZJt41r.png';
+  let content = `!clawnch\nname: ${params.tokenName}\nsymbol: ${params.tokenSymbol}\n`;
+  content += `wallet: ${params.agentWallet}\n`;
+  content += `description: ${params.description}\n`;
+  content += `image: ${imageUrl}`;
+  return content;
+}
+
+/**
+ * Publish a !clawnch post to the m/clawnch submolt on Moltbook.
+ * The Clawnch scanner auto-picks this up every ~60s and deploys the token.
+ */
+export async function publishToMoltbook(
+  apiKey: string,
+  params: {
+    tokenName: string;
+    tokenSymbol: string;
+    description: string;
+    imageUrl?: string;
+    agentWallet: Address;
+  }
+): Promise<MoltbookPublishResult> {
+  const content = buildClawnchContent(params);
+
+  try {
+    const res = await fetch(MOLTBOOK_API_URL, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        submolt: 'clawnch',
+        title: `${params.tokenName} ($${params.tokenSymbol})`,
+        content,
+      }),
+    });
+
+    const body = await res.json() as Record<string, unknown>;
+
+    if (!res.ok || !body.success) {
+      return {
+        success: false,
+        error: (body.error as string) || `Moltbook API returned ${res.status}`,
+      };
+    }
+
+    const data = body.data as Record<string, unknown> | undefined;
+    return {
+      success: true,
+      postId: data?.id as string | undefined,
+      postUrl: data?.url as string | undefined,
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Moltbook publish failed',
+    };
+  }
+}
+
+/**
+ * Result of publishing to 4claw.org
+ */
+export interface FourClawPublishResult {
+  success: boolean;
+  postId?: string;
+  postUrl?: string;
+  error?: string;
+}
+
+/**
+ * Publish a !clawnch thread to the /crypto board on 4claw.org.
+ * The Clawnch scanner auto-picks this up and deploys the token.
+ */
+export async function publishTo4claw(
+  apiKey: string,
+  params: {
+    tokenName: string;
+    tokenSymbol: string;
+    description: string;
+    imageUrl?: string;
+    agentWallet: Address;
+  }
+): Promise<FourClawPublishResult> {
+  const content = buildClawnchContent(params);
+
+  try {
+    const res = await fetch(FOURCLAW_API_URL, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        title: `${params.tokenName} - ${params.tokenSymbol}`,
+        content,
+        anon: false,
+      }),
+    });
+
+    // 4claw returns 201 Created on success — res.ok covers 200-299
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({})) as Record<string, unknown>;
+      return {
+        success: false,
+        error: (body.error as string) || `4claw API returned ${res.status}`,
+      };
+    }
+
+    const body = await res.json().catch(() => ({})) as Record<string, unknown>;
+    // 4claw response shape: { id, url, ... } or { data: { id, url } }
+    const data = (body.data as Record<string, unknown> | undefined) || body;
+    return {
+      success: true,
+      postId: (data.id ?? data.thread_id ?? data.post_id) as string | undefined,
+      postUrl: (data.url ?? data.thread_url) as string | undefined,
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : '4claw publish failed',
+    };
+  }
+}
+
+/**
+ * Create and publish Nostr profile + !clawnch via Moltbook
+ *
+ * 1. Publishes Nostr profile event to relays (agent identity)
+ * 2. Posts !clawnch content to Moltbook m/clawnch submolt (token launch)
+ *
+ * If moltbookApiKey is not provided, falls back to Nostr-only publishing.
  */
 export async function launchAgentOnNostr(
   privateKeyHex: string,
@@ -246,17 +397,57 @@ export async function launchAgentOnNostr(
     platform: 'moltbook' | '4claw' | 'clawstr' | 'moltx';
     agentWallet: Address;
     ensName?: string;
+    moltbookApiKey?: string;
+    fourClawApiKey?: string;
   }
-): Promise<NostrPublishResult & { events: Event[] }> {
-  // 1. Create profile event
+): Promise<NostrPublishResult & { events: Event[]; moltbook?: MoltbookPublishResult; fourClaw?: FourClawPublishResult }> {
+  // 1. Create & publish Nostr profile event (agent identity on relays)
   const profileEvent = createProfileEvent(privateKeyHex, {
     name: params.tokenName,
     about: `${params.description}\n\nENS: ${params.ensName || 'pending'}`,
     picture: params.imageUrl,
     bot: true,
   });
+  const profilePublish = await publishToRelays([profileEvent]);
 
-  // 2. Create !clawnch event
+  const launchParams = {
+    tokenName: params.tokenName,
+    tokenSymbol: params.tokenSymbol,
+    description: params.description,
+    imageUrl: params.imageUrl,
+    agentWallet: params.agentWallet,
+  };
+
+  // 2. Route to the right publisher based on platform
+  if (params.platform === '4claw' && params.fourClawApiKey) {
+    const fourClawResult = await publishTo4claw(params.fourClawApiKey, launchParams);
+
+    return {
+      success: fourClawResult.success,
+      profileEventId: profileEvent.id,
+      clawnchEventId: fourClawResult.postId,
+      relaysPublished: profilePublish.relaysPublished,
+      error: fourClawResult.error,
+      events: [profileEvent],
+      fourClaw: fourClawResult,
+    };
+  }
+
+  if (params.platform === 'moltbook' && params.moltbookApiKey) {
+    const moltbookResult = await publishToMoltbook(params.moltbookApiKey, launchParams);
+
+    return {
+      success: moltbookResult.success,
+      profileEventId: profileEvent.id,
+      clawnchEventId: moltbookResult.postId,
+      relaysPublished: profilePublish.relaysPublished,
+      error: moltbookResult.error,
+      events: [profileEvent],
+      moltbook: moltbookResult,
+    };
+  }
+
+  // Fallback: Nostr-only publishing (legacy Clawstr path)
   const clawnchEvent = createClawnchEvent(privateKeyHex, {
     tokenSymbol: params.tokenSymbol,
     tokenName: params.tokenName,
@@ -266,8 +457,6 @@ export async function launchAgentOnNostr(
     agentWallet: params.agentWallet,
   });
 
-  // 3. Publish both events (profile first so bot flag exists when scanner checks)
-  // The Clawnch scanner runs every ~60s, so profile has time to propagate
   const publishResult = await publishToRelays([profileEvent, clawnchEvent]);
 
   return {

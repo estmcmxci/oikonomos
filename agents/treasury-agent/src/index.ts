@@ -10,7 +10,7 @@ import { getFeeAnalytics, getRecentEarnings } from './x402/analytics';
 import { handleScheduledTrigger, handleEventsWebhook, savePolicy, saveAuthorization, deleteAuthorization, type UserAuthorization } from './observation';
 import { handleVerifyReceipt } from './verification/handler'; // OIK-53: Receipt verification
 import { handleCreateSession, handleGetSession, handleRevokeSession } from './session/handler'; // OIK-10: Session keys
-import { handleLaunchAgent, handleListAgents, handleImportAgent, handleLaunchPortfolio, handleRegisterENS, handleGenerateWallets, handlePollToken } from './launch/handler'; // Phase 5: Agent launcher
+import { handleLaunchAgent, handleListAgents, handleImportAgent, handleLaunchPortfolio, handleRegisterENS, handleGenerateWallets, handlePollToken, handleRetryNostr } from './launch/handler'; // Phase 5: Agent launcher
 import { handleClaimFees } from './execute/claimHandler'; // Phase 3: Fee claiming
 import { handleFeeStatus, handleUpdateDistribution } from './execute/feeStatus'; // Fee status & distribution settings
 import { withdrawToDeployer, withdrawEthToDeployer } from './execute/wethDistribution'; // OIK-69: WETH/ETH withdrawal
@@ -35,6 +35,8 @@ export interface Env {
   PIMLICO_API_KEY?: string;
   PIMLICO_BUNDLER_URL?: string;
   CCIP_SIGNER_KEY?: string; // Deployer key for CCIP ENS signing (trustedSigner on OffchainSubnameManager)
+  MOLTBOOK_API_KEY?: string; // Moltbook API key for posting !clawnch to m/clawnch submolt
+  FOURCLAW_API_KEY?: string; // 4claw.org API key for posting to /crypto board
 }
 
 const CORS_HEADERS = {
@@ -431,6 +433,11 @@ export default {
       // POST /poll-token - Discover Clawnch-deployed token and update KV
       if (url.pathname === '/poll-token' && request.method === 'POST') {
         return handlePollToken(request, env, CORS_HEADERS);
+      }
+
+      // POST /retry-nostr - Re-publish Nostr events for an agent whose mobile launch dropped
+      if (url.pathname === '/retry-nostr' && request.method === 'POST') {
+        return handleRetryNostr(request, env, CORS_HEADERS);
       }
 
       // POST /register-ens - Register ENS subname for an existing agent (follow-up to launch-portfolio)
