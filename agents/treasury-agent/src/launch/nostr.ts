@@ -368,10 +368,13 @@ export async function publishTo4claw(
     const body = await res.json().catch(() => ({})) as Record<string, unknown>;
     // 4claw response shape: { id, url, ... } or { data: { id, url } }
     const data = (body.data as Record<string, unknown> | undefined) || body;
+    const postId = (data.id ?? data.thread_id ?? data.post_id) as string | undefined;
+    const postUrl = (data.url ?? data.thread_url) as string | undefined
+      || (postId ? `https://www.4claw.org/t/${postId}` : undefined);
     return {
       success: true,
-      postId: (data.id ?? data.thread_id ?? data.post_id) as string | undefined,
-      postUrl: (data.url ?? data.thread_url) as string | undefined,
+      postId,
+      postUrl,
     };
   } catch (err) {
     return {
